@@ -1,0 +1,880 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>OSIRIS LIBRARY documentation (osiris) &mdash; OSIRIS 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="OSIRIS 1.0 documentation" href="index.html" />
+    <link rel="prev" title="Background and Purpose" href="history.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="toctree-wrapper compound">
+<ul class="simple">
+</ul>
+</div>
+<span class="target" id="module-osiris"></span><div class="section" id="osiris-library-documentation-osiris">
+<h1>OSIRIS LIBRARY documentation (<a class="reference internal" href="#module-osiris" title="osiris"><code class="xref py py-mod docutils literal"><span class="pre">osiris</span></code></a>)<a class="headerlink" href="#osiris-library-documentation-osiris" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
+<div class="toctree-wrapper compound">
+<ul class="simple">
+</ul>
+</div>
+<span class="target" id="module-osiris.closure"></span><div class="section" id="closure-module-osiris-closure">
+<h3>Closure Module (<a class="reference internal" href="#module-osiris.closure" title="osiris.closure"><code class="xref py py-mod docutils literal"><span class="pre">osiris.closure</span></code></a>)<a class="headerlink" href="#closure-module-osiris-closure" title="Permalink to this headline">¶</a></h3>
+<p>This module includes routines to model what happens at sub-grid scales.</p>
+<div class="section" id="constants">
+<h4>Constants<a class="headerlink" href="#constants" title="Permalink to this headline">¶</a></h4>
+<div class="toctree-wrapper compound">
+<ul class="simple">
+</ul>
+</div>
+<span class="target" id="module-osiris.closure.coherence_times"></span><dl class="function">
+<dt id="osiris.closure.coherence_times.grid_coherence">
+<code class="descclassname">osiris.closure.coherence_times.</code><code class="descname">grid_coherence</code><span class="sig-paren">(</span><em>U</em>, <em>res</em>, <em>f0</em>, <em>model='Pierson-Moskowitz'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/osiris/closure/coherence_times.html#grid_coherence"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#osiris.closure.coherence_times.grid_coherence" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates the coherence time of a resolution cell</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>U</strong> &#8211; wind velocity at reference height</li>
+<li><strong>res</strong> &#8211; grid size [m]</li>
+<li><strong>f0</strong> &#8211; carrier frequency [Hz]</li>
+<li><strong>model</strong> &#8211; Model used, defaults to Pierson-Moskowitz (currently
+the only one implemented)</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<span class="target" id="module-osiris.closure.random_scatterers"></span><dl class="class">
+<dt id="osiris.closure.random_scatterers.randomscat_ts">
+<em class="property">class </em><code class="descclassname">osiris.closure.random_scatterers.</code><code class="descname">randomscat_ts</code><span class="sig-paren">(</span><em>tau</em>, <em>dim</em>, <em>Fs</em>, <em>N=None</em>, <em>seed=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/osiris/closure/random_scatterers.html#randomscat_ts"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#osiris.closure.random_scatterers.randomscat_ts" title="Permalink to this definition">¶</a></dt>
+<dd><p>A class defining a random time series of complex values with a
+Gaussian Spectrum</p>
+</dd></dl>
+
+</div>
+</div>
+<span class="target" id="module-osiris.constants"></span><div class="section" id="constants-package-osiris-constants">
+<h3>Constants Package (<a class="reference internal" href="#module-osiris.constants" title="osiris.constants"><code class="xref py py-mod docutils literal"><span class="pre">osiris.constants</span></code></a>)<a class="headerlink" href="#constants-package-osiris-constants" title="Permalink to this headline">¶</a></h3>
+<div class="section" id="id1">
+<h4>Constants<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h4>
+<div class="toctree-wrapper compound">
+<ul class="simple">
+</ul>
+</div>
+<span class="target" id="module-osiris.constants.constants"></span><p><strong>Custom Added Constants</strong></p>
+<blockquote>
+<div><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">r_earth:</th><td class="field-body">Earth radius [m]</td>
+</tr>
+<tr class="field-even field"><th class="field-name">m_earth:</th><td class="field-body">Earth mass [Kg]</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">c:</th><td class="field-body">speed of light [m/s]</td>
+</tr>
+<tr class="field-even field"><th class="field-name">g_star:</th><td class="field-body">gravitational constant g_star [m^3/km/s^2]</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">gm_earth:</th><td class="field-body">g_star * mass of earth [m^3/s^2]</td>
+</tr>
+<tr class="field-even field"><th class="field-name">gm_sun:</th><td class="field-body">g_star * mass of sun [m^3/s^2]</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">au:</th><td class="field-body">astronomical unit [m]</td>
+</tr>
+<tr class="field-even field"><th class="field-name">r_sun:</th><td class="field-body">radius of the sun [m]</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">p_sun:</th><td class="field-body">radiation pressure of the sun [N/m^2]</td>
+</tr>
+<tr class="field-even field"><th class="field-name">gm_moon:</th><td class="field-body">g_star * mass of moon [m^3/s^2]</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">d_moon_earth:</th><td class="field-body">mean distance moon to earth [m]</td>
+</tr>
+<tr class="field-even field"><th class="field-name">r_moon:</th><td class="field-body">radius of moon [m]</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">h:</th><td class="field-body">Planck&#8217;s constant [Js]</td>
+</tr>
+<tr class="field-even field"><th class="field-name">omega_earth:</th><td class="field-body">angular velocity of earth [1/s] WGS84</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">pi:</th><td class="field-body">pi to 30 digits</td>
+</tr>
+<tr class="field-even field"><th class="field-name">j2:</th><td class="field-body">zonal coefficient</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">j3:</th><td class="field-body">zonal coefficient</td>
+</tr>
+<tr class="field-even field"><th class="field-name">j4:</th><td class="field-body">zonal coefficient</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">j5:</th><td class="field-body">zonal coefficient</td>
+</tr>
+</tbody>
+</table>
+</div></blockquote>
+<dl class="function">
+<dt id="osiris.constants.constants.r_equatorial">
+<code class="descclassname">osiris.constants.constants.</code><code class="descname">r_equatorial</code><span class="sig-paren">(</span><em>system='wgs84'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/osiris/constants/constants.html#r_equatorial"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#osiris.constants.constants.r_equatorial" title="Permalink to this definition">¶</a></dt>
+<dd><p>Defines equatorial radius according to a specific system</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Date:</th><td class="field-body">20.10.2014</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Author:</th><td class="field-body">Jalal Matar</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>system</strong> &#8211; defines the measurments
+system (iau, krassowsky or wgs84)</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">equatorial radius</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="osiris.constants.constants.r_polar">
+<code class="descclassname">osiris.constants.constants.</code><code class="descname">r_polar</code><span class="sig-paren">(</span><em>system='wgs84'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/osiris/constants/constants.html#r_polar"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#osiris.constants.constants.r_polar" title="Permalink to this definition">¶</a></dt>
+<dd><p>Defines polar radius according to a specific system</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Date:</th><td class="field-body">20.10.2014</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Author:</th><td class="field-body">Jalal Matar</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>system</strong> &#8211; defines the measurments
+system (iau, krassowsky or wgs84)</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">polar radius</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
+</div>
+<span class="target" id="module-osiris.io"></span><div class="section" id="i-o-utilities-osiris-io">
+<h3>I/O Utilities (<a class="reference internal" href="#module-osiris.io" title="osiris.io"><code class="xref py py-mod docutils literal"><span class="pre">osiris.io</span></code></a>)<a class="headerlink" href="#i-o-utilities-osiris-io" title="Permalink to this headline">¶</a></h3>
+<p>This module contains I/O Utilities</p>
+<div class="section" id="state-files">
+<h4>State Files<a class="headerlink" href="#state-files" title="Permalink to this headline">¶</a></h4>
+<div class="toctree-wrapper compound">
+<ul class="simple">
+</ul>
+</div>
+<span class="target" id="module-osiris.io.netcdf"></span><dl class="class">
+<dt id="osiris.io.netcdf.NETCDFHandler">
+<em class="property">class </em><code class="descclassname">osiris.io.netcdf.</code><code class="descname">NETCDFHandler</code><a class="reference internal" href="_modules/osiris/io/netcdf.html#NETCDFHandler"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#osiris.io.netcdf.NETCDFHandler" title="Permalink to this definition">¶</a></dt>
+<dd><p>Child class to ease netCDF file handling.</p>
+<dl class="docutils">
+<dt>Usage:</dt>
+<dd><ul class="first last">
+<li><p class="first">Class variable __file__ contains the netCDF file object</p>
+</li>
+<li><p class="first">__file__ needs to be properly initialized by parent class</p>
+</li>
+<li><dl class="first docutils">
+<dt>Complex types are supported in the following way:</dt>
+<dd><ul class="first last simple">
+<li>Define the variable real and imaginary parts with
+suffixes _r, _i respectively, i.e. test_r, test_i</li>
+<li>Use get/set methods appending &#8216;*&#8217; to variable name,
+i.e. get(&#8216;test*&#8217;), set(&#8216;test*&#8217;, complex_array)</li>
+</ul>
+</dd>
+</dl>
+</li>
+</ul>
+</dd>
+</dl>
+<dl class="method">
+<dt id="osiris.io.netcdf.NETCDFHandler.close">
+<code class="descname">close</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/osiris/io/netcdf.html#NETCDFHandler.close"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#osiris.io.netcdf.NETCDFHandler.close" title="Permalink to this definition">¶</a></dt>
+<dd><p>Close file</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="osiris.io.netcdf.NETCDFHandler.get">
+<code class="descname">get</code><span class="sig-paren">(</span><em>name</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/osiris/io/netcdf.html#NETCDFHandler.get"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#osiris.io.netcdf.NETCDFHandler.get" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get variable content</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>name</strong> &#8211; Variable name</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="osiris.io.netcdf.NETCDFHandler.set">
+<code class="descname">set</code><span class="sig-paren">(</span><em>name</em>, <em>value</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/osiris/io/netcdf.html#NETCDFHandler.set"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#osiris.io.netcdf.NETCDFHandler.set" title="Permalink to this definition">¶</a></dt>
+<dd><p>Set variable content</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>name</strong> &#8211; Variable name</li>
+<li><strong>value</strong> &#8211; Variable content</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<span class="target" id="module-osiris.io.state"></span></div>
+</div>
+<span class="target" id="module-osiris.nrcs"></span><div class="section" id="nrcs-models-module-osiris-nrcs">
+<h3>NRCS Models Module (<a class="reference internal" href="#module-osiris.nrcs" title="osiris.nrcs"><code class="xref py py-mod docutils literal"><span class="pre">osiris.nrcs</span></code></a>)<a class="headerlink" href="#nrcs-models-module-osiris-nrcs" title="Permalink to this headline">¶</a></h3>
+<p>This module includes a number of backscattering models.</p>
+<p>RCS Models</p>
+<div class="section" id="available-models">
+<h4>Available models<a class="headerlink" href="#available-models" title="Permalink to this headline">¶</a></h4>
+<div class="toctree-wrapper compound">
+<ul class="simple">
+</ul>
+</div>
+<span class="target" id="module-osiris.nrcs.ka"></span><dl class="class">
+<dt id="osiris.nrcs.ka.RCSKA">
+<em class="property">class </em><code class="descclassname">osiris.nrcs.ka.</code><code class="descname">RCSKA</code><span class="sig-paren">(</span><em>mode</em>, <em>k0</em>, <em>x</em>, <em>y</em>, <em>dx</em>, <em>dy</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/osiris/nrcs/ka.html#RCSKA"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#osiris.nrcs.ka.RCSKA" title="Permalink to this definition">¶</a></dt>
+<dd><p>Kirchoff Approximation</p>
+<p>Available solution modes: SPA / FA</p>
+<ul>
+<li><p class="first">SPA: Stationary-Phase Method</p>
+</li>
+<li><dl class="first docutils">
+<dt>FA: Facet Approach E.M. calculation model</dt>
+<dd><p class="first last">This models calculates the E.M. of a surface
+solving the Stratton-Chu integral on each facet.
+This way, an explicit solution for the integral
+can be implemented and hence leading to reasonable
+computation times.</p>
+</dd>
+</dl>
+</li>
+</ul>
+<dl class="docutils">
+<dt>References:</dt>
+<dd><dl class="first last docutils">
+<dt>&#8220;Simulation of L-Band Bistatic Returns From the Ocean Surface:</dt>
+<dd><p class="first">A Facet Approach With Application to Ocean GNSS Reflectometry&#8221;
+M. Paola Clarizia et al.</p>
+<p class="last">&#8220;Microwave Remote Sensing. Active and Passive (Vol II)&#8221; Sect. 12-4
+T. Ulaby, R. Moore, A. Fung</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>mode</strong> &#8211; Computation mode (spa, fa)</li>
+<li><strong>k0</strong> &#8211; Radar wave number</li>
+<li><strong>x</strong> &#8211; Surface &#8216;X&#8217; vector</li>
+<li><strong>y</strong> &#8211; Surface &#8216;Y&#8217; vector</li>
+<li><strong>dx</strong> &#8211; Surface &#8216;X&#8217; facet resolution</li>
+<li><strong>dy</strong> &#8211; Surface &#8216;Y&#8217; facet resolution</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="method">
+<dt id="osiris.nrcs.ka.RCSKA.field">
+<code class="descname">field</code><span class="sig-paren">(</span><em>R_i</em>, <em>R_s</em>, <em>pol_i</em>, <em>pol_s</em>, <em>theta_i</em>, <em>theta_s</em>, <em>phi_i</em>, <em>phi_s</em>, <em>Dz</em>, <em>Diffx</em>, <em>Diffy</em>, <em>Diffxx</em>, <em>Diffyy</em>, <em>Diffxy</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/osiris/nrcs/ka.html#RCSKA.field"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#osiris.nrcs.ka.RCSKA.field" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates E.M. field</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>R_i</strong> &#8211; Distance from transmitter to scene center</li>
+<li><strong>R_s</strong> &#8211; Distance from scene center to receiver</li>
+<li><strong>pol_i</strong> &#8211; Incident polarization (v, h)</li>
+<li><strong>pol_s</strong> &#8211; Scattered polarization (v, h)</li>
+<li><strong>theta_i</strong> &#8211; Incidence elevation angle</li>
+<li><strong>theta_s</strong> &#8211; Scattered elevation angle</li>
+<li><strong>phi_i</strong> &#8211; Incidence azimuth angle</li>
+<li><strong>phi_s</strong> &#8211; Scattered azimuth angle</li>
+<li><strong>Dz</strong> &#8211; Surface height field</li>
+<li><strong>Diffx</strong> &#8211; Space first derivatives (X slopes)</li>
+<li><strong>Diffy</strong> &#8211; Space first derivatives (Y slopes)</li>
+<li><strong>Diffxx</strong> &#8211; Space second derivatives (XX)</li>
+<li><strong>Diffyy</strong> &#8211; Space second derivatives (YY)</li>
+<li><strong>Diffxy</strong> &#8211; Space second derivatives (XY)</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="osiris.nrcs.ka.RCSKA.rcs">
+<code class="descname">rcs</code><span class="sig-paren">(</span><em>pol_i</em>, <em>pol_s</em>, <em>theta_i</em>, <em>theta_s</em>, <em>phi_i</em>, <em>phi_s</em>, <em>Dz</em>, <em>Diffx</em>, <em>Diffy</em>, <em>Diffxx</em>, <em>Diffyy</em>, <em>Diffxy</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/osiris/nrcs/ka.html#RCSKA.rcs"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#osiris.nrcs.ka.RCSKA.rcs" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates RCS</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>pol_i</strong> &#8211; Incident polarization (v, h)</li>
+<li><strong>pol_s</strong> &#8211; Scattered polarization (v, h)</li>
+<li><strong>theta_i</strong> &#8211; Incidence elevation angle</li>
+<li><strong>theta_s</strong> &#8211; Scattered elevation angle</li>
+<li><strong>phi_i</strong> &#8211; Incidence azimuth angle</li>
+<li><strong>phi_s</strong> &#8211; Scattered azimuth angle</li>
+<li><strong>Dz</strong> &#8211; Surface height field</li>
+<li><strong>Diffx</strong> &#8211; Space first derivatives (X slopes)</li>
+<li><strong>Diffy</strong> &#8211; Space first derivatives (Y slopes)</li>
+<li><strong>Diffxx</strong> &#8211; Space second derivatives (XX)</li>
+<li><strong>Diffyy</strong> &#8211; Space second derivatives (YY)</li>
+<li><strong>Diffxy</strong> &#8211; Space second derivatives (XY)</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<span class="target" id="module-osiris.nrcs.kodis"></span><dl class="class">
+<dt id="osiris.nrcs.kodis.RCSKodis">
+<em class="property">class </em><code class="descclassname">osiris.nrcs.kodis.</code><code class="descname">RCSKodis</code><span class="sig-paren">(</span><em>inc</em>, <em>k0</em>, <em>dx</em>, <em>dy</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/osiris/nrcs/kodis.html#RCSKodis"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#osiris.nrcs.kodis.RCSKodis" title="Permalink to this definition">¶</a></dt>
+<dd><p>Specular model (R.D. Kodis &#8216;66)</p>
+<p>Physical optics model as described in R.D. Kodis (1966) paper
+&#8216;A Note on the Theory of Scattering from an Irregular Surface&#8217;.
+E.M. solved using Stationary Phase Method.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">G. Valenzuela suggested that reflection coefficient (R)
+may be replaced by effective refl. coef.!</p>
+</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">OASIS uses only range dependent incidence angle, so
+it is given on class init.</p>
+</div>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>inc</strong> &#8211; Incidence angle matrix</li>
+<li><strong>k0</strong> &#8211; Radar wave number</li>
+<li><strong>dx</strong> &#8211; Range resolution</li>
+<li><strong>dy</strong> &#8211; Azimuth resolution</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<span class="target" id="module-osiris.nrcs.romeiser97"></span><dl class="class">
+<dt id="osiris.nrcs.romeiser97.RCSRomeiser97">
+<em class="property">class </em><code class="descclassname">osiris.nrcs.romeiser97.</code><code class="descname">RCSRomeiser97</code><span class="sig-paren">(</span><em>k0</em>, <em>inc_angle</em>, <em>pol</em>, <em>dx</em>, <em>dy</em>, <em>wind_U</em>, <em>wind_dir</em>, <em>wind_fetch</em>, <em>sw_spec_func</em>, <em>sw_spread_func</em>, <em>d</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/osiris/nrcs/romeiser97.html#RCSRomeiser97"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#osiris.nrcs.romeiser97.RCSRomeiser97" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bragg scattering model (R. Romeiser &#8216;97)</p>
+<p>This function returns RCS using the model described in the paper titled:
+&#8220;An improved composite surface model for the radar backscattering cross
+section of the ocean surface&#8221;, R. Romeiser and W. Alpers (1997)</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>k0</strong> &#8211; Radar wave number</li>
+<li><strong>inc_angle</strong> &#8211; Nominal incidence angle</li>
+<li><strong>pol</strong> &#8211; Polarization (&#8216;vv&#8217;, &#8216;hh&#8217;)</li>
+<li><strong>dx</strong> &#8211; Surface facets X size</li>
+<li><strong>dy</strong> &#8211; Surface facets Y size</li>
+<li><strong>wind_U</strong> &#8211; Wind speed (U_10)</li>
+<li><strong>wind_dir</strong> &#8211; Wind blowing direction (rad)</li>
+<li><strong>wind_fetch</strong> &#8211; Wind fetch</li>
+<li><strong>sw_spec_func</strong> &#8211; Omnidirectional spectrum function</li>
+<li><strong>sw_spread_func</strong> &#8211; Spreading function</li>
+<li><strong>d</strong> &#8211; Filter threshold (Kd = Kb/d)</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="method">
+<dt id="osiris.nrcs.romeiser97.RCSRomeiser97.rcs">
+<code class="descname">rcs</code><span class="sig-paren">(</span><em>az_angle</em>, <em>diffx</em>, <em>diffy</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/osiris/nrcs/romeiser97.html#RCSRomeiser97.rcs"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#osiris.nrcs.romeiser97.RCSRomeiser97.rcs" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns RCS map of a surface given its geometry</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>az_angle</strong> &#8211; Azimuth angle</li>
+<li><strong>diffx</strong> &#8211; Surface X slope</li>
+<li><strong>diffy</strong> &#8211; Surface Y slope</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+</div>
+<span class="target" id="module-osiris.spec"></span><div class="section" id="spectrum-models-osiris-spec">
+<h3>Spectrum Models (<a class="reference internal" href="#module-osiris.spec" title="osiris.spec"><code class="xref py py-mod docutils literal"><span class="pre">osiris.spec</span></code></a>)<a class="headerlink" href="#spectrum-models-osiris-spec" title="Permalink to this headline">¶</a></h3>
+<p>This module contains omni-directional wavespectrum models</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p>All ocean spectrum functions must be defined with the following parameters:</p>
+<div class="last highlight-default"><div class="highlight"><pre><span></span><span class="n">model_name</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">U_10</span><span class="p">,</span> <span class="n">fetch</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="ocean-spectrum-models">
+<h4>Ocean spectrum models<a class="headerlink" href="#ocean-spectrum-models" title="Permalink to this headline">¶</a></h4>
+<div class="toctree-wrapper compound">
+<ul class="simple">
+</ul>
+</div>
+<span class="target" id="module-osiris.spec.elfouhaily"></span><p>Elfouhaily et al. Omnidirectional Spectrum</p>
+<dl class="docutils">
+<dt>Reference:</dt>
+<dd>Elfouhaily T., Chapron B., and Katsaros K. (1997). &#8220;A unified
+directional spectrum for long and short wind driven waves&#8221;</dd>
+</dl>
+<span class="target" id="module-osiris.spec.jonswap"></span><p>Wave number spectrum based on the frequency spectrum presented 
+in Hasselmann et al. (1976). The dispersion relation used in the 
+transformation is <img class="math" src="_images/math/0e5c7ee14a9fc033e0dffd557af43b4c39ec3b0a.png" alt="\omega = \sqrt{gk}"/>, so it is only valid 
+for low wave numbers and deep water.</p>
+<dl class="docutils">
+<dt>Reference:</dt>
+<dd><p class="first">Hasselmann, K., W. Sell, D. B. Ross, P. Mueller, 1976: &#8220;A Parametric
+Wave Prediction Model&#8221;. J. Phys. Oceanogr., 6, 200-228.</p>
+<p class="last">Hasselmann, D. E., M. Dunckel, J. A. Ewing, 1980: &#8220;Directional Wave
+Spectra Observed during JONSWAP 1973&#8221;. J. Phys. Oceanogr., 10, 1264-1280</p>
+</dd>
+</dl>
+<span class="target" id="module-osiris.spec.neumann_"></span><p>Implementation of Neumann wave-spectrum according to equation
+8.14:15 in Kinsman&#8217;s &#8220;Wind Waves&#8221;.</p>
+<p>TODO: Change to &#8216;k&#8217; domain</p>
+<span class="target" id="module-osiris.spec.romeiser97"></span><p>Omnidirectional spectrum of Romeiser 97 model</p>
+<dl class="docutils">
+<dt>Reference:</dt>
+<dd>&#8220;An improved composite surface model for the radar backscattering cross 
+section of the ocean surface&#8221;, R. Romeiser and W. Alpers (1997)</dd>
+</dl>
+</div>
+</div>
+<span class="target" id="module-osiris.spread"></span><div class="section" id="directional-spreading-functions-osiris-spread">
+<h3>Directional Spreading Functions (<a class="reference internal" href="#module-osiris.spread" title="osiris.spread"><code class="xref py py-mod docutils literal"><span class="pre">osiris.spread</span></code></a>)<a class="headerlink" href="#directional-spreading-functions-osiris-spread" title="Permalink to this headline">¶</a></h3>
+<p>Directional Spreading Functions</p>
+<p>All functions must be defined with the following parameters:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">model_name</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">theta</span><span class="p">,</span> <span class="n">U_10</span><span class="p">,</span> <span class="n">fetch</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="section" id="id2">
+<h4>Available models<a class="headerlink" href="#id2" title="Permalink to this headline">¶</a></h4>
+<div class="toctree-wrapper compound">
+<ul class="simple">
+</ul>
+</div>
+<span class="target" id="module-osiris.spread.banner"></span><p>Implementation of the directional function to construct the Banner
+directional function, following McDaniel&#8217;s paper.</p>
+<p>McDaniel, S. T. (2001): Small-slope predictions of microwave
+backscatter from the sea surface, Waves in Random Media, 11:3, 343-360.</p>
+<p>Banner, M. L., (1990). Equilibrium spectra of wind waves. 
+J. Phys. Oceanogr., 20, 966-84.</p>
+<span class="target" id="module-osiris.spread.cos2s"></span><p>Cosine raised to the 2s power directional wave function. The model
+is based on that presented in in Hasselmann et al. (1980), but has
+been translated to the wave number domain. The function is
+normalized so that the integral from -pi to pi is 1. The function
+depends on the model used for the omnidirectional spectrum to
+calculate wave number at the peak of the spectrum. Here, we use the
+Hasselmann (1976) spectrum (JONSWAP spectrum).</p>
+<span class="target" id="module-osiris.spread.elfouhaily"></span><p>Implementation of the directional function to construct a
+directional wave spectrum, following Elfouhaily et al.</p>
+<p>Elfouhaily T., Chapron B., and Katsaros K. (1997). &#8220;A unified
+directional spectrum for long and short wind driven waves&#8221;
+J. Geophys. Res. 102 15.781-96</p>
+<p>LOG:
+2011-08-26 Gordon Farquharson: Removed an extra factor of 2. the code that implements from Equation 49.
+2013-01-25 Paco Lopez Dekker: Renormalized function so that the integral in theta gives 1 (instead of 0.5)</p>
+<span class="target" id="module-osiris.spread.hasselmann80"></span><p>Speading function based on Longuet-Higggins (1963) and Hasselmann (1980)</p>
+<span class="target" id="module-osiris.spread.mcdaniel"></span><p>Implementation of the directional function to construct a
+directional wave spectrum, following McDaniel&#8217;s paper. This
+is an extension of the direction model of Donelan et al.</p>
+<p>McDaniel, S. T. (2001): &#8220;Small-slope predictions of microwave
+backscatter from the sea surface&#8221;, Waves in Random Media, 11:3, 343-360.</p>
+<span class="target" id="module-osiris.spread.romeiser97"></span><p>Spreading function of Romeiser 97 model</p>
+<dl class="docutils">
+<dt>Reference:</dt>
+<dd>&#8220;An improved composite surface model for the radar backscattering cross
+section of the ocean surface&#8221;, R. Romeiser and W. Alpers (1997)</dd>
+</dl>
+<span class="target" id="module-osiris.spread.swop"></span><p>Implementation of SWOP spreading function</p>
+<p>Nagai, K. &#8220;Computation of Refraction and Diffraction of 
+Irregular Sea&#8221;. Report of the Port and Harbour Research
+Institute, Vol. 11, No. 2, June 1972. (in Japanese)</p>
+<div class="admonition warning">
+<p class="first admonition-title">Warning</p>
+<p class="last">Wind speed is defined above 5m of the surface</p>
+</div>
+</div>
+</div>
+<span class="target" id="module-osiris.surfaces"></span><div class="section" id="ocean-surfaces-osiris-surfaces">
+<h3>Ocean surfaces (<a class="reference internal" href="#module-osiris.surfaces" title="osiris.surfaces"><code class="xref py py-mod docutils literal"><span class="pre">osiris.surfaces</span></code></a>)<a class="headerlink" href="#ocean-surfaces-osiris-surfaces" title="Permalink to this headline">¶</a></h3>
+<p>This module contains ocean surface class and related utilities</p>
+<div class="section" id="ocean-surfaces">
+<h4>Ocean surfaces<a class="headerlink" href="#ocean-surfaces" title="Permalink to this headline">¶</a></h4>
+<div class="toctree-wrapper compound">
+<ul class="simple">
+</ul>
+</div>
+<span class="target" id="module-osiris.surfaces.ocean"></span><dl class="class">
+<dt id="osiris.surfaces.ocean.OceanSurface">
+<em class="property">class </em><code class="descclassname">osiris.surfaces.ocean.</code><code class="descname">OceanSurface</code><a class="reference internal" href="_modules/osiris/surfaces/ocean.html#OceanSurface"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#osiris.surfaces.ocean.OceanSurface" title="Permalink to this definition">¶</a></dt>
+<dd><p>Ocean Surface class</p>
+<p>This class is used to simulate ocean surfaces.
+Given an initial description of the surface, or
+an state file (initialized surface file) it can
+compute many surface properties (height field,
+slopes, velocities...) for any time instant.</p>
+<dl class="method">
+<dt id="osiris.surfaces.ocean.OceanSurface.init">
+<code class="descname">init</code><span class="sig-paren">(</span><em>Lx</em>, <em>Ly</em>, <em>dx</em>, <em>dy</em>, <em>cutoff_wl</em>, <em>spec_model</em>, <em>spread_model</em>, <em>wind_dir</em>, <em>wind_fetch</em>, <em>wind_U</em>, <em>current_mag</em>, <em>current_dir</em>, <em>swell_enable=False</em>, <em>swell_ampl=0.0</em>, <em>swell_dir=0.0</em>, <em>swell_wl=0.0</em>, <em>compute=[]</em>, <em>opt_res=True</em>, <em>fft_max_prime=2</em>, <em>choppy_enable=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/osiris/surfaces/ocean.html#OceanSurface.init"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#osiris.surfaces.ocean.OceanSurface.init" title="Permalink to this definition">¶</a></dt>
+<dd><p>Initialize surface with parameters</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>Lx</strong> &#8211; Scene X size (m)</li>
+<li><strong>Ly</strong> &#8211; Scene Y size (m)</li>
+<li><strong>dx</strong> &#8211; Scene X resolution (m)</li>
+<li><strong>dy</strong> &#8211; Scene Y resolution (m)</li>
+<li><strong>cutoff_wl</strong> &#8211; Spectrum wavelength cut-off (m) - None/&#8217;auto&#8217; to set it automatically</li>
+<li><strong>spec_model</strong> &#8211; Omnidirectional Spectrum model</li>
+<li><strong>spread_model</strong> &#8211; Spreading function model</li>
+<li><strong>wind_dir</strong> &#8211; Wind direction (rad)</li>
+<li><strong>wind_fetch</strong> &#8211; Wind fetch (m)</li>
+<li><strong>wind_U</strong> &#8211; Wind speed (m/s)</li>
+<li><strong>current_mag</strong> &#8211; Current magnitude</li>
+<li><strong>current_dir</strong> &#8211; Current direction (rad)</li>
+<li><strong>swell_enable</strong> &#8211; EN/DIS Swell</li>
+<li><strong>swell_ampl</strong> &#8211; Swell amplitude (m)</li>
+<li><strong>swell_dir</strong> &#8211; Swell direction (rad)</li>
+<li><strong>swell_wl</strong> &#8211; Swell peak wavelength (m)</li>
+<li><strong>compute</strong> &#8211; List with values to compute
+- &#8216;D&#8217;: EN/DIS Computation of Wavefield (Dx,Dy,Dz)
+- &#8216;Diff&#8217;: EN/DIS Computation of space 1st derivatives (slopes)
+- &#8216;Diff2&#8217;: EN/DIS Computation of space 2nd derivatives
+- &#8216;V&#8217;: EN/DIS Computation of time 1st derivative (velocities)
+- &#8216;A&#8217;: EN/DIS Computation of time 2nd derivative (accelerations)
+- &#8216;hMTF&#8217;: EN/DIS Computation of Hydrodynamic MTF</li>
+<li><strong>opt_res</strong> &#8211; Automatically adjust resolution to have optimal matrix sizes</li>
+<li><strong>fft_max_prime</strong> &#8211; Maximum prime factor allowed in matrix sizes</li>
+<li><strong>choppy_enable</strong> &#8211; EN/DIS Choppy waves</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="osiris.surfaces.ocean.OceanSurface.load">
+<code class="descname">load</code><span class="sig-paren">(</span><em>state_file</em>, <em>compute=[]</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/osiris/surfaces/ocean.html#OceanSurface.load"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#osiris.surfaces.ocean.OceanSurface.load" title="Permalink to this definition">¶</a></dt>
+<dd><p>Initialize surface from OTGI File</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>state_file</strong> &#8211; OTGI file path</li>
+<li><strong>compute</strong> &#8211; List with values to compute
+- &#8216;D&#8217;: EN/DIS Computation of Wavefield (Dx,Dy,Dz)
+- &#8216;Diff&#8217;: EN/DIS Computation of space 1st derivatives (slopes)
+- &#8216;Diff2&#8217;: EN/DIS Computation of space 2nd derivatives
+- &#8216;V&#8217;: EN/DIS Computation of time 1st derivative (velocities)
+- &#8216;A&#8217;: EN/DIS Computation of time 2nd derivative (accelerations)
+- &#8216;hMTF&#8217;: EN/DIS Computation of Hydrodynamic MTF</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="osiris.surfaces.ocean.OceanSurface.save">
+<code class="descname">save</code><span class="sig-paren">(</span><em>state_file</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/osiris/surfaces/ocean.html#OceanSurface.save"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#osiris.surfaces.ocean.OceanSurface.save" title="Permalink to this definition">¶</a></dt>
+<dd><p>Save surface initialization parameters.
+This lets to simulate later exactly the same surface if needed</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>state_file</strong> &#8211; State file path</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="osiris.surfaces.ocean.OceanSurface.t">
+<code class="descname">t</code><a class="headerlink" href="#osiris.surfaces.ocean.OceanSurface.t" title="Permalink to this definition">¶</a></dt>
+<dd><p>Surface time property (t)
+When time (t) is updated, surface is propagated and all
+parameters are computed again.</p>
+</dd></dl>
+
+</dd></dl>
+
+<span class="target" id="module-osiris.surfaces.balancer"></span><dl class="class">
+<dt id="osiris.surfaces.balancer.OceanSurfaceBalancer">
+<em class="property">class </em><code class="descclassname">osiris.surfaces.balancer.</code><code class="descname">OceanSurfaceBalancer</code><span class="sig-paren">(</span><em>surface</em>, <em>dt</em>, <em>t0=0.0</em>, <em>root=0</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/osiris/surfaces/balancer.html#OceanSurfaceBalancer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#osiris.surfaces.balancer.OceanSurfaceBalancer" title="Permalink to this definition">¶</a></dt>
+<dd><p>Ocean Surface Balancer class</p>
+<p>This class is used to access a surface from
+different MPI processes so that each one is
+assigned an azimuth (y) portion of the surface and
+also gives access to common properties</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>surface</strong> &#8211; Full ocean surface (only owned by root process)</li>
+<li><strong>dt</strong> &#8211; Interpolation differential</li>
+<li><strong>t0</strong> &#8211; Initialization time</li>
+<li><strong>root</strong> &#8211; Rank number of surface owner</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
+</div>
+<span class="target" id="module-osiris.utils"></span><div class="section" id="utility-module-osiris-utils">
+<h3>Utility module (<a class="reference internal" href="#module-osiris.utils" title="osiris.utils"><code class="xref py py-mod docutils literal"><span class="pre">osiris.utils</span></code></a>)<a class="headerlink" href="#utility-module-osiris-utils" title="Permalink to this headline">¶</a></h3>
+<p>This module contains ocean surface class and related utilities</p>
+<div class="section" id="id3">
+<h4>Ocean surfaces<a class="headerlink" href="#id3" title="Permalink to this headline">¶</a></h4>
+<div class="toctree-wrapper compound">
+<ul class="simple">
+</ul>
+</div>
+<span class="target" id="module-osiris.utils.misc"></span><dl class="function">
+<dt id="osiris.utils.misc.balance_elements">
+<code class="descclassname">osiris.utils.misc.</code><code class="descname">balance_elements</code><span class="sig-paren">(</span><em>N</em>, <em>size</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/osiris/utils/misc.html#balance_elements"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#osiris.utils.misc.balance_elements" title="Permalink to this definition">¶</a></dt>
+<dd><p>Divide N elements in size chunks
+Useful to balance arrays of size N not multiple
+of the number of processes</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>N</strong> &#8211; Number of elements</li>
+<li><strong>size</strong> &#8211; Number of divisions</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">(counts, displ) vectors</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="osiris.utils.misc.factorize">
+<code class="descclassname">osiris.utils.misc.</code><code class="descname">factorize</code><span class="sig-paren">(</span><em>n</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/osiris/utils/misc.html#factorize"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#osiris.utils.misc.factorize" title="Permalink to this definition">¶</a></dt>
+<dd><p>Prime factorize a number</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>n</strong> &#8211; Number</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">Array with prime factors</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="osiris.utils.misc.optimize_fftsize">
+<code class="descclassname">osiris.utils.misc.</code><code class="descname">optimize_fftsize</code><span class="sig-paren">(</span><em>values</em>, <em>max_prime=2</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/osiris/utils/misc.html#optimize_fftsize"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#osiris.utils.misc.optimize_fftsize" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns &#8216;good&#8217; dimensions for FFT algorithm</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>value</strong> &#8211; Input value/s</li>
+<li><strong>max_prime</strong> &#8211; Maximum prime allowed (FFT is optimal for 2)</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">Nearest &#8216;good&#8217; value/s</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
+</div>
+</div>
+</div>
+<div class="section" id="indices-and-tables">
+<h1>Indices and tables<a class="headerlink" href="#indices-and-tables" title="Permalink to this headline">¶</a></h1>
+<ul class="simple">
+<li><a class="reference internal" href="genindex.html"><span class="std std-ref">Index</span></a></li>
+<li><a class="reference internal" href="py-modindex.html"><span class="std std-ref">Module Index</span></a></li>
+<li><a class="reference internal" href="search.html"><span class="std std-ref">Search Page</span></a></li>
+</ul>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">OSIRIS LIBRARY documentation (<code class="docutils literal"><span class="pre">osiris</span></code>)</a><ul>
+<li><a class="reference internal" href="#submodules">Submodules</a><ul>
+<li><a class="reference internal" href="#closure-module-osiris-closure">Closure Module (<code class="docutils literal"><span class="pre">osiris.closure</span></code>)</a><ul>
+<li><a class="reference internal" href="#constants">Constants</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#constants-package-osiris-constants">Constants Package (<code class="docutils literal"><span class="pre">osiris.constants</span></code>)</a><ul>
+<li><a class="reference internal" href="#id1">Constants</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#i-o-utilities-osiris-io">I/O Utilities (<code class="docutils literal"><span class="pre">osiris.io</span></code>)</a><ul>
+<li><a class="reference internal" href="#state-files">State Files</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#nrcs-models-module-osiris-nrcs">NRCS Models Module (<code class="docutils literal"><span class="pre">osiris.nrcs</span></code>)</a><ul>
+<li><a class="reference internal" href="#available-models">Available models</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#spectrum-models-osiris-spec">Spectrum Models (<code class="docutils literal"><span class="pre">osiris.spec</span></code>)</a><ul>
+<li><a class="reference internal" href="#ocean-spectrum-models">Ocean spectrum models</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#directional-spreading-functions-osiris-spread">Directional Spreading Functions (<code class="docutils literal"><span class="pre">osiris.spread</span></code>)</a><ul>
+<li><a class="reference internal" href="#id2">Available models</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#ocean-surfaces-osiris-surfaces">Ocean surfaces (<code class="docutils literal"><span class="pre">osiris.surfaces</span></code>)</a><ul>
+<li><a class="reference internal" href="#ocean-surfaces">Ocean surfaces</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#utility-module-osiris-utils">Utility module (<code class="docutils literal"><span class="pre">osiris.utils</span></code>)</a><ul>
+<li><a class="reference internal" href="#id3">Ocean surfaces</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a class="reference internal" href="#indices-and-tables">Indices and tables</a></li>
+</ul>
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="history.html" title="previous chapter">Background and Purpose</a></li>
+  </ul></li>
+</ul>
+</div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/modules.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2016, Paco López-Dekker, Gordon Farquharson, Gerard Marull Paretas.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.4.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.8</a>
+      
+      |
+      <a href="_sources/modules.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

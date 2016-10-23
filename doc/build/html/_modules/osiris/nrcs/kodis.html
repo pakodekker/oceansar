@@ -1,0 +1,174 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>osiris.nrcs.kodis &mdash; OSIRIS 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="top" title="OSIRIS 1.0 documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" />
+   
+  <link rel="stylesheet" href="../../../_static/custom.css" type="text/css" />
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for osiris.nrcs.kodis</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">osiris</span> <span class="kn">import</span> <span class="n">constants</span> <span class="k">as</span> <span class="n">const</span>
+
+<div class="viewcode-block" id="RCSKodis"><a class="viewcode-back" href="../../../modules.html#osiris.nrcs.kodis.RCSKodis">[docs]</a><span class="k">class</span> <span class="nc">RCSKodis</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot; Specular model (R.D. Kodis &#39;66)</span>
+
+<span class="sd">        Physical optics model as described in R.D. Kodis (1966) paper</span>
+<span class="sd">        &#39;A Note on the Theory of Scattering from an Irregular Surface&#39;.</span>
+<span class="sd">        E.M. solved using Stationary Phase Method.</span>
+
+<span class="sd">        .. note::</span>
+<span class="sd">            G. Valenzuela suggested that reflection coefficient (R)</span>
+<span class="sd">            may be replaced by effective refl. coef.!</span>
+
+<span class="sd">        .. note::</span>
+<span class="sd">            OASIS uses only range dependent incidence angle, so</span>
+<span class="sd">            it is given on class init.</span>
+
+<span class="sd">        :param inc: Incidence angle matrix</span>
+<span class="sd">        :param k0: Radar wave number</span>
+<span class="sd">        :param dx: Range resolution</span>
+<span class="sd">        :param dy: Azimuth resolution</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">inc</span><span class="p">,</span> <span class="n">k0</span><span class="p">,</span> <span class="n">dx</span><span class="p">,</span> <span class="n">dy</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dx</span> <span class="o">=</span> <span class="n">dx</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dy</span> <span class="o">=</span> <span class="n">dy</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">k0</span> <span class="o">=</span> <span class="n">k0</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">sin_inc</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">inc</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cos_inc</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">inc</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tan_inc</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">tan</span><span class="p">(</span><span class="n">inc</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">R</span> <span class="o">=</span> <span class="p">(</span><span class="n">const</span><span class="o">.</span><span class="n">epsilon_sw</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">const</span><span class="o">.</span><span class="n">epsilon_sw</span><span class="p">))</span><span class="o">/</span><span class="p">(</span><span class="n">const</span><span class="o">.</span><span class="n">epsilon_sw</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">const</span><span class="o">.</span><span class="n">epsilon_sw</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">field</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">az_angle</span><span class="p">,</span> <span class="n">sr</span><span class="p">,</span> <span class="n">diffx</span><span class="p">,</span> <span class="n">diffy</span><span class="p">,</span> <span class="n">diffxx</span><span class="p">,</span> <span class="n">diffyy</span><span class="p">,</span> <span class="n">diffxy</span><span class="p">):</span>
+
+        <span class="c1"># Avoid repeating calculations</span>
+        <span class="n">cos_az</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">az_angle</span><span class="p">)</span>
+        <span class="n">sin_az</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">az_angle</span><span class="p">)</span>
+
+        <span class="n">J</span> <span class="o">=</span> <span class="n">diffxx</span><span class="o">*</span><span class="n">diffyy</span> <span class="o">-</span> <span class="n">diffxy</span><span class="o">**</span><span class="mi">2</span>
+        <span class="n">J</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">J</span> <span class="o">==</span> <span class="mf">0.</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span> <span class="n">J</span><span class="p">)</span>
+        <span class="n">J_abs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">J</span><span class="p">)</span>
+        <span class="n">delta_x</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.</span><span class="o">/</span><span class="n">J_abs</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="n">diffxy</span><span class="o">*</span><span class="p">(</span><span class="n">diffy</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">tan_inc</span><span class="o">*</span><span class="n">sin_az</span><span class="p">)</span> <span class="o">-</span> <span class="n">diffyy</span><span class="o">*</span><span class="p">(</span><span class="n">diffx</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">tan_inc</span><span class="o">*</span><span class="n">cos_az</span><span class="p">))</span>
+        <span class="n">delta_y</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.</span><span class="o">/</span><span class="n">J_abs</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="n">diffxy</span><span class="o">*</span><span class="p">(</span><span class="n">diffx</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">tan_inc</span><span class="o">*</span><span class="n">cos_az</span><span class="p">)</span> <span class="o">-</span> <span class="n">diffxx</span><span class="o">*</span><span class="p">(</span><span class="n">diffy</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">tan_inc</span><span class="o">*</span><span class="n">sin_az</span><span class="p">))</span>
+
+        <span class="n">epsilon</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">J</span> <span class="o">&gt;</span> <span class="mf">0.</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">diffxx</span><span class="p">),</span> <span class="mi">1j</span><span class="p">)</span>
+
+        <span class="c1"># New slant range due to deltas</span>
+        <span class="n">hdx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dx</span><span class="o">/</span><span class="mi">2</span>
+        <span class="n">hdy</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dy</span><span class="o">/</span><span class="mi">2</span>
+        <span class="n">E</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">delta_x</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">complex</span><span class="p">)</span>
+        <span class="n">sps</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(((</span><span class="o">-</span><span class="n">hdx</span> <span class="o">&lt;</span> <span class="n">delta_x</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">delta_x</span> <span class="o">&lt;</span> <span class="n">hdx</span><span class="p">))</span> <span class="o">&amp;</span>
+                       <span class="p">((</span><span class="o">-</span><span class="n">hdy</span> <span class="o">&lt;</span> <span class="n">delta_y</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">delta_y</span> <span class="o">&lt;</span> <span class="n">hdy</span><span class="p">)))</span>
+        <span class="k">if</span> <span class="n">sps</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">size</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">delta_z</span> <span class="o">=</span> <span class="n">delta_x</span><span class="p">[</span><span class="n">sps</span><span class="p">]</span> <span class="o">*</span> <span class="n">diffx</span><span class="p">[</span><span class="n">sps</span><span class="p">]</span> <span class="o">+</span> <span class="n">delta_y</span><span class="p">[</span><span class="n">sps</span><span class="p">]</span> <span class="o">*</span> <span class="n">diffy</span><span class="p">[</span><span class="n">sps</span><span class="p">]</span>
+            <span class="n">sr_p2</span> <span class="o">=</span> <span class="p">(</span><span class="n">sr</span><span class="p">[</span><span class="n">sps</span><span class="p">]</span> <span class="o">+</span>
+                     <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sin_inc</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="n">sps</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span> <span class="o">*</span> <span class="n">cos_az</span><span class="p">[</span><span class="n">sps</span><span class="p">]</span> <span class="o">*</span> <span class="n">delta_x</span><span class="p">[</span><span class="n">sps</span><span class="p">]</span> <span class="o">+</span>
+                      <span class="bp">self</span><span class="o">.</span><span class="n">sin_inc</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="n">sps</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span> <span class="o">*</span> <span class="n">sin_az</span><span class="p">[</span><span class="n">sps</span><span class="p">]</span> <span class="o">*</span> <span class="n">delta_y</span><span class="p">[</span><span class="n">sps</span><span class="p">]</span> <span class="o">-</span>
+                      <span class="bp">self</span><span class="o">.</span><span class="n">cos_inc</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="n">sps</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span> <span class="o">*</span> <span class="n">delta_z</span><span class="p">))</span>
+            <span class="n">E</span><span class="p">[</span><span class="n">sps</span><span class="p">]</span> <span class="o">=</span> <span class="p">((</span><span class="mf">0.5</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">R</span><span class="o">*</span><span class="n">epsilon</span><span class="p">[</span><span class="n">sps</span><span class="p">])</span> <span class="o">*</span>
+                      <span class="p">((</span><span class="n">diffx</span><span class="p">[</span><span class="n">sps</span><span class="p">]</span><span class="o">**</span><span class="mf">2.</span> <span class="o">+</span> <span class="n">diffy</span><span class="p">[</span><span class="n">sps</span><span class="p">]</span><span class="o">**</span><span class="mf">2.</span> <span class="o">+</span> <span class="mf">1.</span><span class="p">))</span> <span class="o">*</span>
+                      <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="mi">1j</span><span class="o">*</span><span class="mf">2.</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">k0</span><span class="o">*</span><span class="n">sr_p2</span><span class="p">)</span> <span class="o">/</span>
+                      <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">J_abs</span><span class="p">[</span><span class="n">sps</span><span class="p">]))</span>
+
+<span class="c1">#        field = np.where(((-hdx &lt; delta_x) &amp; (delta_x &lt; hdx)) &amp; ((-hdy &lt; delta_y) &amp; (delta_y &lt; hdy)),</span>
+<span class="c1">#                         (0.5*self.R*epsilon)*((diffx**2. + diffy**2. + 1.)) * np.exp(-1j*2.*self.k0*np.sqrt(sr_p2)) / np.sqrt(J_abs),</span>
+<span class="c1">#                         0.)</span>
+
+        <span class="k">return</span> <span class="n">E</span>
+
+    <span class="k">def</span> <span class="nf">candidates</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">az_angle</span><span class="p">,</span> <span class="n">diffx</span><span class="p">,</span> <span class="n">diffy</span><span class="p">,</span> <span class="n">diffxx</span><span class="p">,</span> <span class="n">diffyy</span><span class="p">,</span> <span class="n">diffxy</span><span class="p">):</span>
+
+        <span class="c1"># Avoid repeating calculations</span>
+        <span class="n">cos_az</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">az_angle</span><span class="p">)</span>
+        <span class="n">sin_az</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">az_angle</span><span class="p">)</span>
+
+        <span class="n">J</span> <span class="o">=</span> <span class="n">diffxx</span><span class="o">*</span><span class="n">diffyy</span> <span class="o">-</span> <span class="n">diffxy</span><span class="o">**</span><span class="mf">2.</span>
+        <span class="n">J</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">J</span> <span class="o">==</span> <span class="mf">0.</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">J</span><span class="p">))</span>
+        <span class="n">delta_x</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.</span><span class="o">/</span><span class="n">J</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="n">diffxy</span><span class="o">*</span><span class="p">(</span><span class="n">diffy</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">sin_inc</span><span class="o">*</span><span class="n">sin_az</span><span class="p">)</span> <span class="o">-</span> <span class="n">diffyy</span><span class="o">*</span><span class="p">(</span><span class="n">diffx</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">sin_inc</span><span class="o">*</span><span class="n">cos_az</span><span class="p">))</span>
+        <span class="n">delta_y</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.</span><span class="o">/</span><span class="n">J</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="n">diffxy</span><span class="o">*</span><span class="p">(</span><span class="n">diffx</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">sin_inc</span><span class="o">*</span><span class="n">cos_az</span><span class="p">)</span> <span class="o">-</span> <span class="n">diffxx</span><span class="o">*</span><span class="p">(</span><span class="n">diffy</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">sin_inc</span><span class="o">*</span><span class="n">sin_az</span><span class="p">))</span>
+
+        <span class="n">candidates</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(((</span><span class="mf">0.</span> <span class="o">&lt;</span> <span class="n">delta_x</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">delta_x</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">dx</span><span class="p">))</span> <span class="o">&amp;</span> <span class="p">((</span><span class="mf">0.</span> <span class="o">&lt;</span> <span class="n">delta_y</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">delta_y</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">dy</span><span class="p">)),</span>
+                              <span class="mf">1.</span><span class="p">,</span> <span class="mf">0.</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">candidates</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2016, Paco López-Dekker, Gordon Farquharson, Gerard Marull Paretas.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.4.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.8</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

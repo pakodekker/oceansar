@@ -1,0 +1,142 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Background and Purpose &mdash; OSIRIS 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="OSIRIS 1.0 documentation" href="index.html" />
+    <link rel="next" title="OSIRIS LIBRARY documentation (osiris)" href="modules.html" />
+    <link rel="prev" title="OSIRIS’s documentation" href="index.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="background-and-purpose">
+<h1>Background and Purpose<a class="headerlink" href="#background-and-purpose" title="Permalink to this headline">¶</a></h1>
+<p>OSIRIS (Ocean Surface - Imaging Radar Interaction Simulator) provides a number of tools to do just that. It provides:</p>
+<ul class="simple">
+<li>Routines to calculate a number of directional wave spectra.</li>
+<li>Routines to calculate time-varying (Lagrangian) ocean surfaces applying linear wave theory.</li>
+<li>Code to calculate the instantaneous NRCS for <em>Bragg scatterting</em> and for <em>specular scattering</em>.</li>
+<li>Code to calculate time varying complex scattering coefficients (and their temporal evolution) considering the</li>
+</ul>
+<p>various scattering mechanisms considered.</p>
+<p>Most of the actual radar simulation has been removed from the current code base. Some reference radar implementations
+will be re-implemented.</p>
+</div>
+<div class="section" id="a-bit-of-history">
+<h1>A bit of history<a class="headerlink" href="#a-bit-of-history" title="Permalink to this headline">¶</a></h1>
+<p>A first iteration the code, under the name Wavesim, implemented in IDL, was implemented by Paco Lopez-Dekker as part of a project for
+Prosensing Inc., in 2003. Gordon Farquharson fixed some bugs and added support for Elfouhaily&#8217;s spectrum in order to use
+the code to simulate FOPAIR acquisitions (note the ironiy that FOPAIR was used to study the surf-zone, where neither
+the spectral models implemented nor the deep-water linear theory wave model as applicable).</p>
+<p>In 2011, the code was ported to Python by Gerhard Marull Paretas, who also added:</p>
+<ul class="simple">
+<li>MPI support in order to speed-up the wave simulation.</li>
+<li>Various PO scattering models.</li>
+</ul>
+<p>The Python code was used as a base for OASIS, a software tool to simulate along-track-interferometric acquisitions with
+the future generation European C-band SAR systems (post Sentinel-1) in a  project carried out at the Microwaves and
+Radar Institute (DLR) for the European Space Agency (ESA).</p>
+<p>Since then, Paco Lopez Dekker added support for polarimetric acquisitions, and separated OSIRIS from the radar-specific
+code in order to be able to open-source the first part.</p>
+</div>
+<div class="section" id="general-roadmap">
+<h1>General Roadmap<a class="headerlink" href="#general-roadmap" title="Permalink to this headline">¶</a></h1>
+<p>Things to be done:</p>
+<ul class="simple">
+<li>re-implement reference radar simulations (ground based system, and generic SAR system)</li>
+<li>Add interface to external wavespectra, in order to drive the simulations which location and time specific wave models.</li>
+<li>Include models for breaking waves and/or white capping.</li>
+<li>Implement routines to compute expected statistics of radar returns.</li>
+</ul>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Background and Purpose</a></li>
+<li><a class="reference internal" href="#a-bit-of-history">A bit of history</a></li>
+<li><a class="reference internal" href="#general-roadmap">General Roadmap</a></li>
+</ul>
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="index.html" title="previous chapter">OSIRIS&#8217;s documentation</a></li>
+      <li>Next: <a href="modules.html" title="next chapter">OSIRIS LIBRARY documentation (<code class="docutils literal"><span class="pre">osiris</span></code>)</a></li>
+  </ul></li>
+</ul>
+</div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/history.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2016, Paco López-Dekker, Gordon Farquharson, Gerard Marull Paretas.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.4.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.8</a>
+      
+      |
+      <a href="_sources/history.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

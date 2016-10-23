@@ -1,0 +1,189 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>osiris.constants.constants &mdash; OSIRIS 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="top" title="OSIRIS 1.0 documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" />
+   
+  <link rel="stylesheet" href="../../../_static/custom.css" type="text/css" />
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for osiris.constants.constants</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    **Custom Added Constants**</span>
+
+<span class="sd">     :r_earth:        Earth radius [m]</span>
+<span class="sd">     :m_earth:        Earth mass [Kg]</span>
+<span class="sd">     :c:              speed of light [m/s]</span>
+<span class="sd">     :g_star:         gravitational constant g_star [m^3/km/s^2]</span>
+<span class="sd">     :gm_earth:       g_star * mass of earth [m^3/s^2]</span>
+<span class="sd">     :gm_sun:         g_star * mass of sun [m^3/s^2]</span>
+<span class="sd">     :au:             astronomical unit [m]</span>
+<span class="sd">     :r_sun:          radius of the sun [m]</span>
+<span class="sd">     :p_sun:          radiation pressure of the sun [N/m^2]</span>
+<span class="sd">     :gm_moon:        g_star * mass of moon [m^3/s^2]</span>
+<span class="sd">     :d_moon_earth:   mean distance moon to earth [m]</span>
+<span class="sd">     :r_moon:         radius of moon [m]</span>
+<span class="sd">     :h:              Planck&#39;s constant [Js]</span>
+<span class="sd">     :omega_earth:    angular velocity of earth [1/s] WGS84</span>
+<span class="sd">     :pi:             pi to 30 digits</span>
+<span class="sd">     :j2:             zonal coefficient</span>
+<span class="sd">     :j3:             zonal coefficient</span>
+<span class="sd">     :j4:             zonal coefficient</span>
+<span class="sd">     :j5:             zonal coefficient</span>
+
+<span class="sd"> &quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">scipy.constants</span> <span class="kn">import</span> <span class="o">*</span>
+
+<span class="n">r_earth</span> <span class="o">=</span> <span class="mf">6378.137e3</span>  <span class="c1"># Earth equat. radius [m]</span>
+<span class="n">m_earth</span> <span class="o">=</span> <span class="mf">5.9742e24</span>  <span class="c1"># Earth mass [Kg]</span>
+<span class="n">c</span> <span class="o">=</span> <span class="mf">2.99792458e8</span>  <span class="c1"># speed of light [m/s]</span>
+<span class="n">g_star</span> <span class="o">=</span> <span class="mf">6.673e-11</span>  <span class="c1"># gravitational constant g_star [m^3/km/s^2]</span>
+<span class="n">gm_earth</span> <span class="o">=</span> <span class="mf">398600.4415e9</span>  <span class="c1"># g_star * mass of earth [m^3/s^2]</span>
+<span class="n">gm_sun</span> <span class="o">=</span> <span class="mf">1.32712440018e20</span>  <span class="c1"># g_star * mass of sun [m^3/s^2]</span>
+<span class="n">au</span> <span class="o">=</span> <span class="mf">149597870.691e3</span>  <span class="c1"># astronomical unit [m]</span>
+<span class="n">r_sun</span> <span class="o">=</span> <span class="mf">6.96e8</span>  <span class="c1"># radius of the sun [m]</span>
+<span class="n">p_sun</span> <span class="o">=</span> <span class="mf">4.560e-6</span>  <span class="c1"># radiation pressure of the sun [N/m^2]</span>
+<span class="n">gm_moon</span> <span class="o">=</span> <span class="mf">4902.801e9</span>  <span class="c1"># g_star * mass of moon [m^3/s^2]</span>
+<span class="n">d_moon_earth</span> <span class="o">=</span> <span class="mf">384400e3</span>  <span class="c1"># mean distance moon to earth [m]</span>
+<span class="n">r_moon</span> <span class="o">=</span> <span class="mf">1738e3</span>  <span class="c1"># radius of moon [m]</span>
+<span class="n">h</span> <span class="o">=</span> <span class="mf">6.626068765e-34</span>  <span class="c1"># Planck&#39;s constant [Js]</span>
+<span class="n">omega_earth</span> <span class="o">=</span> <span class="mf">0.729211585530e-4</span>  <span class="c1"># angular velocity of earth [1/s] WGS84</span>
+<span class="n">pi</span> <span class="o">=</span> <span class="mf">3.141592653589793238462643383279</span>  <span class="c1"># pi to 30 digits</span>
+<span class="n">j2</span> <span class="o">=</span> <span class="mf">0.00108263</span>  <span class="c1"># zonal coefficient</span>
+<span class="n">j3</span> <span class="o">=</span> <span class="o">-</span><span class="mf">0.00254e-3</span>  <span class="c1"># zonal coefficient</span>
+<span class="n">j4</span> <span class="o">=</span> <span class="o">-</span><span class="mf">0.00161e-3</span>  <span class="c1"># zonal coefficient</span>
+<span class="n">j5</span> <span class="o">=</span> <span class="o">-</span><span class="mf">0.246e-6</span>  <span class="c1"># zonal coefficient</span>
+
+<span class="c1"># Sea water rel.dielectric constant</span>
+<span class="n">epsilon_sw</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">complex</span><span class="p">(</span><span class="mi">73</span><span class="p">,</span> <span class="mi">18</span><span class="p">)</span>
+<span class="c1"># Water refractive index (approximate)</span>
+<span class="n">n_w</span> <span class="o">=</span> <span class="mf">4.</span><span class="o">/</span><span class="mf">3.</span>
+<span class="c1"># Impedance of vacuum [Ohm]</span>
+<span class="n">etha_0</span> <span class="o">=</span> <span class="n">physical_constants</span><span class="p">[</span><span class="s1">&#39;characteristic impedance of vacuum&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="r_equatorial"><a class="viewcode-back" href="../../../modules.html#osiris.constants.constants.r_equatorial">[docs]</a><span class="k">def</span> <span class="nf">r_equatorial</span><span class="p">(</span><span class="n">system</span><span class="o">=</span><span class="s1">&#39;wgs84&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Defines equatorial radius according to a specific system</span>
+
+<span class="sd">        :date: 20.10.2014</span>
+
+<span class="sd">        :author: Jalal Matar</span>
+
+<span class="sd">        :param system: defines the measurments</span>
+<span class="sd">            system (iau, krassowsky or wgs84)</span>
+
+<span class="sd">        :returns: equatorial radius</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">system</span> <span class="o">==</span> <span class="s1">&#39;iau&#39;</span><span class="p">):</span>
+        <span class="n">r_eq</span> <span class="o">=</span> <span class="mf">6378.160e3</span>
+
+    <span class="k">elif</span> <span class="p">(</span><span class="n">system</span> <span class="o">==</span> <span class="s1">&#39;krassowski&#39;</span><span class="p">):</span>   <span class="c1"># as determined by Krassowsky</span>
+        <span class="n">r_eq</span> <span class="o">=</span> <span class="mf">6378.245e3</span>
+
+    <span class="k">elif</span> <span class="p">(</span><span class="n">system</span> <span class="o">==</span> <span class="s1">&#39;wgs84&#39;</span><span class="p">):</span>
+        <span class="n">r_eq</span> <span class="o">=</span> <span class="mf">6378.137e3</span>  <span class="c1"># WGS 84, IAG-GRS 80,used by ICAO since 1998</span>
+
+    <span class="k">return</span> <span class="n">r_eq</span></div>
+
+
+<div class="viewcode-block" id="r_polar"><a class="viewcode-back" href="../../../modules.html#osiris.constants.constants.r_polar">[docs]</a><span class="k">def</span> <span class="nf">r_polar</span><span class="p">(</span><span class="n">system</span><span class="o">=</span><span class="s1">&#39;wgs84&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Defines polar radius according to a specific system</span>
+
+<span class="sd">        :date: 20.10.2014</span>
+
+<span class="sd">        :author: Jalal Matar</span>
+
+<span class="sd">        :param system: defines the measurments</span>
+<span class="sd">          system (iau, krassowsky or wgs84)</span>
+
+<span class="sd">        :returns: polar radius</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">system</span> <span class="o">==</span> <span class="s1">&#39;iau&#39;</span><span class="p">):</span>
+        <span class="n">r_po</span> <span class="o">=</span> <span class="mf">6356.775e3</span>  <span class="c1"># m, f = 1/297.0</span>
+
+    <span class="k">elif</span> <span class="p">(</span><span class="n">system</span> <span class="o">==</span> <span class="s1">&#39;krassowski&#39;</span><span class="p">):</span>  <span class="c1"># as determined by Krassowsky</span>
+        <span class="n">r_po</span> <span class="o">=</span> <span class="mf">6356.86301877e3</span>  <span class="c1"># m, f = 3.35232986926e-3</span>
+
+    <span class="k">elif</span> <span class="p">(</span><span class="n">system</span> <span class="o">==</span> <span class="s1">&#39;wgs84&#39;</span><span class="p">):</span>
+        <span class="n">r_po</span> <span class="o">=</span> <span class="mf">6356.75231425e3</span>  <span class="c1"># m, f = 1/298.257222101</span>
+
+    <span class="k">return</span> <span class="n">r_po</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2016, Paco López-Dekker, Gordon Farquharson, Gerard Marull Paretas.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.4.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.8</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

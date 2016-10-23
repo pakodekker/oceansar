@@ -1,0 +1,383 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>osiris.nrcs.ka &mdash; OSIRIS 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="top" title="OSIRIS 1.0 documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" />
+   
+  <link rel="stylesheet" href="../../../_static/custom.css" type="text/css" />
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for osiris.nrcs.ka</h1><div class="highlight"><pre>
+<span></span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">osiris</span> <span class="kn">import</span> <span class="n">constants</span> <span class="k">as</span> <span class="n">const</span>
+
+<div class="viewcode-block" id="RCSKA"><a class="viewcode-back" href="../../../modules.html#osiris.nrcs.ka.RCSKA">[docs]</a><span class="k">class</span> <span class="nc">RCSKA</span><span class="p">():</span>
+
+    <span class="sd">&quot;&quot;&quot; Kirchoff Approximation</span>
+
+<span class="sd">        Available solution modes: SPA / FA</span>
+
+<span class="sd">        - SPA: Stationary-Phase Method</span>
+
+<span class="sd">        - FA: Facet Approach E.M. calculation model</span>
+<span class="sd">              This models calculates the E.M. of a surface</span>
+<span class="sd">              solving the Stratton-Chu integral on each facet.</span>
+<span class="sd">              This way, an explicit solution for the integral</span>
+<span class="sd">              can be implemented and hence leading to reasonable</span>
+<span class="sd">              computation times.</span>
+
+<span class="sd">        References:</span>
+<span class="sd">            &quot;Simulation of L-Band Bistatic Returns From the Ocean Surface:</span>
+<span class="sd">             A Facet Approach With Application to Ocean GNSS Reflectometry&quot;</span>
+<span class="sd">             M. Paola Clarizia et al.</span>
+
+<span class="sd">             &quot;Microwave Remote Sensing. Active and Passive (Vol II)&quot; Sect. 12-4</span>
+<span class="sd">             T. Ulaby, R. Moore, A. Fung</span>
+
+<span class="sd">        :param mode: Computation mode (spa, fa)</span>
+<span class="sd">        :param k0: Radar wave number</span>
+<span class="sd">        :param x: Surface &#39;X&#39; vector</span>
+<span class="sd">        :param y: Surface &#39;Y&#39; vector</span>
+<span class="sd">        :param dx: Surface &#39;X&#39; facet resolution</span>
+<span class="sd">        :param dy: Surface &#39;Y&#39; facet resolution</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="n">k0</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">dx</span><span class="p">,</span> <span class="n">dy</span><span class="p">):</span>
+
+        <span class="c1"># Save values</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mode</span> <span class="o">=</span> <span class="n">mode</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">k0</span> <span class="o">=</span> <span class="n">k0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dx</span> <span class="o">=</span> <span class="n">dx</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dy</span> <span class="o">=</span> <span class="n">dy</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="o">=</span> <span class="p">[</span><span class="n">y</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">3</span><span class="p">]</span>
+
+        <span class="c1"># r (local position) vector</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">r</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">r</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">r</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+
+
+<span class="c1">#    def field_mono(self, R_i, pol_i, pol_s, theta_i, phi_i,</span>
+<span class="c1">#                   Dz, Diffx, Diffy, Diffxx, Diffyy, Diffxy):</span>
+<span class="c1">#        &quot;&quot;&quot;</span>
+<span class="c1">#        Calculates E.M. field in monostatic case</span>
+<span class="c1">#        :param R_i: Distance from transmitter to scene center</span>
+<span class="c1">#        :param pol_i: Incident polarization (v, h)</span>
+<span class="c1">#        :param pol_s: Scattered polarization (v, h)</span>
+<span class="c1">#        :param theta_i: Incidence elevation angle</span>
+<span class="c1">#        :param phi_i: Incidence azimuth angle</span>
+<span class="c1">#        :param Dz: Surface height field</span>
+<span class="c1">#        :param Diffx: Space first derivatives (X slopes)</span>
+<span class="c1">#        :param Diffy: Space first derivatives (Y slopes)</span>
+<span class="c1">#        :param Diffxx: Space second derivatives (XX)</span>
+<span class="c1">#        :param Diffyy: Space second derivatives (YY)</span>
+<span class="c1">#        :param Diffxy: Space second derivatives (XY)</span>
+<span class="c1">#        &quot;&quot;&quot;</span>
+<span class="c1">#        sin_theta_i = np.sin(theta_i)</span>
+<span class="c1">#        cos_theta_i = np.cos(theta_i)</span>
+<span class="c1">#        tan_theta_i = np.cos(theta_i)</span>
+<span class="c1">#        sin_phi_i = np.sin(phi_i)</span>
+<span class="c1">#        cos_phi_i = np.cos(phi_i)</span>
+<span class="c1">#</span>
+<span class="c1">#        if self.mode == &#39;spa&#39;:</span>
+<span class="c1">#            J = Diffxx*Diffyy - Diffxy**2</span>
+<span class="c1">#            J = np.where(J == 0., np.nan, J)</span>
+<span class="c1">#            J_abs = np.abs(J)</span>
+<span class="c1">#            delta_x = (1./J_abs)*(Diffxy*(Diffy - tan_theta_i * sin_phi_i) -</span>
+<span class="c1">#                                  Diffyy*(Diffx - tan_theta_i * cos_phi_i))</span>
+<span class="c1">#            delta_y = (1./J_abs)*(Diffxy*(Diffx - tan_theta_i * sin_phi_i) -</span>
+<span class="c1">#                                  Diffxx*(Diffy - tan_theta_i * sin_phi_i))</span>
+<span class="c1">#            delta_z = delta_x * Diffx + delta_y * Diffy</span>
+<span class="c1">#            epsilon = np.where(J &gt; 0., np.sign(Diffxx), 1j)</span>
+<span class="c1">#</span>
+<span class="c1">#            E = np.zeros(delta_x.shape, dtype=np.complex)</span>
+<span class="c1">#            sps = np.where(((-0.5 * self.dx &lt; delta_x) &amp;</span>
+<span class="c1">#                            (delta_x &lt; 0.5 * self.dx)) &amp;</span>
+<span class="c1">#                           ((-0.5 * self.dy &lt; delta_y) &amp;</span>
+<span class="c1">#                            (delta_y &lt; 0.5 * self.dy)))</span>
+<span class="c1">#</span>
+<span class="c1">#            if sps[0].size &gt; 0:</span>
+<span class="c1">#                p = np.sum(a_s *</span>
+<span class="c1">#                           np.cross(n_s,</span>
+<span class="c1">#                                    n__x__Es -</span>
+<span class="c1">#                                    np.cross(n_s, etha__p__n__x__Hs)),</span>
+<span class="c1">#                           axis=-1)</span>
+<span class="c1">#</span>
+<span class="c1">#                E[sps] = (epsilon[sps] * p[sps] * K *</span>
+<span class="c1">#                          np.exp(-1j * (q[..., 0][sps] * delta_x[sps] +</span>
+<span class="c1">#                                        q[..., 1][sps] * delta_y[sps] +</span>
+<span class="c1">#                                        q[..., 2][sps] * delta_z[sps])) *</span>
+<span class="c1">#                          2.*np.pi/q[..., 2][sps] * n_norm[sps] /</span>
+<span class="c1">#                          np.sqrt(J_abs[sps]))</span>
+
+
+<div class="viewcode-block" id="RCSKA.field"><a class="viewcode-back" href="../../../modules.html#osiris.nrcs.ka.RCSKA.field">[docs]</a>    <span class="k">def</span> <span class="nf">field</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">R_i</span><span class="p">,</span> <span class="n">R_s</span><span class="p">,</span>
+                    <span class="n">pol_i</span><span class="p">,</span> <span class="n">pol_s</span><span class="p">,</span>
+                    <span class="n">theta_i</span><span class="p">,</span> <span class="n">theta_s</span><span class="p">,</span> <span class="n">phi_i</span><span class="p">,</span> <span class="n">phi_s</span><span class="p">,</span>
+                    <span class="n">Dz</span><span class="p">,</span> <span class="n">Diffx</span><span class="p">,</span> <span class="n">Diffy</span><span class="p">,</span> <span class="n">Diffxx</span><span class="p">,</span> <span class="n">Diffyy</span><span class="p">,</span> <span class="n">Diffxy</span><span class="p">):</span>
+
+        <span class="sd">&quot;&quot;&quot; Calculates E.M. field</span>
+
+<span class="sd">            :param R_i: Distance from transmitter to scene center</span>
+<span class="sd">            :param R_s: Distance from scene center to receiver</span>
+<span class="sd">            :param pol_i: Incident polarization (v, h)</span>
+<span class="sd">            :param pol_s: Scattered polarization (v, h)</span>
+<span class="sd">            :param theta_i: Incidence elevation angle</span>
+<span class="sd">            :param theta_s: Scattered elevation angle</span>
+<span class="sd">            :param phi_i: Incidence azimuth angle</span>
+<span class="sd">            :param phi_s: Scattered azimuth angle</span>
+<span class="sd">            :param Dz: Surface height field</span>
+<span class="sd">            :param Diffx: Space first derivatives (X slopes)</span>
+<span class="sd">            :param Diffy: Space first derivatives (Y slopes)</span>
+<span class="sd">            :param Diffxx: Space second derivatives (XX)</span>
+<span class="sd">            :param Diffyy: Space second derivatives (YY)</span>
+<span class="sd">            :param Diffxy: Space second derivatives (XY)</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1">### CACHE ###</span>
+        <span class="n">sin_theta_i</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">theta_i</span><span class="p">)</span>
+        <span class="n">sin_theta_i</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">sin_theta_i</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">cos_theta_i</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">theta_i</span><span class="p">)</span>
+        <span class="n">cos_theta_i</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">cos_theta_i</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">sin_theta_s</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">theta_s</span><span class="p">)</span>
+        <span class="n">sin_theta_s</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">sin_theta_s</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">cos_theta_s</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">theta_s</span><span class="p">)</span>
+        <span class="n">cos_theta_s</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">cos_theta_s</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">tan_theta_i</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">theta_i</span><span class="p">)</span>
+        <span class="n">sin_phi_i</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">phi_i</span><span class="p">)</span>
+        <span class="n">cos_phi_i</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">phi_i</span><span class="p">)</span>
+        <span class="n">sin_phi_s</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">phi_s</span><span class="p">)</span>
+        <span class="n">cos_phi_s</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">phi_s</span><span class="p">)</span>
+
+        <span class="c1">### VECTORS ###</span>
+        <span class="c1"># Position (r) - Update heights</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">r</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">Dz</span>
+
+        <span class="c1">## Polarization vectors (H, V)</span>
+        <span class="n">h_i</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="n">h_s</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="n">h_i</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">sin_phi_i</span>
+        <span class="n">h_i</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">cos_phi_i</span>
+        <span class="n">h_i</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.</span>
+        <span class="n">h_s</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">sin_phi_s</span>
+        <span class="n">h_s</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">cos_phi_s</span>
+        <span class="n">h_s</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.</span>
+
+        <span class="n">v_i</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="n">v_s</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="n">v_i</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">cos_theta_i</span><span class="o">*</span><span class="n">cos_phi_i</span>
+        <span class="n">v_i</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">cos_theta_i</span><span class="o">*</span><span class="n">sin_phi_i</span>
+        <span class="n">v_i</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">sin_theta_i</span>
+        <span class="n">v_s</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">cos_theta_s</span><span class="o">*</span><span class="n">cos_phi_s</span>
+        <span class="n">v_s</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">cos_theta_s</span><span class="o">*</span><span class="n">sin_phi_s</span>
+        <span class="n">v_s</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">sin_theta_s</span>
+
+        <span class="n">a_i</span> <span class="o">=</span> <span class="n">h_i</span> <span class="k">if</span> <span class="n">pol_i</span> <span class="o">==</span> <span class="s1">&#39;h&#39;</span> <span class="k">else</span> <span class="n">v_i</span>
+        <span class="n">a_s</span> <span class="o">=</span> <span class="n">h_s</span> <span class="k">if</span> <span class="n">pol_s</span> <span class="o">==</span> <span class="s1">&#39;h&#39;</span> <span class="k">else</span> <span class="n">v_s</span>
+
+        <span class="c1"># Surface normal (n)</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="n">n_norm</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">Diffx</span><span class="o">**</span><span class="mf">2.</span> <span class="o">+</span> <span class="n">Diffy</span><span class="o">**</span><span class="mf">2.</span> <span class="o">+</span> <span class="mf">1.</span><span class="p">)</span>
+        <span class="n">n</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">Diffx</span><span class="o">/</span><span class="n">n_norm</span>
+        <span class="n">n</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">Diffy</span><span class="o">/</span><span class="n">n_norm</span>
+        <span class="n">n</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.</span><span class="o">/</span><span class="n">n_norm</span>
+
+        <span class="c1"># Incidence direction (n_i)</span>
+        <span class="n">n_i</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="n">n_i</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">sin_theta_i</span><span class="o">*</span><span class="n">cos_phi_i</span>
+        <span class="n">n_i</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">sin_theta_i</span><span class="o">*</span><span class="n">sin_phi_i</span>
+        <span class="n">n_i</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">cos_theta_i</span>
+
+        <span class="c1"># Scattering direction (n_s)</span>
+        <span class="n">n_s</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="n">n_s</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">sin_theta_s</span> <span class="o">*</span> <span class="n">cos_phi_s</span>
+        <span class="n">n_s</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">sin_theta_s</span> <span class="o">*</span> <span class="n">sin_phi_s</span>
+        <span class="n">n_s</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">cos_theta_s</span>
+
+        <span class="c1"># Scattering (q)</span>
+        <span class="n">q</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">k0</span><span class="o">*</span><span class="p">(</span><span class="n">n_s</span> <span class="o">-</span> <span class="n">n_i</span><span class="p">)</span>
+
+        <span class="c1"># Local frame of reference (t, d)</span>
+        <span class="n">t</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cross</span><span class="p">(</span><span class="n">n_i</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span>
+        <span class="n">t</span> <span class="o">/=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">t</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span><span class="o">**</span><span class="mf">2.</span> <span class="o">+</span> <span class="n">t</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span><span class="o">**</span><span class="mf">2.</span> <span class="o">+</span> <span class="n">t</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span><span class="o">**</span><span class="mf">2.</span><span class="p">)[</span><span class="o">...</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+        <span class="n">d</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cross</span><span class="p">(</span><span class="n">n_i</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
+
+
+        <span class="c1">### E.M. Field ###</span>
+        <span class="c1"># Fresnel reflection coefficients</span>
+        <span class="n">cos_theta_l</span> <span class="o">=</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">n</span><span class="o">*</span><span class="n">n_i</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">sqrt_e_sin</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">const</span><span class="o">.</span><span class="n">epsilon_sw</span> <span class="o">+</span> <span class="n">cos_theta_l</span><span class="o">**</span><span class="mf">2.</span> <span class="o">-</span> <span class="mf">1.</span><span class="p">)</span>
+        <span class="n">r_v</span> <span class="o">=</span> <span class="p">((</span><span class="n">const</span><span class="o">.</span><span class="n">epsilon_sw</span><span class="o">*</span><span class="n">cos_theta_l</span> <span class="o">-</span> <span class="n">sqrt_e_sin</span><span class="p">)</span><span class="o">/</span>
+               <span class="p">(</span><span class="n">const</span><span class="o">.</span><span class="n">epsilon_sw</span><span class="o">*</span><span class="n">cos_theta_l</span> <span class="o">+</span> <span class="n">sqrt_e_sin</span><span class="p">))</span>
+        <span class="n">r_h</span> <span class="o">=</span> <span class="p">((</span><span class="n">cos_theta_l</span> <span class="o">-</span> <span class="n">sqrt_e_sin</span><span class="p">)</span><span class="o">/</span>
+               <span class="p">(</span><span class="n">cos_theta_l</span> <span class="o">+</span> <span class="n">sqrt_e_sin</span><span class="p">))</span>
+
+
+        <span class="c1"># Scattered E/H fields and projected &#39;p&#39; vector</span>
+        <span class="n">a__P__t</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">a_i</span><span class="o">*</span><span class="n">t</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">a__P__d</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">a_i</span><span class="o">*</span><span class="n">d</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">n__P__n_i</span> <span class="o">=</span> <span class="o">-</span><span class="n">cos_theta_l</span>
+        <span class="n">n__x__t</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cross</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
+
+        <span class="n">n__x__Es</span> <span class="o">=</span> <span class="p">(((</span><span class="mf">1.</span> <span class="o">+</span> <span class="n">r_h</span><span class="p">)</span><span class="o">*</span><span class="n">a__P__t</span><span class="p">)[</span><span class="o">...</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span><span class="o">*</span><span class="n">n__x__t</span> <span class="o">-</span>
+                    <span class="p">((</span><span class="mf">1.</span> <span class="o">-</span> <span class="n">r_v</span><span class="p">)</span><span class="o">*</span><span class="n">n__P__n_i</span><span class="o">*</span><span class="n">a__P__d</span><span class="p">)[</span><span class="o">...</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span><span class="o">*</span><span class="n">t</span><span class="p">)</span>
+        <span class="n">etha__p__n__x__Hs</span> <span class="o">=</span> <span class="o">-</span><span class="p">(((</span><span class="mf">1.</span> <span class="o">-</span> <span class="n">r_h</span><span class="p">)</span><span class="o">*</span><span class="n">n__P__n_i</span><span class="o">*</span><span class="n">a__P__t</span><span class="p">)[</span><span class="o">...</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span><span class="o">*</span><span class="n">t</span> <span class="o">+</span>
+                              <span class="p">((</span><span class="mf">1.</span> <span class="o">+</span> <span class="n">r_v</span><span class="p">)</span><span class="o">*</span><span class="n">a__P__d</span><span class="p">)[</span><span class="o">...</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span><span class="o">*</span><span class="n">n__x__t</span><span class="p">)</span>
+
+        <span class="n">p</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">a_s</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">cross</span><span class="p">(</span><span class="n">n_s</span><span class="p">,</span> <span class="n">n__x__Es</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">cross</span><span class="p">(</span><span class="n">n_s</span><span class="p">,</span> <span class="n">etha__p__n__x__Hs</span><span class="p">)),</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="c1">#K</span>
+        <span class="n">K</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1j</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">k0</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="mi">1j</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">k0</span><span class="o">*</span><span class="p">(</span><span class="n">R_i</span> <span class="o">+</span> <span class="n">R_s</span><span class="p">))</span><span class="o">/</span><span class="p">((</span><span class="mf">4.</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span><span class="o">**</span><span class="mf">2.</span><span class="o">*</span><span class="n">R_i</span><span class="o">*</span><span class="n">R_s</span><span class="p">)</span>
+
+
+        <span class="c1"># Stationary-Phase Approximation</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;spa&#39;</span><span class="p">:</span>
+            <span class="n">J</span> <span class="o">=</span> <span class="n">Diffxx</span><span class="o">*</span><span class="n">Diffyy</span> <span class="o">-</span> <span class="n">Diffxy</span><span class="o">**</span><span class="mi">2</span>
+            <span class="n">J</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">J</span> <span class="o">==</span> <span class="mf">0.</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span> <span class="n">J</span><span class="p">)</span>
+            <span class="n">J_abs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">J</span><span class="p">)</span>
+            <span class="n">delta_x</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.</span><span class="o">/</span><span class="n">J_abs</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="n">Diffxy</span><span class="o">*</span><span class="p">(</span><span class="n">Diffy</span> <span class="o">-</span> <span class="n">tan_theta_i</span><span class="o">*</span><span class="n">sin_phi_i</span><span class="p">)</span> <span class="o">-</span> <span class="n">Diffyy</span><span class="o">*</span><span class="p">(</span><span class="n">Diffx</span> <span class="o">-</span> <span class="n">tan_theta_i</span><span class="o">*</span><span class="n">cos_phi_i</span><span class="p">))</span>
+            <span class="n">delta_y</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.</span><span class="o">/</span><span class="n">J_abs</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="n">Diffxy</span><span class="o">*</span><span class="p">(</span><span class="n">Diffx</span> <span class="o">-</span> <span class="n">tan_theta_i</span><span class="o">*</span><span class="n">cos_phi_i</span><span class="p">)</span> <span class="o">-</span> <span class="n">Diffxx</span><span class="o">*</span><span class="p">(</span><span class="n">Diffy</span> <span class="o">-</span> <span class="n">tan_theta_i</span><span class="o">*</span><span class="n">sin_phi_i</span><span class="p">))</span>
+            <span class="n">delta_z</span> <span class="o">=</span> <span class="n">delta_x</span> <span class="o">*</span> <span class="n">Diffx</span> <span class="o">+</span> <span class="n">delta_y</span> <span class="o">*</span> <span class="n">Diffy</span>
+            <span class="n">epsilon</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">J</span> <span class="o">&gt;</span> <span class="mf">0.</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">Diffxx</span><span class="p">),</span> <span class="mi">1j</span><span class="p">)</span>
+
+<span class="c1">#            E = np.where(((0. &lt; delta_x) &amp; (delta_x &lt; self.dx)) &amp; ((0. &lt; delta_y) &amp; (delta_y &lt; self.dy)),</span>
+<span class="c1">#                         epsilon*p*K*np.exp(-1j*np.sum(q*self.r, axis=-1))*2.*np.pi/q[..., 2]*n_norm/np.sqrt(J_abs),</span>
+<span class="c1">#                         0.)</span>
+<span class="c1">#            E = np.where(((-0.5 * self.dx &lt; delta_x) &amp;</span>
+<span class="c1">#                          (delta_x &lt; 0.5 * self.dx)) &amp;</span>
+<span class="c1">#                         ((-0.5 * self.dy &lt; delta_y) &amp;</span>
+<span class="c1">#                          (delta_y &lt; 0.5 * self.dy)),</span>
+<span class="c1">#                         (epsilon*p*K*np.exp(-1j*np.sum(q*self.r, axis=-1)) *</span>
+<span class="c1">#                          2.*np.pi/q[..., 2]*n_norm/np.sqrt(J_abs)),</span>
+<span class="c1">#                         0.)</span>
+            <span class="n">E</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">delta_x</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">complex</span><span class="p">)</span>
+            <span class="n">sps</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(((</span><span class="o">-</span><span class="mf">0.5</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">dx</span> <span class="o">&lt;</span> <span class="n">delta_x</span><span class="p">)</span> <span class="o">&amp;</span>
+                            <span class="p">(</span><span class="n">delta_x</span> <span class="o">&lt;</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">dx</span><span class="p">))</span> <span class="o">&amp;</span>
+                           <span class="p">((</span><span class="o">-</span><span class="mf">0.5</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">dy</span> <span class="o">&lt;</span> <span class="n">delta_y</span><span class="p">)</span> <span class="o">&amp;</span>
+                            <span class="p">(</span><span class="n">delta_y</span> <span class="o">&lt;</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">dy</span><span class="p">)))</span>
+
+            <span class="k">if</span> <span class="n">sps</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">size</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">E</span><span class="p">[</span><span class="n">sps</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">epsilon</span><span class="p">[</span><span class="n">sps</span><span class="p">]</span> <span class="o">*</span> <span class="n">p</span><span class="p">[</span><span class="n">sps</span><span class="p">]</span> <span class="o">*</span> <span class="n">K</span> <span class="o">*</span>
+                          <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="mi">1j</span> <span class="o">*</span> <span class="p">(</span><span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">][</span><span class="n">sps</span><span class="p">]</span> <span class="o">*</span> <span class="n">delta_x</span><span class="p">[</span><span class="n">sps</span><span class="p">]</span> <span class="o">+</span>
+                                       <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">][</span><span class="n">sps</span><span class="p">]</span> <span class="o">*</span> <span class="n">delta_y</span><span class="p">[</span><span class="n">sps</span><span class="p">]</span> <span class="o">+</span>
+                                       <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">][</span><span class="n">sps</span><span class="p">]</span> <span class="o">*</span> <span class="n">delta_z</span><span class="p">[</span><span class="n">sps</span><span class="p">]))</span> <span class="o">*</span>
+                          <span class="mf">2.</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">/</span><span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">][</span><span class="n">sps</span><span class="p">]</span> <span class="o">*</span> <span class="n">n_norm</span><span class="p">[</span><span class="n">sps</span><span class="p">]</span> <span class="o">/</span>
+                          <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">J_abs</span><span class="p">[</span><span class="n">sps</span><span class="p">]))</span>
+
+
+        <span class="c1"># Facet Approach</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Integral</span>
+            <span class="n">I</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="mi">1j</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">q</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">r</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">))</span><span class="o">*</span><span class="n">n_norm</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">dx</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">dy</span><span class="o">*</span>
+                 <span class="n">np</span><span class="o">.</span><span class="n">sinc</span><span class="p">((</span><span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">Diffx</span><span class="p">)</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">dx</span><span class="o">/</span><span class="mf">2.</span><span class="p">)</span><span class="o">*</span>
+                 <span class="n">np</span><span class="o">.</span><span class="n">sinc</span><span class="p">((</span><span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">q</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">Diffy</span><span class="p">)</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">dy</span><span class="o">/</span><span class="mf">2.</span><span class="p">))</span>
+
+            <span class="c1"># Scattered field</span>
+            <span class="n">E</span> <span class="o">=</span> <span class="n">K</span><span class="o">*</span><span class="n">I</span><span class="o">*</span><span class="n">p</span>
+
+
+        <span class="k">return</span> <span class="n">E</span></div>
+
+
+<div class="viewcode-block" id="RCSKA.rcs"><a class="viewcode-back" href="../../../modules.html#osiris.nrcs.ka.RCSKA.rcs">[docs]</a>    <span class="k">def</span> <span class="nf">rcs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pol_i</span><span class="p">,</span> <span class="n">pol_s</span><span class="p">,</span>
+            <span class="n">theta_i</span><span class="p">,</span> <span class="n">theta_s</span><span class="p">,</span> <span class="n">phi_i</span><span class="p">,</span> <span class="n">phi_s</span><span class="p">,</span>
+            <span class="n">Dz</span><span class="p">,</span> <span class="n">Diffx</span><span class="p">,</span> <span class="n">Diffy</span><span class="p">,</span> <span class="n">Diffxx</span><span class="p">,</span> <span class="n">Diffyy</span><span class="p">,</span> <span class="n">Diffxy</span><span class="p">):</span>
+
+        <span class="sd">&quot;&quot;&quot; Calculates RCS</span>
+
+<span class="sd">            :param pol_i: Incident polarization (v, h)</span>
+<span class="sd">            :param pol_s: Scattered polarization (v, h)</span>
+<span class="sd">            :param theta_i: Incidence elevation angle</span>
+<span class="sd">            :param theta_s: Scattered elevation angle</span>
+<span class="sd">            :param phi_i: Incidence azimuth angle</span>
+<span class="sd">            :param phi_s: Scattered azimuth angle</span>
+<span class="sd">            :param Dz: Surface height field</span>
+<span class="sd">            :param Diffx: Space first derivatives (X slopes)</span>
+<span class="sd">            :param Diffy: Space first derivatives (Y slopes)</span>
+<span class="sd">            :param Diffxx: Space second derivatives (XX)</span>
+<span class="sd">            :param Diffyy: Space second derivatives (YY)</span>
+<span class="sd">            :param Diffxy: Space second derivatives (XY)</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="p">(</span><span class="mf">4.</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span><span class="o">**</span><span class="mf">2.</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">pol_i</span><span class="p">,</span> <span class="n">pol_s</span><span class="p">,</span>
+                                                <span class="n">theta_i</span><span class="p">,</span> <span class="n">theta_s</span><span class="p">,</span> <span class="n">phi_i</span><span class="p">,</span> <span class="n">phi_s</span><span class="p">,</span>
+                                                <span class="n">Dz</span><span class="p">,</span> <span class="n">Diffx</span><span class="p">,</span> <span class="n">Diffy</span><span class="p">,</span> <span class="n">Diffxx</span><span class="p">,</span> <span class="n">Diffyy</span><span class="p">,</span> <span class="n">Diffxy</span><span class="p">))</span><span class="o">**</span><span class="mf">2.</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2016, Paco López-Dekker, Gordon Farquharson, Gerard Marull Paretas.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.4.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.8</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>
