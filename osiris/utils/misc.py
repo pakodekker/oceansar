@@ -1,6 +1,37 @@
 
 import numpy as np
 
+def get_parFile(parfile=None):
+    """Mini gui to get filename
+    """
+    def _test(out_q):
+        out_q.put('hola')
+
+    if (parfile is None):
+        #output_queue = multiprocessing.Queue()
+        #p = multiprocessing.Process(target=_get_parFile, args=(output_queue,))
+        #p.start()
+        #parfile = output_queue.get()
+        #p.join()
+        parfile = _get_parFile(1)
+    return parfile
+
+
+def _get_parFile(out_q):
+    from tkinter import filedialog as tkfiledialog
+    from tkinter import Tk
+    root = Tk()
+    root.withdraw()
+    root.overrideredirect(True)
+    root.geometry('0x0+0+0')
+    root.deiconify()
+    root.lift()
+    root.focus_force()
+    parfile = tkfiledialog.askopenfilename(parent=root)
+    root.destroy()
+    # out_q.put(parfile)
+    return parfile
+
 
 def factorize(n):
     """ Prime factorize a number
@@ -70,3 +101,54 @@ def balance_elements(N, size):
     displ = np.concatenate(([0], np.cumsum(counts)[:-1]))
 
     return counts, displ
+
+def smooth(data, window_len=11, window='flat', axis=None):
+    """ Smooth the data using a window with requested size.
+
+        This method is based on the convolution of a scaled window with the signal.
+        Works with 1-D and 2-D arrays.
+
+        :param data: Input data
+        :param window_len: Dimension of the smoothing window; should be an odd integer
+        :param window: Type of window from 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'.
+                       Flat window will produce a moving average smoothing.
+        :param axis: if set, then it smoothes only over that axis
+
+        :returns: the smoothed signal
+    """
+
+    if data.ndim > 2:
+        raise ValueError('Arrays with ndim > 2 not supported')
+
+    if window_len < 3:
+        return data
+
+    if not window in ['flat', 'hanning', 'hamming', 'bartlett', 'blackman']:
+        raise ValueError('Window type not supported')
+
+    # Calculate Kernel
+    if window == 'flat':
+        w = np.ones(window_len)
+    else:
+        w = eval('np.' + window + '(window_len)')
+
+    # Smooth
+    if data.ndim > 1:
+        if axis is None:
+            w = np.sqrt(np.outer(w, w))
+        elif axis == 0:
+            w = w.reshape((w.size, 1))
+        else:
+            w = w.reshape((1, w.size))
+
+    y = signal.fftconvolve(data, w/w.sum(), mode='same')
+
+    return y
+
+
+def db(a, linear=False):
+    """ Mini routine to convert to dB"""
+    if linear:
+        return 20 * np.log10(np.abs(a))
+    else:
+        return 10 * np.log10(np.abs(a))

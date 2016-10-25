@@ -2,7 +2,8 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/WAVESIM.iml" filepath="$PROJECT_DIR$/.idea/WAVESIM.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../DRAMA/.idea/DRAMA.iml" filepath="$PROJECT_DIR$/../DRAMA/.idea/DRAMA.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/OSIRIS.iml" filepath="$PROJECT_DIR$/.idea/OSIRIS.iml" />
     </modules>
   </component>
 </project>

@@ -6,8 +6,8 @@ OSIRIS LIBRARY documentation (:mod:`osiris`)
 
 .. currentmodule:: osiris
 
-Submodules
-==========
+Basic modules
+=============
 .. toctree::
    :maxdepth: 2
 
@@ -33,5 +33,14 @@ Submodules
    :members:
 
 .. automodule:: osiris.utils
+   :members:
+
+Derived products
+================
+
+.. toctree::
+   :maxdepth: 2
+
+.. automodule:: osiris.scatstats
    :members:
 """

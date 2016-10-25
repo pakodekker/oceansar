@@ -1,7 +1,91 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="c552e200-c08b-4f01-8ba6-905c27655919" name="Default" comment="" />
+    <list default="true" id="c552e200-c08b-4f01-8ba6-905c27655919" name="Default" comment="">
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/.spyderproject" afterPath="$PROJECT_DIR$/../DRAMA/.spyderproject" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/doc/build/doctrees/environment.pickle" afterPath="$PROJECT_DIR$/doc/build/doctrees/environment.pickle" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/doc/build/doctrees/modules.doctree" afterPath="$PROJECT_DIR$/doc/build/doctrees/modules.doctree" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/doc/build/html/objects.inv" afterPath="$PROJECT_DIR$/doc/build/html/objects.inv" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/doc/source/conf.py" afterPath="$PROJECT_DIR$/../DRAMA/doc/source/conf.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/atmosphere/APSCorrelation.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/atmosphere/APSCorrelation.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/atmosphere/iono.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/atmosphere/iono.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/coverage/__init__.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/coverage/__init__.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/coverage/activation.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/coverage/activation.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/coverage/bist_tools.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/coverage/bist_tools.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/coverage/coveragePlotters.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/coverage/coveragePlotters.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/coverage/coverage_check.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/coverage/coverage_check.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/coverage/swath_calc.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/coverage/swath_calc.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/coverage/swath_coverage.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/coverage/swath_coverage.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/coverage/system_perf.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/coverage/system_perf.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/geo/orbit.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/geo/orbit.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/geo/sar/geo_history.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/geo/sar/geo_history.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/geo/sar/geometry.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/geo/sar/geometry.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/geo/sar/timing.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/geo/sar/timing.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/geo/squinted.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/geo/squinted.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/io/errors.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/io/errors.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/mission/coverage/__init__.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/mission/coverage/__init__.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/mission/coverage/coverage.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/mission/coverage/coverage.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/mission/timeline/__init__.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/mission/timeline/__init__.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/mission/timeline/acquisitions.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/mission/timeline/acquisitions.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/mission/timeline/formation.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/mission/timeline/formation.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/orbits/calc_orbit.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/orbits/calc_orbit.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/orbits/coord_trans.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/orbits/coord_trans.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/orbits/driftCal.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/orbits/driftCal.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/orbits/eccentricityCal.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/orbits/eccentricityCal.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/orbits/formation.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/orbits/formation.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/orbits/kep_elements.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/orbits/kep_elements.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/orbits/omegaCal.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/orbits/omegaCal.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/orbits/repeat_design.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/orbits/repeat_design.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/orbits/rw_XML.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/orbits/rw_XML.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/orbits/single_orbit.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/orbits/single_orbit.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/orbits/sunsync_orbit.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/orbits/sunsync_orbit.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/orbits/test.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/orbits/test.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/performance/DopplerCentroid/bamler.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/performance/DopplerCentroid/bamler.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/performance/__init__.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/performance/__init__.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/performance/insar/HCRB_and_3DInversion.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/performance/insar/HCRB_and_3DInversion.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/performance/insar/coh_maps.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/performance/insar/coh_maps.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/performance/insar/coherence_models.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/performance/insar/coherence_models.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/performance/insar/dem_perf.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/performance/insar/dem_perf.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/performance/insar/dinsar_pat.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/performance/insar/dinsar_pat.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/performance/insar/dinsar_pat_Picosar_fast.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/performance/insar/dinsar_pat_Picosar_fast.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/performance/insar/p_delta_phi.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/performance/insar/p_delta_phi.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/performance/insar/phase_err_vs_Brg_plots.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/performance/insar/phase_err_vs_Brg_plots.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/performance/insar/phase_err_vs_coh_plots.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/performance/insar/phase_err_vs_coh_plots.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/performance/insar/phase_err_vs_snr_plots.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/performance/insar/phase_err_vs_snr_plots.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/performance/insar/stdv_phase_vs_coh.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/performance/insar/stdv_phase_vs_coh.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/performance/insar/tbl_delta_phi_pdf.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/performance/insar/tbl_delta_phi_pdf.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/performance/oscillators/phase.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/performance/oscillators/phase.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/performance/sar/SarStruct2Sens.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/performance/sar/SarStruct2Sens.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/performance/sar/SarStruct2SensWithGUI.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/performance/sar/SarStruct2SensWithGUI.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/performance/sar/antenna_patterns.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/performance/sar/antenna_patterns.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/performance/sar/data_patch.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/performance/sar/data_patch.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/performance/sar/errors.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/performance/sar/errors.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/performance/sar/signal_noise.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/performance/sar/signal_noise.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/performance/sar/simulators.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/performance/sar/simulators.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/utils/ReadMasks.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/utils/ReadMasks.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/utils/__init__.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/utils/__init__.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/utils/coord_trans.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/utils/coord_trans.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/utils/misc.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/utils/misc.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/utils/read_backscattering.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/utils/read_backscattering.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/utils/system.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/utils/system.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/drama/utils/wbmod.py" afterPath="$PROJECT_DIR$/../DRAMA/drama/utils/wbmod.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../DRAMA/setup.py" afterPath="$PROJECT_DIR$/../DRAMA/setup.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/OSIRIS.iml" afterPath="$PROJECT_DIR$/.idea/OSIRIS.iml" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/misc.xml" afterPath="$PROJECT_DIR$/.idea/misc.xml" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/modules.xml" afterPath="$PROJECT_DIR$/.idea/modules.xml" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/doc/build/html/_modules/index.html" afterPath="$PROJECT_DIR$/doc/build/html/_modules/index.html" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/doc/build/html/_modules/osiris/utils/misc.html" afterPath="$PROJECT_DIR$/doc/build/html/_modules/osiris/utils/misc.html" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/doc/build/html/genindex.html" afterPath="$PROJECT_DIR$/doc/build/html/genindex.html" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/doc/build/html/index.html" afterPath="$PROJECT_DIR$/doc/build/html/index.html" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/doc/build/html/modules.html" afterPath="$PROJECT_DIR$/doc/build/html/modules.html" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/doc/build/html/py-modindex.html" afterPath="$PROJECT_DIR$/doc/build/html/py-modindex.html" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/doc/build/html/searchindex.js" afterPath="$PROJECT_DIR$/doc/build/html/searchindex.js" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/osiris/__init__.py" afterPath="$PROJECT_DIR$/osiris/__init__.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/osiris/io/__init__.py" afterPath="$PROJECT_DIR$/osiris/io/__init__.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/osiris/utils/__init__.py" afterPath="$PROJECT_DIR$/osiris/utils/__init__.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/osiris/utils/misc.py" afterPath="$PROJECT_DIR$/osiris/utils/misc.py" />
+    </list>
     <ignored path="WAVESIM.iws" />
     <ignored path=".idea/workspace.xml" />
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -20,31 +104,152 @@
   </component>
   <component name="FileEditorManager">
     <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
-      <file leaf-file-name="romeiser97.py" pinned="false" current-in-tab="true">
-        <entry file="file://$PROJECT_DIR$/wavesim/nrcs/romeiser97.py">
+      <file leaf-file-name="__init__.py" pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/osiris/scatstats/__init__.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="30">
+              <caret line="2" column="43" selection-start-line="2" selection-start-column="43" selection-end-line="2" selection-end-column="43" />
+              <folding />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="radar_stats.py" pinned="false" current-in-tab="true">
+        <entry file="file://$PROJECT_DIR$/osiris/scatstats/radar_stats.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="3735">
+              <caret line="332" column="36" selection-start-line="332" selection-start-column="36" selection-end-line="332" selection-end-column="36" />
+              <folding>
+                <element signature="e#1#10#0" expanded="true" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="resample.py" pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/../DRAMA/drama/utils/resample.py">
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="0">
               <caret line="0" column="0" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+              <folding>
+                <element signature="e#0#64#0" expanded="true" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="misc.py" pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/../DRAMA/drama/utils/misc.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="189">
+              <caret line="320" column="12" selection-start-line="320" selection-start-column="12" selection-end-line="320" selection-end-column="12" />
               <folding />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="misc.py" pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/osiris/utils/misc.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="339">
+              <caret line="154" column="0" selection-start-line="154" selection-start-column="0" selection-end-line="154" selection-end-column="0" />
+              <folding />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="__init__.py" pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/osiris/utils/__init__.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="270">
+              <caret line="18" column="88" selection-start-line="18" selection-start-column="88" selection-end-line="18" selection-end-column="88" />
+              <folding />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="geometry.py" pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/osiris/utils/geometry.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="2565">
+              <caret line="175" column="0" selection-start-line="175" selection-start-column="0" selection-end-line="175" selection-end-column="0" />
+              <folding>
+                <element signature="e#0#18#0" expanded="true" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="orbit.py" pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/../DRAMA/drama/geo/orbit.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="285">
+              <caret line="20" column="12" selection-start-line="4" selection-start-column="0" selection-end-line="20" selection-end-column="12" />
+              <folding>
+                <element signature="e#0#18#0" expanded="true" />
+              </folding>
             </state>
           </provider>
         </entry>
       </file>
     </leaf>
   </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Python Script" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="IdeDocumentHistory">
+    <option name="CHANGED_PATHS">
+      <list>
+        <option value="$PROJECT_DIR$/../OASIS/src/srg.py" />
+        <option value="$PROJECT_DIR$/osiris/io/__init__.py" />
+        <option value="$PROJECT_DIR$/osiris/__init__.py" />
+        <option value="$PROJECT_DIR$/osiris/scatstats/__init__.py" />
+        <option value="$PROJECT_DIR$/osiris/utils/geometry.py" />
+        <option value="$PROJECT_DIR$/osiris/utils/__init__.py" />
+        <option value="$PROJECT_DIR$/osiris/utils/misc.py" />
+        <option value="$PROJECT_DIR$/osiris/scatstats/radar_stats.py" />
+      </list>
+    </option>
+  </component>
   <component name="ProjectFrameBounds">
     <option name="y" value="23" />
     <option name="width" value="1280" />
     <option name="height" value="773" />
   </component>
-  <component name="ProjectLevelVcsManager" settingsEditedManually="false">
+  <component name="ProjectInspectionProfilesVisibleTreeState">
+    <entry key="Project Default">
+      <profile-state>
+        <expanded-state>
+          <State>
+            <id />
+          </State>
+          <State>
+            <id>Python</id>
+          </State>
+        </expanded-state>
+        <selected-state>
+          <State>
+            <id>PyCompatibilityInspection</id>
+          </State>
+        </selected-state>
+      </profile-state>
+    </entry>
+  </component>
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true">
     <OptionsSetting value="true" id="Add" />
     <OptionsSetting value="true" id="Remove" />
     <OptionsSetting value="true" id="Checkout" />
     <OptionsSetting value="true" id="Update" />
     <OptionsSetting value="true" id="Status" />
     <OptionsSetting value="true" id="Edit" />
-    <ConfirmationsSetting value="0" id="Add" />
+    <ConfirmationsSetting value="1" id="Add" />
     <ConfirmationsSetting value="0" id="Remove" />
   </component>
   <component name="ProjectView">
@@ -67,8 +272,18 @@
         <subPane>
           <PATH>
             <PATH_ELEMENT>
-              <option name="myItemId" value="WAVESIM" />
+              <option name="myItemId" value="OSIRIS" />
               <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ProjectViewProjectNode" />
+            </PATH_ELEMENT>
+          </PATH>
+          <PATH>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="OSIRIS" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ProjectViewProjectNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="OSIRIS" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
             </PATH_ELEMENT>
           </PATH>
         </subPane>
@@ -77,12 +292,204 @@
     </panes>
   </component>
   <component name="PropertiesComponent">
-    <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
+    <property name="settings.editor.selected.configurable" value="PyConsoleConfigurable.Python Console" />
     <property name="settings.editor.splitter.proportion" value="0.2" />
-    <property name="last_opened_file_path" value="$PROJECT_DIR$" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/../DRAMA" />
+  </component>
+  <component name="PyConsoleOptionsProvider">
+    <option name="myPythonConsoleState">
+      <console-settings custom-start-script="import sys; print('Python %s on %s' % (sys.version, sys.platform))&#10;sys.path.extend([WORKING_DIR_AND_PYTHON_PATHS])&#10;%load_ext autoreload&#10;%autoreload 2&#10;&#10;" module-name="OSIRIS" is-module-sdk="true">
+        <option name="myCustomStartScript" value="import sys; print('Python %s on %s' % (sys.version, sys.platform))&#10;sys.path.extend([WORKING_DIR_AND_PYTHON_PATHS])&#10;%load_ext autoreload&#10;%autoreload 2&#10;&#10;" />
+        <option name="myUseModuleSdk" value="true" />
+        <option name="myModuleName" value="OSIRIS" />
+      </console-settings>
+    </option>
+  </component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/osiris/utils" />
+      <recent name="$PROJECT_DIR$/osiris/io" />
+    </key>
+  </component>
+  <component name="RunManager" selected="Python.OSIRIS">
+    <configuration default="true" type="PythonConfigurationType" factoryName="Python">
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <module name="OSIRIS" />
+      <option name="SCRIPT_NAME" value="" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <method />
+    </configuration>
+    <configuration default="true" type="Tox" factoryName="Tox">
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <module name="OSIRIS" />
+      <method />
+    </configuration>
+    <configuration default="true" type="tests" factoryName="Attests">
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <module name="OSIRIS" />
+      <option name="SCRIPT_NAME" value="" />
+      <option name="CLASS_NAME" value="" />
+      <option name="METHOD_NAME" value="" />
+      <option name="FOLDER_NAME" value="" />
+      <option name="TEST_TYPE" value="TEST_SCRIPT" />
+      <option name="PATTERN" value="" />
+      <option name="USE_PATTERN" value="false" />
+      <method />
+    </configuration>
+    <configuration default="true" type="tests" factoryName="Doctests">
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <module name="OSIRIS" />
+      <option name="SCRIPT_NAME" value="" />
+      <option name="CLASS_NAME" value="" />
+      <option name="METHOD_NAME" value="" />
+      <option name="FOLDER_NAME" value="" />
+      <option name="TEST_TYPE" value="TEST_SCRIPT" />
+      <option name="PATTERN" value="" />
+      <option name="USE_PATTERN" value="false" />
+      <method />
+    </configuration>
+    <configuration default="true" type="tests" factoryName="Nosetests">
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <module name="OSIRIS" />
+      <option name="SCRIPT_NAME" value="" />
+      <option name="CLASS_NAME" value="" />
+      <option name="METHOD_NAME" value="" />
+      <option name="FOLDER_NAME" value="" />
+      <option name="TEST_TYPE" value="TEST_SCRIPT" />
+      <option name="PATTERN" value="" />
+      <option name="USE_PATTERN" value="false" />
+      <option name="PARAMS" value="" />
+      <option name="USE_PARAM" value="false" />
+      <method />
+    </configuration>
+    <configuration default="true" type="tests" factoryName="Unittests">
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <module name="OSIRIS" />
+      <option name="SCRIPT_NAME" value="" />
+      <option name="CLASS_NAME" value="" />
+      <option name="METHOD_NAME" value="" />
+      <option name="FOLDER_NAME" value="" />
+      <option name="TEST_TYPE" value="TEST_SCRIPT" />
+      <option name="PATTERN" value="" />
+      <option name="USE_PATTERN" value="false" />
+      <option name="PUREUNITTEST" value="true" />
+      <option name="PARAMS" value="" />
+      <option name="USE_PARAM" value="false" />
+      <method />
+    </configuration>
+    <configuration default="true" type="tests" factoryName="py.test">
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <module name="OSIRIS" />
+      <option name="SCRIPT_NAME" value="" />
+      <option name="CLASS_NAME" value="" />
+      <option name="METHOD_NAME" value="" />
+      <option name="FOLDER_NAME" value="" />
+      <option name="TEST_TYPE" value="TEST_SCRIPT" />
+      <option name="PATTERN" value="" />
+      <option name="USE_PATTERN" value="false" />
+      <option name="testToRun" value="" />
+      <option name="keywords" value="" />
+      <option name="params" value="" />
+      <option name="USE_PARAM" value="false" />
+      <option name="USE_KEYWORD" value="false" />
+      <method />
+    </configuration>
+    <configuration default="false" name="OASIS" type="PythonConfigurationType" factoryName="Python">
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="$USER_HOME$/anaconda/bin/python" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <module name="OSIRIS" />
+      <option name="SCRIPT_NAME" value="" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <method />
+    </configuration>
+    <configuration default="false" name="OSIRIS" type="PythonConfigurationType" factoryName="Python">
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="$USER_HOME$/anaconda/bin/python" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <module name="OSIRIS" />
+      <option name="SCRIPT_NAME" value="" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <method />
+    </configuration>
+    <list size="2">
+      <item index="0" class="java.lang.String" itemvalue="Python.OASIS" />
+      <item index="1" class="java.lang.String" itemvalue="Python.OSIRIS" />
+    </list>
   </component>
   <component name="ShelveChangesManager" show_recycled="false">
     <option name="remove_strategy" value="false" />
+  </component>
+  <component name="SvnConfiguration">
+    <configuration />
   </component>
   <component name="TaskManager">
     <task active="true" id="Default" summary="Default task">
@@ -96,9 +503,9 @@
   </component>
   <component name="ToolWindowManager">
     <frame x="0" y="23" width="1280" height="773" extended-state="6" />
-    <editor active="false" />
+    <editor active="true" />
     <layout>
-      <window_info id="Project" active="true" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.2494043" sideWeight="0.5" order="0" side_tool="false" content_ui="combo" />
+      <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.2494043" sideWeight="0.5" order="0" side_tool="false" content_ui="combo" />
       <window_info id="TODO" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="6" side_tool="false" content_ui="tabs" />
       <window_info id="Event Log" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="7" side_tool="true" content_ui="tabs" />
       <window_info id="Version Control" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
@@ -133,19 +540,303 @@
     <watches-manager />
   </component>
   <component name="editorHistoryManager">
-    <entry file="file://$PROJECT_DIR$/wavesim/nrcs/romeiser97.py">
+    <entry file="file://$PROJECT_DIR$/osiris/scatstats/__init__.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="0">
-          <caret line="0" column="0" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+        <state relative-caret-position="30">
+          <caret line="2" column="43" selection-start-line="2" selection-start-column="43" selection-end-line="2" selection-end-column="43" />
           <folding />
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/wavesim/nrcs/romeiser97.py">
+    <entry file="file://$PROJECT_DIR$/osiris/scatstats/radar_stats.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="0">
           <caret line="0" column="0" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+          <folding>
+            <element signature="e#1#10#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/osiris/utils/geometry.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="2565">
+          <caret line="175" column="0" selection-start-line="175" selection-start-column="0" selection-end-line="175" selection-end-column="0" />
+          <folding>
+            <element signature="e#0#18#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../DRAMA/drama/geo/orbit.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="285">
+          <caret line="20" column="12" selection-start-line="4" selection-start-column="0" selection-end-line="20" selection-end-column="12" />
+          <folding>
+            <element signature="e#0#18#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/osiris/scatstats/__init__.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="30">
+          <caret line="2" column="43" selection-start-line="2" selection-start-column="43" selection-end-line="2" selection-end-column="43" />
           <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/osiris/scatstats/radar_stats.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+          <folding>
+            <element signature="e#1#10#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/osiris/utils/geometry.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="2625">
+          <caret line="175" column="0" selection-start-line="175" selection-start-column="0" selection-end-line="175" selection-end-column="0" />
+          <folding>
+            <element signature="e#0#18#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../DRAMA/drama/geo/orbit.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="300">
+          <caret line="20" column="12" selection-start-line="4" selection-start-column="0" selection-end-line="20" selection-end-column="12" />
+          <folding>
+            <element signature="e#0#18#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/osiris/scatstats/__init__.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="30">
+          <caret line="2" column="43" selection-start-line="2" selection-start-column="43" selection-end-line="2" selection-end-column="43" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/osiris/scatstats/radar_stats.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+          <folding>
+            <element signature="e#1#10#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/osiris/utils/geometry.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="2565">
+          <caret line="175" column="0" selection-start-line="175" selection-start-column="0" selection-end-line="175" selection-end-column="0" />
+          <folding>
+            <element signature="e#0#18#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../DRAMA/drama/geo/orbit.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="285">
+          <caret line="20" column="12" selection-start-line="4" selection-start-column="0" selection-end-line="20" selection-end-column="12" />
+          <folding>
+            <element signature="e#0#18#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/osiris/scatstats/__init__.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="240">
+          <caret line="16" column="59" selection-start-line="16" selection-start-column="59" selection-end-line="16" selection-end-column="59" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/osiris/scatstats/radar_stats.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+          <folding>
+            <element signature="e#1#10#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/osiris/spec/__init__.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="300">
+          <caret line="20" column="12" selection-start-line="16" selection-start-column="0" selection-end-line="20" selection-end-column="12" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../OASIS/src/srp.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../OASIS/src/srg.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="555">
+          <caret line="60" column="0" selection-start-line="60" selection-start-column="0" selection-end-line="60" selection-end-column="0" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../OASIS/src/nrcs.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/wavesim/nrcs/romeiser97.py" />
+    <entry file="file://$PROJECT_DIR$/wavesim/nrcs/romeiser97.py" />
+    <entry file="file://$PROJECT_DIR$/../OASIS/src/srp.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../OASIS/src/srg.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="555">
+          <caret line="60" column="0" selection-start-line="60" selection-start-column="0" selection-end-line="60" selection-end-column="0" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../OASIS/src/nrcs.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="75">
+          <caret line="5" column="0" selection-start-line="5" selection-start-column="0" selection-end-line="5" selection-end-column="0" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/osiris/spec/__init__.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="300">
+          <caret line="20" column="12" selection-start-line="16" selection-start-column="0" selection-end-line="20" selection-end-column="12" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/osiris/io/__init__.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="375">
+          <caret line="25" column="27" selection-start-line="25" selection-start-column="27" selection-end-line="25" selection-end-column="27" />
+          <folding>
+            <element signature="e#367#400#0" expanded="false" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/osiris/scatstats/__init__.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="30">
+          <caret line="2" column="43" selection-start-line="2" selection-start-column="43" selection-end-line="2" selection-end-column="43" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/osiris/io/cfg.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../DRAMA/drama/io/cfg.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/osiris/__init__.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="99">
+          <caret line="9" column="9" selection-start-line="9" selection-start-column="9" selection-end-line="9" selection-end-column="9" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../DRAMA/drama/geo/sar/geometry.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="210">
+          <caret line="14" column="30" selection-start-line="14" selection-start-column="30" selection-end-line="14" selection-end-column="30" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../DRAMA/drama/geo/orbit.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="285">
+          <caret line="20" column="12" selection-start-line="4" selection-start-column="0" selection-end-line="20" selection-end-column="12" />
+          <folding>
+            <element signature="e#0#18#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/osiris/utils/geometry.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="2565">
+          <caret line="175" column="0" selection-start-line="175" selection-start-column="0" selection-end-line="175" selection-end-column="0" />
+          <folding>
+            <element signature="e#0#18#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../DRAMA/drama/utils/resample.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+          <folding>
+            <element signature="e#0#64#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/osiris/utils/misc.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="339">
+          <caret line="154" column="0" selection-start-line="154" selection-start-column="0" selection-end-line="154" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/osiris/utils/__init__.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="270">
+          <caret line="18" column="88" selection-start-line="18" selection-start-column="88" selection-end-line="18" selection-end-column="88" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../DRAMA/drama/utils/misc.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="189">
+          <caret line="320" column="12" selection-start-line="320" selection-start-column="12" selection-end-line="320" selection-end-column="12" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/osiris/scatstats/radar_stats.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="3735">
+          <caret line="332" column="36" selection-start-line="332" selection-start-column="36" selection-end-line="332" selection-end-column="36" />
+          <folding>
+            <element signature="e#1#10#0" expanded="true" />
+          </folding>
         </state>
       </provider>
     </entry>

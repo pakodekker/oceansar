@@ -45,8 +45,8 @@
 </div>
 <span class="target" id="module-osiris"></span><div class="section" id="osiris-library-documentation-osiris">
 <h1>OSIRIS LIBRARY documentation (<a class="reference internal" href="#module-osiris" title="osiris"><code class="xref py py-mod docutils literal"><span class="pre">osiris</span></code></a>)<a class="headerlink" href="#osiris-library-documentation-osiris" title="Permalink to this headline">¶</a></h1>
-<div class="section" id="submodules">
-<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="basic-modules">
+<h2>Basic modules<a class="headerlink" href="#basic-modules" title="Permalink to this headline">¶</a></h2>
 <div class="toctree-wrapper compound">
 <ul class="simple">
 </ul>
@@ -263,7 +263,113 @@ i.e. get(&#8216;test*&#8217;), set(&#8216;test*&#8217;, complex_array)</li>
 
 </dd></dl>
 
-<span class="target" id="module-osiris.io.state"></span></div>
+<span class="target" id="module-osiris.io.state"></span><span class="target" id="module-osiris.io.cfg"></span><dl class="class">
+<dt id="osiris.io.cfg.ConfigFile">
+<em class="property">class </em><code class="descclassname">osiris.io.cfg.</code><code class="descname">ConfigFile</code><span class="sig-paren">(</span><em>cfg_file_name</em>, <em>str_mode=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/osiris/io/cfg.html#ConfigFile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#osiris.io.cfg.ConfigFile" title="Permalink to this definition">¶</a></dt>
+<dd><p>Class to read/write configuration files.
+Variables are loaded as class variables, with section support. Supported features are
+described in the following table:</p>
+<table border="1" class="docutils">
+<colgroup>
+<col width="17%" />
+<col width="83%" />
+</colgroup>
+<tbody valign="top">
+<tr class="row-odd"><td>Feature</td>
+<td>Description</td>
+</tr>
+<tr class="row-even"><td>Comments</td>
+<td><ul class="first last simple">
+<li>Lines starting with &#8216;#&#8217; or &#8216;;&#8217; will considered comments and thus ignored</li>
+<li>In-line comments supported (ex. <code class="docutils literal"><span class="pre">variable=test</span>&nbsp; <span class="pre">;Description</span></code>)</li>
+<li>Comments will <strong>NOT</strong> be written back when saving.</li>
+</ul>
+</td>
+</tr>
+<tr class="row-odd"><td>Sections</td>
+<td>Defined with brackets [].</td>
+</tr>
+<tr class="row-even"><td>Variable formats</td>
+<td><ul class="first last simple">
+<li>Strings
+- path=/example/string/variable</li>
+<li>Integers
+- int_var=2</li>
+<li>Floating point numbers
+- float_var=2.35e6</li>
+<li>Booleans
+- bool_var=True</li>
+<li>Arrays (1-D, Floats or strings, or Booleans)
+- array_flt = [1.22, 3.43]
+- array_str = [&#8216;a&#8217;,&#8217;b&#8217;]
+- array_bool = [True, False, True]</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<p>Example:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="c1"># Comment</span>
+<span class="p">[</span><span class="n">Section1</span><span class="p">]</span>
+<span class="n">string_var</span><span class="o">=</span><span class="n">Example</span>
+<span class="n">boolean_var</span><span class="o">=</span><span class="kc">True</span>
+<span class="n">array_str</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;a&#39;</span><span class="p">,</span><span class="s1">&#39;b&#39;</span><span class="p">]</span>
+
+<span class="p">;</span> <span class="n">Comment</span>
+<span class="p">[</span><span class="n">Section2</span><span class="p">]</span>
+<span class="n">int_var</span><span class="o">=</span><span class="mi">2</span>
+<span class="n">float_var</span><span class="o">=</span><span class="mf">2.0</span>
+<span class="n">array_flt</span><span class="o">=</span><span class="p">[</span><span class="mf">1.22</span><span class="p">,</span><span class="mf">3.55</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>would be accessed as:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">class_inst_name</span><span class="o">.</span><span class="n">Section1</span><span class="o">.</span><span class="n">string_var</span>
+<span class="n">class_inst_name</span><span class="o">.</span><span class="n">Section1</span><span class="o">.</span><span class="n">boolean_var</span>
+<span class="n">class_inst_name</span><span class="o">.</span><span class="n">Section1</span><span class="o">.</span><span class="n">array_str</span>
+<span class="n">class_inst_name</span><span class="o">.</span><span class="n">Section2</span><span class="o">.</span><span class="n">int_var</span>
+<span class="n">class_inst_name</span><span class="o">.</span><span class="n">Section2</span><span class="o">.</span><span class="n">float_var</span>
+<span class="n">class_inst_name</span><span class="o">.</span><span class="n">Section2</span><span class="o">.</span><span class="n">array_flt</span>
+</pre></div>
+</div>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>cfg_file_name</strong> &#8211; Route of parameter file</td>
+</tr>
+</tbody>
+</table>
+<dl class="method">
+<dt id="osiris.io.cfg.ConfigFile.read">
+<code class="descname">read</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/osiris/io/cfg.html#ConfigFile.read"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#osiris.io.cfg.ConfigFile.read" title="Permalink to this definition">¶</a></dt>
+<dd><p>Read file content</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Automatically called when class is initialized</p>
+</div>
+</dd></dl>
+
+<dl class="method">
+<dt id="osiris.io.cfg.ConfigFile.save">
+<code class="descname">save</code><span class="sig-paren">(</span><em>alternate_file=None</em>, <em>blank_lines=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/osiris/io/cfg.html#ConfigFile.save"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#osiris.io.cfg.ConfigFile.save" title="Permalink to this definition">¶</a></dt>
+<dd><p>Saves configuration file</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>alternate_file</strong> &#8211; Alternate path to save file</li>
+<li><strong>blank_lines</strong> &#8211; Add a blank line after each section</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+</div>
 </div>
 <span class="target" id="module-osiris.nrcs"></span><div class="section" id="nrcs-models-module-osiris-nrcs">
 <h3>NRCS Models Module (<a class="reference internal" href="#module-osiris.nrcs" title="osiris.nrcs"><code class="xref py py-mod docutils literal"><span class="pre">osiris.nrcs</span></code></a>)<a class="headerlink" href="#nrcs-models-module-osiris-nrcs" title="Permalink to this headline">¶</a></h3>
@@ -751,6 +857,12 @@ of the number of processes</p>
 </dd></dl>
 
 <dl class="function">
+<dt id="osiris.utils.misc.get_parFile">
+<code class="descclassname">osiris.utils.misc.</code><code class="descname">get_parFile</code><span class="sig-paren">(</span><em>parfile=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/osiris/utils/misc.html#get_parFile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#osiris.utils.misc.get_parFile" title="Permalink to this definition">¶</a></dt>
+<dd><p>Mini gui to get filename</p>
+</dd></dl>
+
+<dl class="function">
 <dt id="osiris.utils.misc.optimize_fftsize">
 <code class="descclassname">osiris.utils.misc.</code><code class="descname">optimize_fftsize</code><span class="sig-paren">(</span><em>values</em>, <em>max_prime=2</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/osiris/utils/misc.html#optimize_fftsize"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#osiris.utils.misc.optimize_fftsize" title="Permalink to this definition">¶</a></dt>
 <dd><p>Returns &#8216;good&#8217; dimensions for FFT algorithm</p>
@@ -774,6 +886,47 @@ of the number of processes</p>
 </div>
 </div>
 </div>
+<div class="section" id="derived-products">
+<h2>Derived products<a class="headerlink" href="#derived-products" title="Permalink to this headline">¶</a></h2>
+<div class="toctree-wrapper compound">
+<ul class="simple">
+</ul>
+</div>
+<span class="target" id="module-osiris.scatstats"></span><div class="section" id="derived-statistics-osiris-scatstats">
+<h3>Derived statistics (<a class="reference internal" href="#module-osiris.scatstats" title="osiris.scatstats"><code class="xref py py-mod docutils literal"><span class="pre">osiris.scatstats</span></code></a>)<a class="headerlink" href="#derived-statistics-osiris-scatstats" title="Permalink to this headline">¶</a></h3>
+<p>This module provides routines to derive statistics using OSIRIS itself</p>
+<div class="toctree-wrapper compound">
+<ul class="simple">
+</ul>
+</div>
+<span class="target" id="module-osiris.scatstats.radar_stats"></span><p>Created on Thu Oct 22 17:47:59 2015</p>
+<p>&#64;author: lope_fr</p>
+<dl class="function">
+<dt id="osiris.scatstats.radar_stats.surface_S">
+<code class="descclassname">osiris.scatstats.radar_stats.</code><code class="descname">surface_S</code><span class="sig-paren">(</span><em>cfg_file=None</em>, <em>inc_deg=None</em>, <em>ntimes=2</em>, <em>t_step=0.01</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/osiris/scatstats/radar_stats.html#surface_S"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#osiris.scatstats.radar_stats.surface_S" title="Permalink to this definition">¶</a></dt>
+<dd><p>This function generates a (short) time series of surface realizations.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>scf_file</strong> &#8211; the full path to the configuration with all OSIRIS parameters</li>
+<li><strong>inc_deg</strong> &#8211; the incident angle, in degree</li>
+<li><strong>ntimes</strong> &#8211; number of time samples generated.</li>
+<li><strong>t_step</strong> &#8211; spacing between time samples. This can be interpreted as the Pulse Repetition Interval</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">a tuple with the configuration object, the surfaces, the radial velocities for each grid point,
+and the complex scattering coefficients</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
+</div>
 </div>
 <div class="section" id="indices-and-tables">
 <h1>Indices and tables<a class="headerlink" href="#indices-and-tables" title="Permalink to this headline">¶</a></h1>
@@ -793,7 +946,7 @@ of the number of processes</p>
   <h3><a href="index.html">Table Of Contents</a></h3>
   <ul>
 <li><a class="reference internal" href="#">OSIRIS LIBRARY documentation (<code class="docutils literal"><span class="pre">osiris</span></code>)</a><ul>
-<li><a class="reference internal" href="#submodules">Submodules</a><ul>
+<li><a class="reference internal" href="#basic-modules">Basic modules</a><ul>
 <li><a class="reference internal" href="#closure-module-osiris-closure">Closure Module (<code class="docutils literal"><span class="pre">osiris.closure</span></code>)</a><ul>
 <li><a class="reference internal" href="#constants">Constants</a></li>
 </ul>
@@ -826,6 +979,10 @@ of the number of processes</p>
 <li><a class="reference internal" href="#id3">Ocean surfaces</a></li>
 </ul>
 </li>
+</ul>
+</li>
+<li><a class="reference internal" href="#derived-products">Derived products</a><ul>
+<li><a class="reference internal" href="#derived-statistics-osiris-scatstats">Derived statistics (<code class="docutils literal"><span class="pre">osiris.scatstats</span></code>)</a></li>
 </ul>
 </li>
 </ul>

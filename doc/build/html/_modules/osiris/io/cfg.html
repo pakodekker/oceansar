@@ -1,0 +1,279 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>osiris.io.cfg &mdash; OSIRIS 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="top" title="OSIRIS 1.0 documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" />
+   
+  <link rel="stylesheet" href="../../../_static/custom.css" type="text/css" />
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for osiris.io.cfg</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">ast</span>
+
+<span class="k">class</span> <span class="nc">Section</span><span class="p">():</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">elements</span> <span class="o">=</span> <span class="p">[]</span>
+
+
+<div class="viewcode-block" id="ConfigFile"><a class="viewcode-back" href="../../../modules.html#osiris.io.cfg.ConfigFile">[docs]</a><span class="k">class</span> <span class="nc">ConfigFile</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot; Class to read/write configuration files.</span>
+<span class="sd">        Variables are loaded as class variables, with section support. Supported features are</span>
+<span class="sd">        described in the following table:</span>
+
+<span class="sd">        ================  ============================================================================</span>
+<span class="sd">        Feature           Description</span>
+<span class="sd">        ----------------  ----------------------------------------------------------------------------</span>
+<span class="sd">        Comments          * Lines starting with &#39;#&#39; or &#39;;&#39; will considered comments and thus ignored</span>
+<span class="sd">                          * In-line comments supported (ex. ``variable=test  ;Description``)</span>
+<span class="sd">                          * Comments will **NOT** be written back when saving.</span>
+<span class="sd">        Sections          Defined with brackets [].</span>
+<span class="sd">        Variable formats  * Strings</span>
+<span class="sd">                            - path=/example/string/variable</span>
+<span class="sd">                          * Integers</span>
+<span class="sd">                            - int_var=2</span>
+<span class="sd">                          * Floating point numbers</span>
+<span class="sd">                            - float_var=2.35e6</span>
+<span class="sd">                          * Booleans</span>
+<span class="sd">                            - bool_var=True</span>
+<span class="sd">                          * Arrays (1-D, Floats or strings, or Booleans)</span>
+<span class="sd">                            - array_flt = [1.22, 3.43]</span>
+<span class="sd">                            - array_str = [&#39;a&#39;,&#39;b&#39;]</span>
+<span class="sd">                            - array_bool = [True, False, True]</span>
+<span class="sd">        ================  ============================================================================</span>
+
+<span class="sd">        Example::</span>
+
+<span class="sd">            # Comment</span>
+<span class="sd">            [Section1]</span>
+<span class="sd">            string_var=Example</span>
+<span class="sd">            boolean_var=True</span>
+<span class="sd">            array_str=[&#39;a&#39;,&#39;b&#39;]</span>
+
+<span class="sd">            ; Comment</span>
+<span class="sd">            [Section2]</span>
+<span class="sd">            int_var=2</span>
+<span class="sd">            float_var=2.0</span>
+<span class="sd">            array_flt=[1.22,3.55]</span>
+
+<span class="sd">        would be accessed as::</span>
+
+<span class="sd">            class_inst_name.Section1.string_var</span>
+<span class="sd">            class_inst_name.Section1.boolean_var</span>
+<span class="sd">            class_inst_name.Section1.array_str</span>
+<span class="sd">            class_inst_name.Section2.int_var</span>
+<span class="sd">            class_inst_name.Section2.float_var</span>
+<span class="sd">            class_inst_name.Section2.array_flt</span>
+
+<span class="sd">        :param cfg_file_name: Route of parameter file</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cfg_file_name</span><span class="p">,</span> <span class="n">str_mode</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cfg_file_name</span> <span class="o">=</span> <span class="n">cfg_file_name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">str_mode</span> <span class="o">=</span> <span class="n">str_mode</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+
+<div class="viewcode-block" id="ConfigFile.read"><a class="viewcode-back" href="../../../modules.html#osiris.io.cfg.ConfigFile.read">[docs]</a>    <span class="k">def</span> <span class="nf">read</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Read file content</span>
+
+<span class="sd">            .. note::</span>
+<span class="sd">                Automatically called when class is initialized</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">sections</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">elements</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">current_section</span> <span class="o">=</span> <span class="bp">self</span>
+
+        <span class="nb">file</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg_file_name</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="nb">file</span><span class="p">:</span>
+
+            <span class="c1"># Jump blank &amp; comment lines</span>
+            <span class="k">if</span> <span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="s1">r&#39;(^[;#].*$)|(^[\s\t\r\n]*$)&#39;</span><span class="p">,</span> <span class="n">line</span><span class="p">):</span> <span class="k">continue</span>
+
+            <span class="c1"># Clean line: comments &amp; left/right strip</span>
+            <span class="n">line</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">rstrip</span><span class="p">()</span><span class="o">.</span><span class="n">lstrip</span><span class="p">()</span>
+            <span class="n">line</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="s1">r&#39;[;#].*$&#39;</span><span class="p">,</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">line</span><span class="p">)</span>
+
+            <span class="c1"># Section line</span>
+            <span class="n">s</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="s1">r&#39;\[(\w+)\]&#39;</span><span class="p">,</span> <span class="n">line</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">s</span><span class="p">:</span>
+                <span class="nb">vars</span><span class="p">(</span><span class="bp">self</span><span class="p">)[</span><span class="n">s</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)]</span> <span class="o">=</span> <span class="n">Section</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">sections</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span>
+
+                <span class="n">current_section</span> <span class="o">=</span> <span class="nb">vars</span><span class="p">(</span><span class="bp">self</span><span class="p">)[</span><span class="n">s</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)]</span>
+
+            <span class="c1"># Variable line</span>
+            <span class="k">else</span><span class="p">:</span>
+
+                <span class="n">s</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="s1">r&#39;(\w+)\s*=\s*([\s\w\s</span><span class="se">\\</span><span class="s1">\:\.,/</span><span class="se">\&#39;</span><span class="s1">\-\[\]]+)&#39;</span><span class="p">,</span> <span class="n">line</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="n">s</span><span class="p">:</span>
+                    <span class="c1"># String mode: no conversion to &#39;native&#39; type</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">str_mode</span><span class="p">:</span>
+                        <span class="nb">vars</span><span class="p">(</span><span class="n">current_section</span><span class="p">)[</span><span class="n">s</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)]</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="c1"># Integer</span>
+                        <span class="k">if</span> <span class="n">s</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">isdigit</span><span class="p">():</span>
+                            <span class="nb">vars</span><span class="p">(</span><span class="n">current_section</span><span class="p">)[</span><span class="n">s</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)]</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">))</span>
+                        <span class="c1"># Booleans</span>
+                        <span class="k">elif</span> <span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;True&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;False&#39;</span><span class="p">):</span>
+                            <span class="nb">vars</span><span class="p">(</span><span class="n">current_section</span><span class="p">)[</span><span class="n">s</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)]</span> <span class="o">=</span> <span class="bp">True</span> <span class="k">if</span> <span class="n">s</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;True&#39;</span> <span class="k">else</span> <span class="bp">False</span>
+                        <span class="c1"># Arrays</span>
+                        <span class="k">elif</span> <span class="n">s</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;[&#39;</span><span class="p">:</span>
+                            <span class="c1"># String array</span>
+                            <span class="k">if</span> <span class="n">s</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;</span><span class="se">\&#39;</span><span class="s1">&#39;</span><span class="p">:</span>
+                                <span class="n">s_n</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\&#39;</span><span class="s1">&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+                                <span class="nb">vars</span><span class="p">(</span><span class="n">current_section</span><span class="p">)[</span><span class="n">s</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)]</span> <span class="o">=</span> <span class="n">s_n</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
+                            <span class="k">elif</span> <span class="p">((</span><span class="n">s</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">)[</span><span class="mi">1</span><span class="p">])</span> <span class="o">==</span> <span class="s1">&#39;T&#39;</span> <span class="ow">or</span>
+                                  <span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;F&#39;</span><span class="p">)):</span>
+                                <span class="c1"># Boolean</span>
+                                <span class="n">tmp</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">)[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
+                                <span class="n">btmp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">tmp</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">bool</span><span class="p">)</span>
+                                <span class="k">for</span> <span class="n">ind</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">tmp</span><span class="p">)):</span>
+                                    <span class="c1"># Convert to boolean, after removing</span>
+                                    <span class="n">btmp</span><span class="p">[</span><span class="n">ind</span><span class="p">]</span> <span class="o">=</span> <span class="n">ast</span><span class="o">.</span><span class="n">literal_eval</span><span class="p">(</span><span class="n">tmp</span><span class="p">[</span><span class="n">ind</span><span class="p">]</span><span class="o">.</span>
+                                                                 <span class="n">strip</span><span class="p">())</span>
+                                <span class="nb">vars</span><span class="p">(</span><span class="n">current_section</span><span class="p">)[</span><span class="n">s</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)]</span> <span class="o">=</span> <span class="n">btmp</span>
+
+                            <span class="c1"># Float array</span>
+                            <span class="k">else</span><span class="p">:</span>
+                                <span class="nb">vars</span><span class="p">(</span><span class="n">current_section</span><span class="p">)[</span><span class="n">s</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">)[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span>
+                        <span class="c1"># Floats &amp; strings</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="k">try</span><span class="p">:</span>
+                                <span class="nb">vars</span><span class="p">(</span><span class="n">current_section</span><span class="p">)[</span><span class="n">s</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">))</span>
+                            <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                                <span class="nb">vars</span><span class="p">(</span><span class="n">current_section</span><span class="p">)[</span><span class="n">s</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)]</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+
+                    <span class="c1"># Keep variable ordering</span>
+                    <span class="n">current_section</span><span class="o">.</span><span class="n">elements</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span>
+
+        <span class="nb">file</span><span class="o">.</span><span class="n">close</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="ConfigFile.save"><a class="viewcode-back" href="../../../modules.html#osiris.io.cfg.ConfigFile.save">[docs]</a>    <span class="k">def</span> <span class="nf">save</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">alternate_file</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">blank_lines</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Saves configuration file</span>
+
+<span class="sd">            :param alternate_file: Alternate path to save file</span>
+<span class="sd">            :param blank_lines: Add a blank line after each section</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="nb">file</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">alternate_file</span> <span class="k">if</span> <span class="n">alternate_file</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg_file_name</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">section</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">sections</span><span class="p">:</span>
+
+            <span class="c1"># Check for out-of-section parameters</span>
+            <span class="k">if</span> <span class="n">section</span> <span class="ow">is</span> <span class="bp">self</span><span class="p">:</span>
+                <span class="n">sect_inst</span> <span class="o">=</span> <span class="bp">self</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="nb">file</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s1">&#39;[</span><span class="si">%s</span><span class="s1">]</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">section</span><span class="p">)</span>
+                <span class="n">sect_inst</span> <span class="o">=</span> <span class="nb">vars</span><span class="p">(</span><span class="bp">self</span><span class="p">)[</span><span class="n">section</span><span class="p">]</span>
+
+            <span class="k">for</span> <span class="n">element</span> <span class="ow">in</span> <span class="n">sect_inst</span><span class="o">.</span><span class="n">elements</span><span class="p">:</span>
+
+                <span class="n">element_value</span> <span class="o">=</span> <span class="nb">vars</span><span class="p">(</span><span class="n">sect_inst</span><span class="p">)[</span><span class="n">element</span><span class="p">]</span>
+
+                <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">element_value</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">int</span><span class="p">:</span>
+                    <span class="nb">file</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">=</span><span class="si">%d</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">element</span><span class="p">,</span> <span class="n">element_value</span><span class="p">))</span>
+
+                <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">element_value</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">float</span><span class="p">:</span>
+                    <span class="nb">file</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">=</span><span class="si">%.2f</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">element</span><span class="p">,</span> <span class="n">element_value</span><span class="p">))</span>
+
+                <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">element_value</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">bool</span><span class="p">:</span>
+                    <span class="nb">file</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">=</span><span class="si">%s</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">element</span><span class="p">,</span> <span class="s1">&#39;True&#39;</span> <span class="k">if</span> <span class="n">element_value</span> <span class="k">else</span> <span class="s1">&#39;False&#39;</span><span class="p">))</span>
+
+                <span class="k">elif</span> <span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">element_value</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">element_value</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">unicode</span><span class="p">):</span>
+                    <span class="nb">file</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">=</span><span class="si">%s</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">element</span><span class="p">,</span> <span class="n">element_value</span><span class="p">))</span>
+
+                <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">element_value</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">list</span><span class="p">:</span>
+                    <span class="nb">file</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">=[&#39;</span><span class="o">%</span><span class="n">element</span> <span class="o">+</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\&#39;</span><span class="si">%s</span><span class="se">\&#39;</span><span class="s1">&#39;</span><span class="o">%</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">element_value</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;]</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+
+                <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">element_value</span><span class="p">)</span> <span class="ow">is</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+                    <span class="nb">file</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">=[&#39;</span><span class="o">%</span><span class="n">element</span> <span class="o">+</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%.2f</span><span class="s1">&#39;</span><span class="o">%</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">element_value</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;]</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">print</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">element_value</span><span class="p">))</span>
+                    <span class="k">print</span><span class="p">(</span><span class="n">element_value</span><span class="p">)</span>
+                    <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;Variable type not supported&#39;</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">blank_lines</span><span class="p">:</span>
+                <span class="nb">file</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+
+
+        <span class="nb">file</span><span class="o">.</span><span class="n">close</span><span class="p">()</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2016, Paco López-Dekker, Gordon Farquharson, Gerard Marull Paretas.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.4.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.8</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

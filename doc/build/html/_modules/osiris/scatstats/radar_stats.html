@@ -1,0 +1,419 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>osiris.scatstats.radar_stats &mdash; OSIRIS 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="top" title="OSIRIS 1.0 documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" />
+   
+  <link rel="stylesheet" href="../../../_static/custom.css" type="text/css" />
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for osiris.scatstats.radar_stats</h1><div class="highlight"><pre>
+<span></span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Created on Thu Oct 22 17:47:59 2015</span>
+
+<span class="sd">@author: lope_fr</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">argparse</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="kn">as</span> <span class="nn">plt</span>
+<span class="kn">from</span> <span class="nn">scipy</span> <span class="kn">import</span> <span class="n">linalg</span>
+<span class="kn">import</span> <span class="nn">numexpr</span> <span class="kn">as</span> <span class="nn">ne</span>
+<span class="kn">from</span> <span class="nn">osiris</span> <span class="kn">import</span> <span class="n">io</span>
+<span class="kn">from</span> <span class="nn">osiris</span> <span class="kn">import</span> <span class="n">utils</span>
+<span class="c1"># from drama.geo import sar as geosar</span>
+<span class="kn">from</span> <span class="nn">osiris</span> <span class="kn">import</span> <span class="n">constants</span> <span class="k">as</span> <span class="n">const</span>
+
+<span class="kn">from</span> <span class="nn">osiris</span> <span class="kn">import</span> <span class="n">nrcs</span> <span class="k">as</span> <span class="n">rcs</span>
+<span class="kn">from</span> <span class="nn">osiris.surfaces</span> <span class="kn">import</span> <span class="n">OceanSurface</span>
+<span class="kn">from</span> <span class="nn">osiris</span> <span class="kn">import</span> <span class="n">closure</span>
+<span class="kn">import</span> <span class="nn">matplotlib</span> <span class="kn">as</span> <span class="nn">mpl</span>
+
+<div class="viewcode-block" id="surface_S"><a class="viewcode-back" href="../../../modules.html#osiris.scatstats.radar_stats.surface_S">[docs]</a><span class="k">def</span> <span class="nf">surface_S</span><span class="p">(</span><span class="n">cfg_file</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">inc_deg</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">ntimes</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">t_step</span><span class="o">=</span><span class="mf">10e-3</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; This function generates a (short) time series of surface realizations.</span>
+
+<span class="sd">        :param scf_file: the full path to the configuration with all OSIRIS parameters</span>
+<span class="sd">        :param inc_deg: the incident angle, in degree</span>
+<span class="sd">        :param ntimes: number of time samples generated.</span>
+<span class="sd">        :param t_step: spacing between time samples. This can be interpreted as the Pulse Repetition Interval</span>
+
+<span class="sd">        :returns: a tuple with the configuration object, the surfaces, the radial velocities for each grid point,</span>
+<span class="sd">                  and the complex scattering coefficients</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">cfg_file</span> <span class="o">=</span> <span class="n">utils</span><span class="o">.</span><span class="n">get_parFile</span><span class="p">(</span><span class="n">parFile</span><span class="o">=</span><span class="n">cfg_file</span><span class="p">)</span>
+    <span class="n">cfg</span> <span class="o">=</span> <span class="n">io</span><span class="o">.</span><span class="n">ConfigFile</span><span class="p">(</span><span class="n">cfg_file</span><span class="p">)</span>
+    <span class="n">use_hmtf</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">srg</span><span class="o">.</span><span class="n">use_hmtf</span>
+    <span class="n">scat_spec_enable</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">srg</span><span class="o">.</span><span class="n">scat_spec_enable</span>
+    <span class="n">scat_spec_mode</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">srg</span><span class="o">.</span><span class="n">scat_spec_mode</span>
+    <span class="n">scat_bragg_enable</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">srg</span><span class="o">.</span><span class="n">scat_bragg_enable</span>
+    <span class="n">scat_bragg_model</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">srg</span><span class="o">.</span><span class="n">scat_bragg_model</span>
+    <span class="n">scat_bragg_d</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">srg</span><span class="o">.</span><span class="n">scat_bragg_d</span>
+    <span class="n">scat_bragg_spec</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">srg</span><span class="o">.</span><span class="n">scat_bragg_spec</span>
+    <span class="n">scat_bragg_spread</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">srg</span><span class="o">.</span><span class="n">scat_bragg_spread</span>
+
+    <span class="c1"># SAR</span>
+    <span class="n">inc_angle</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">deg2rad</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">sar</span><span class="o">.</span><span class="n">inc_angle</span><span class="p">)</span>
+    <span class="n">alt</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">sar</span><span class="o">.</span><span class="n">alt</span>
+    <span class="n">f0</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">sar</span><span class="o">.</span><span class="n">f0</span>
+    <span class="n">prf</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">sar</span><span class="o">.</span><span class="n">prf</span>
+    <span class="n">pol</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">sar</span><span class="o">.</span><span class="n">pol</span>
+    <span class="n">l0</span> <span class="o">=</span> <span class="n">const</span><span class="o">.</span><span class="n">c</span> <span class="o">/</span> <span class="n">f0</span>
+    <span class="n">k0</span> <span class="o">=</span> <span class="mf">2.</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">*</span><span class="n">f0</span><span class="o">/</span><span class="n">const</span><span class="o">.</span><span class="n">c</span>
+    <span class="k">if</span> <span class="n">pol</span> <span class="o">==</span> <span class="s1">&#39;DP&#39;</span><span class="p">:</span>
+        <span class="n">do_hh</span> <span class="o">=</span> <span class="bp">True</span>
+        <span class="n">do_vv</span> <span class="o">=</span> <span class="bp">True</span>
+    <span class="k">elif</span> <span class="n">pol</span> <span class="o">==</span> <span class="s1">&#39;hh&#39;</span><span class="p">:</span>
+        <span class="n">do_hh</span> <span class="o">=</span> <span class="bp">True</span>
+        <span class="n">do_vv</span> <span class="o">=</span> <span class="bp">False</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">do_hh</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="n">do_vv</span> <span class="o">=</span> <span class="bp">True</span>
+    <span class="c1"># OCEAN / OTHERS</span>
+    <span class="n">ocean_dt</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">ocean</span><span class="o">.</span><span class="n">dt</span>
+    <span class="n">surface</span> <span class="o">=</span> <span class="n">OceanSurface</span><span class="p">()</span>
+    <span class="n">compute</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;D&#39;</span><span class="p">,</span> <span class="s1">&#39;Diff&#39;</span><span class="p">,</span> <span class="s1">&#39;Diff2&#39;</span><span class="p">,</span><span class="s1">&#39;V&#39;</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">use_hmtf</span><span class="p">:</span>
+        <span class="n">compute</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;hMTF&#39;</span><span class="p">)</span>
+    <span class="n">surface</span><span class="o">.</span><span class="n">init</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">ocean</span><span class="o">.</span><span class="n">Lx</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">ocean</span><span class="o">.</span><span class="n">Ly</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">ocean</span><span class="o">.</span><span class="n">dx</span><span class="p">,</span>
+                 <span class="n">cfg</span><span class="o">.</span><span class="n">ocean</span><span class="o">.</span><span class="n">dy</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">ocean</span><span class="o">.</span><span class="n">cutoff_wl</span><span class="p">,</span>
+                 <span class="n">cfg</span><span class="o">.</span><span class="n">ocean</span><span class="o">.</span><span class="n">spec_model</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">ocean</span><span class="o">.</span><span class="n">spread_model</span><span class="p">,</span>
+                 <span class="n">np</span><span class="o">.</span><span class="n">deg2rad</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">ocean</span><span class="o">.</span><span class="n">wind_dir</span><span class="p">),</span>
+                 <span class="n">cfg</span><span class="o">.</span><span class="n">ocean</span><span class="o">.</span><span class="n">wind_fetch</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">ocean</span><span class="o">.</span><span class="n">wind_U</span><span class="p">,</span>
+                 <span class="n">cfg</span><span class="o">.</span><span class="n">ocean</span><span class="o">.</span><span class="n">current_mag</span><span class="p">,</span>
+                 <span class="n">np</span><span class="o">.</span><span class="n">deg2rad</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">ocean</span><span class="o">.</span><span class="n">current_dir</span><span class="p">),</span>
+                 <span class="n">cfg</span><span class="o">.</span><span class="n">ocean</span><span class="o">.</span><span class="n">swell_enable</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">ocean</span><span class="o">.</span><span class="n">swell_ampl</span><span class="p">,</span>
+                 <span class="n">np</span><span class="o">.</span><span class="n">deg2rad</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">ocean</span><span class="o">.</span><span class="n">swell_dir</span><span class="p">),</span>
+                 <span class="n">cfg</span><span class="o">.</span><span class="n">ocean</span><span class="o">.</span><span class="n">swell_wl</span><span class="p">,</span>
+                 <span class="n">compute</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">ocean</span><span class="o">.</span><span class="n">opt_res</span><span class="p">,</span>
+                 <span class="n">cfg</span><span class="o">.</span><span class="n">ocean</span><span class="o">.</span><span class="n">fft_max_prime</span><span class="p">,</span>
+                 <span class="n">choppy_enable</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">ocean</span><span class="o">.</span><span class="n">choppy_enable</span><span class="p">)</span>
+    <span class="c1"># Get a surface realization calculated</span>
+    <span class="n">surface</span><span class="o">.</span><span class="n">t</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">if</span> <span class="n">inc_deg</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">inc_deg</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">sar</span><span class="o">.</span><span class="n">inc_angle</span>
+
+    <span class="n">inc_angle</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">inc_deg</span><span class="p">)</span>
+    <span class="n">sr0</span> <span class="o">=</span> <span class="n">geosar</span><span class="o">.</span><span class="n">inc_to_sr</span><span class="p">(</span><span class="n">inc_angle</span><span class="p">,</span> <span class="n">alt</span><span class="p">)</span>
+    <span class="n">gr0</span> <span class="o">=</span> <span class="n">geosar</span><span class="o">.</span><span class="n">inc_to_gr</span><span class="p">(</span><span class="n">inc_angle</span><span class="p">,</span> <span class="n">alt</span><span class="p">)</span>
+    <span class="n">gr</span> <span class="o">=</span> <span class="n">surface</span><span class="o">.</span><span class="n">x</span> <span class="o">+</span> <span class="n">gr0</span>
+    <span class="n">sr</span><span class="p">,</span> <span class="n">inc</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">geosar</span><span class="o">.</span><span class="n">gr_to_geo</span><span class="p">(</span><span class="n">gr</span><span class="p">,</span> <span class="n">alt</span><span class="p">)</span>
+    <span class="n">sr</span> <span class="o">-=</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">sr</span><span class="p">)</span>
+    <span class="n">inc</span> <span class="o">=</span> <span class="n">inc</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">inc</span><span class="o">.</span><span class="n">size</span><span class="p">)</span>
+    <span class="n">sr</span> <span class="o">=</span> <span class="n">sr</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">sr</span><span class="o">.</span><span class="n">size</span><span class="p">)</span>
+    <span class="n">gr</span> <span class="o">=</span> <span class="n">gr</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">gr</span><span class="o">.</span><span class="n">size</span><span class="p">)</span>
+    <span class="n">sin_inc</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">inc</span><span class="p">)</span>
+    <span class="n">cos_inc</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">inc</span><span class="p">)</span>
+
+    <span class="n">t_last_rcs_bragg</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.</span>
+    <span class="n">last_progress</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+    <span class="n">NRCS_avg_vv</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">ntimes</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float</span><span class="p">)</span>
+    <span class="n">NRCS_avg_hh</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">ntimes</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float</span><span class="p">)</span>
+    <span class="c1"># RCS MODELS</span>
+    <span class="c1"># Specular</span>
+    <span class="k">if</span> <span class="n">scat_spec_enable</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">scat_spec_mode</span> <span class="o">==</span> <span class="s1">&#39;kodis&#39;</span><span class="p">:</span>
+            <span class="n">rcs_spec</span> <span class="o">=</span> <span class="n">rcs</span><span class="o">.</span><span class="n">RCSKodis</span><span class="p">(</span><span class="n">inc</span><span class="p">,</span> <span class="n">k0</span><span class="p">,</span> <span class="n">surface</span><span class="o">.</span><span class="n">dx</span><span class="p">,</span> <span class="n">surface</span><span class="o">.</span><span class="n">dy</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">scat_spec_mode</span> <span class="o">==</span> <span class="s1">&#39;fa&#39;</span> <span class="ow">or</span> <span class="n">scat_spec_mode</span> <span class="o">==</span> <span class="s1">&#39;spa&#39;</span><span class="p">:</span>
+            <span class="n">spec_ph0</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mf">0.</span><span class="p">,</span> <span class="mf">2.</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span>
+                                         <span class="n">size</span><span class="o">=</span><span class="p">[</span><span class="n">surface</span><span class="o">.</span><span class="n">Ny</span><span class="p">,</span> <span class="n">surface</span><span class="o">.</span><span class="n">Nx</span><span class="p">])</span>
+            <span class="n">rcs_spec</span> <span class="o">=</span> <span class="n">rcs</span><span class="o">.</span><span class="n">RCSKA</span><span class="p">(</span><span class="n">scat_spec_mode</span><span class="p">,</span> <span class="n">k0</span><span class="p">,</span> <span class="n">surface</span><span class="o">.</span><span class="n">x</span><span class="p">,</span> <span class="n">surface</span><span class="o">.</span><span class="n">y</span><span class="p">,</span>
+                                 <span class="n">surface</span><span class="o">.</span><span class="n">dx</span><span class="p">,</span> <span class="n">surface</span><span class="o">.</span><span class="n">dy</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s1">&#39;RCS mode </span><span class="si">%s</span><span class="s1"> for specular scattering not implemented&#39;</span> <span class="o">%</span> <span class="n">scat_spec_mode</span><span class="p">)</span>
+
+    <span class="c1"># Bragg</span>
+    <span class="k">if</span> <span class="n">scat_bragg_enable</span><span class="p">:</span>
+        <span class="n">phase_bragg</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">([</span><span class="mi">2</span><span class="p">,</span> <span class="n">surface</span><span class="o">.</span><span class="n">Ny</span><span class="p">,</span> <span class="n">surface</span><span class="o">.</span><span class="n">Nx</span><span class="p">])</span>
+        <span class="n">bragg_scats</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">([</span><span class="mi">2</span><span class="p">,</span> <span class="n">surface</span><span class="o">.</span><span class="n">Ny</span><span class="p">,</span> <span class="n">surface</span><span class="o">.</span><span class="n">Nx</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">complex</span><span class="p">)</span>
+        <span class="n">tau_c</span> <span class="o">=</span> <span class="n">closure</span><span class="o">.</span><span class="n">grid_coherence</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">ocean</span><span class="o">.</span><span class="n">wind_U</span><span class="p">,</span>
+                                       <span class="n">surface</span><span class="o">.</span><span class="n">dx</span><span class="p">,</span> <span class="n">f0</span><span class="p">)</span>
+        <span class="n">rndscat_p</span> <span class="o">=</span> <span class="n">closure</span><span class="o">.</span><span class="n">randomscat_ts</span><span class="p">(</span><span class="n">tau_c</span><span class="p">,</span> <span class="p">(</span><span class="n">surface</span><span class="o">.</span><span class="n">Ny</span><span class="p">,</span> <span class="n">surface</span><span class="o">.</span><span class="n">Nx</span><span class="p">),</span> <span class="n">prf</span><span class="p">)</span>
+        <span class="n">rndscat_m</span> <span class="o">=</span> <span class="n">closure</span><span class="o">.</span><span class="n">randomscat_ts</span><span class="p">(</span><span class="n">tau_c</span><span class="p">,</span> <span class="p">(</span><span class="n">surface</span><span class="o">.</span><span class="n">Ny</span><span class="p">,</span> <span class="n">surface</span><span class="o">.</span><span class="n">Nx</span><span class="p">),</span> <span class="n">prf</span><span class="p">)</span>
+        <span class="c1"># NOTE: This ignores slope, may be changed</span>
+        <span class="n">k_b</span> <span class="o">=</span> <span class="mf">2.</span> <span class="o">*</span> <span class="n">k0</span> <span class="o">*</span> <span class="n">sin_inc</span>
+        <span class="n">c_b</span> <span class="o">=</span> <span class="n">sin_inc</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">const</span><span class="o">.</span><span class="n">g</span><span class="o">/</span><span class="n">k_b</span> <span class="o">+</span> <span class="mf">0.072e-3</span> <span class="o">*</span> <span class="n">k_b</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">scat_bragg_model</span> <span class="o">==</span> <span class="s1">&#39;romeiser97&#39;</span><span class="p">:</span>
+            <span class="n">current_dir</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">deg2rad</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">ocean</span><span class="o">.</span><span class="n">current_dir</span><span class="p">)</span>
+            <span class="n">current_vec</span> <span class="o">=</span> <span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">ocean</span><span class="o">.</span><span class="n">current_mag</span> <span class="o">*</span>
+                           <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">current_dir</span><span class="p">),</span>
+                                     <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">current_dir</span><span class="p">)]))</span>
+            <span class="n">U_dir</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">deg2rad</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">ocean</span><span class="o">.</span><span class="n">wind_dir</span><span class="p">)</span>
+            <span class="n">U_vec</span> <span class="o">=</span> <span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">ocean</span><span class="o">.</span><span class="n">wind_U</span> <span class="o">*</span>
+                     <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">U_dir</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">U_dir</span><span class="p">)]))</span>
+            <span class="n">U_eff_vec</span> <span class="o">=</span> <span class="n">U_vec</span> <span class="o">-</span> <span class="n">current_vec</span>
+
+            <span class="n">rcs_bragg</span> <span class="o">=</span> <span class="n">rcs</span><span class="o">.</span><span class="n">RCSRomeiser97</span><span class="p">(</span><span class="n">k0</span><span class="p">,</span> <span class="n">inc</span><span class="p">,</span> <span class="n">pol</span><span class="p">,</span>
+                                          <span class="n">surface</span><span class="o">.</span><span class="n">dx</span><span class="p">,</span> <span class="n">surface</span><span class="o">.</span><span class="n">dy</span><span class="p">,</span>
+                                          <span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">U_eff_vec</span><span class="p">),</span>
+                                          <span class="n">np</span><span class="o">.</span><span class="n">arctan2</span><span class="p">(</span><span class="n">U_eff_vec</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+                                                     <span class="n">U_eff_vec</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+                                          <span class="n">surface</span><span class="o">.</span><span class="n">wind_fetch</span><span class="p">,</span>
+                                          <span class="n">scat_bragg_spec</span><span class="p">,</span> <span class="n">scat_bragg_spread</span><span class="p">,</span>
+                                          <span class="n">scat_bragg_d</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s1">&#39;RCS model </span><span class="si">%s</span><span class="s1"> for Bragg scattering not implemented&#39;</span> <span class="o">%</span> <span class="n">scat_bragg_model</span><span class="p">)</span>
+
+    <span class="n">surface_area</span> <span class="o">=</span> <span class="n">surface</span><span class="o">.</span><span class="n">dx</span> <span class="o">*</span> <span class="n">surface</span><span class="o">.</span><span class="n">dy</span> <span class="o">*</span> <span class="n">surface</span><span class="o">.</span><span class="n">Nx</span> <span class="o">*</span> <span class="n">surface</span><span class="o">.</span><span class="n">Ny</span>
+    <span class="k">if</span> <span class="n">do_hh</span><span class="p">:</span>
+        <span class="n">scene_hh</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">([</span><span class="n">ntimes</span><span class="p">,</span> <span class="n">surface</span><span class="o">.</span><span class="n">Ny</span><span class="p">,</span> <span class="n">surface</span><span class="o">.</span><span class="n">Nx</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">complex</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">do_vv</span><span class="p">:</span>
+        <span class="n">scene_vv</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">([</span><span class="n">ntimes</span><span class="p">,</span> <span class="n">surface</span><span class="o">.</span><span class="n">Ny</span><span class="p">,</span> <span class="n">surface</span><span class="o">.</span><span class="n">Nx</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">complex</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">az_step</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ntimes</span><span class="p">):</span>
+
+        <span class="c1"># AZIMUTH &amp; SURFACE UPDATE</span>
+        <span class="n">t_now</span> <span class="o">=</span> <span class="n">az_step</span> <span class="o">*</span> <span class="n">t_step</span>
+        <span class="c1"># az_now = (t_now - t_span/2.)*v_ground</span>
+        <span class="n">az_now</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="c1"># az = np.repeat((surface.y - az_now)[:, np.newaxis], surface.Nx, axis=1)</span>
+        <span class="n">az</span> <span class="o">=</span> <span class="p">(</span><span class="n">surface</span><span class="o">.</span><span class="n">y</span> <span class="o">-</span> <span class="n">az_now</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="n">surface</span><span class="o">.</span><span class="n">Ny</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="n">surface</span><span class="o">.</span><span class="n">t</span> <span class="o">=</span> <span class="n">t_now</span>
+
+
+        <span class="c1">## COMPUTE RCS FOR EACH MODEL</span>
+        <span class="c1"># Note: SAR processing is range independent as slant range is fixed</span>
+        <span class="n">sin_az</span> <span class="o">=</span> <span class="n">az</span> <span class="o">/</span> <span class="n">sr0</span>
+        <span class="n">az_proj_angle</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arcsin</span><span class="p">(</span><span class="n">az</span> <span class="o">/</span> <span class="n">gr0</span><span class="p">)</span>
+
+        <span class="c1"># Note: Projected displacements are added to slant range</span>
+        <span class="n">sr_surface</span> <span class="o">=</span> <span class="p">(</span><span class="n">sr</span> <span class="o">-</span> <span class="n">cos_inc</span><span class="o">*</span><span class="n">surface</span><span class="o">.</span><span class="n">Dz</span> <span class="o">+</span> <span class="n">az</span><span class="o">/</span><span class="mi">2</span><span class="o">*</span><span class="n">sin_az</span> <span class="o">+</span>
+                      <span class="n">surface</span><span class="o">.</span><span class="n">Dx</span><span class="o">*</span><span class="n">sin_inc</span> <span class="o">+</span> <span class="n">surface</span><span class="o">.</span><span class="n">Dy</span><span class="o">*</span><span class="n">sin_az</span><span class="p">)</span>
+
+
+
+        <span class="c1"># Specular</span>
+        <span class="k">if</span> <span class="n">scat_spec_enable</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">scat_spec_mode</span> <span class="o">==</span> <span class="s1">&#39;kodis&#39;</span><span class="p">:</span>
+                <span class="n">Esn_sp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mf">4.</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span><span class="o">*</span><span class="n">rcs_spec</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">az_proj_angle</span><span class="p">,</span>
+                                                          <span class="n">sr_surface</span><span class="p">,</span>
+                                                          <span class="n">surface</span><span class="o">.</span><span class="n">Diffx</span><span class="p">,</span>
+                                                          <span class="n">surface</span><span class="o">.</span><span class="n">Diffy</span><span class="p">,</span>
+                                                          <span class="n">surface</span><span class="o">.</span><span class="n">Diffxx</span><span class="p">,</span>
+                                                          <span class="n">surface</span><span class="o">.</span><span class="n">Diffyy</span><span class="p">,</span>
+                                                          <span class="n">surface</span><span class="o">.</span><span class="n">Diffxy</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">do_hh</span><span class="p">:</span>
+                    <span class="n">scene_hh</span><span class="p">[</span><span class="n">az_step</span><span class="p">]</span> <span class="o">+=</span> <span class="n">Esn_sp</span>
+                <span class="k">if</span> <span class="n">do_vv</span><span class="p">:</span>
+                    <span class="n">scene_vv</span><span class="p">[</span><span class="n">az_step</span><span class="p">]</span> <span class="o">+=</span> <span class="n">Esn_sp</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># FIXME</span>
+                <span class="k">if</span> <span class="n">do_hh</span><span class="p">:</span>
+                    <span class="n">pol_tmp</span> <span class="o">=</span> <span class="s1">&#39;hh&#39;</span>
+                    <span class="n">Esn_sp</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="mi">1j</span><span class="o">*</span><span class="p">(</span><span class="mf">2.</span><span class="o">*</span><span class="n">k0</span><span class="o">*</span><span class="n">sr_surface</span><span class="p">))</span> <span class="o">*</span> <span class="p">(</span><span class="mf">4.</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span><span class="o">**</span><span class="mf">1.5</span> <span class="o">*</span>
+                              <span class="n">rcs_spec</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">pol_tmp</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">pol_tmp</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+                                             <span class="n">inc</span><span class="p">,</span> <span class="n">inc</span><span class="p">,</span>
+                                             <span class="n">az_proj_angle</span><span class="p">,</span> <span class="n">az_proj_angle</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span>
+                                             <span class="n">surface</span><span class="o">.</span><span class="n">Dz</span><span class="p">,</span>
+                                             <span class="n">surface</span><span class="o">.</span><span class="n">Diffx</span><span class="p">,</span> <span class="n">surface</span><span class="o">.</span><span class="n">Diffy</span><span class="p">,</span>
+                                             <span class="n">surface</span><span class="o">.</span><span class="n">Diffxx</span><span class="p">,</span>
+                                             <span class="n">surface</span><span class="o">.</span><span class="n">Diffyy</span><span class="p">,</span>
+                                             <span class="n">surface</span><span class="o">.</span><span class="n">Diffxy</span><span class="p">))</span>
+                    <span class="n">scene_hh</span><span class="p">[</span><span class="n">az_step</span><span class="p">]</span> <span class="o">+=</span> <span class="n">Esn_sp</span>
+                <span class="k">if</span> <span class="n">do_vv</span><span class="p">:</span>
+                    <span class="n">pol_tmp</span> <span class="o">=</span> <span class="s1">&#39;vv&#39;</span>
+                    <span class="n">Esn_sp</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="mi">1j</span><span class="o">*</span><span class="p">(</span><span class="mf">2.</span><span class="o">*</span><span class="n">k0</span><span class="o">*</span><span class="n">sr_surface</span><span class="p">))</span> <span class="o">*</span> <span class="p">(</span><span class="mf">4.</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span><span class="o">**</span><span class="mf">1.5</span> <span class="o">*</span>
+                              <span class="n">rcs_spec</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">pol_tmp</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">pol_tmp</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+                                             <span class="n">inc</span><span class="p">,</span> <span class="n">inc</span><span class="p">,</span>
+                                             <span class="n">az_proj_angle</span><span class="p">,</span> <span class="n">az_proj_angle</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span>
+                                             <span class="n">surface</span><span class="o">.</span><span class="n">Dz</span><span class="p">,</span>
+                                             <span class="n">surface</span><span class="o">.</span><span class="n">Diffx</span><span class="p">,</span> <span class="n">surface</span><span class="o">.</span><span class="n">Diffy</span><span class="p">,</span>
+                                             <span class="n">surface</span><span class="o">.</span><span class="n">Diffxx</span><span class="p">,</span>
+                                             <span class="n">surface</span><span class="o">.</span><span class="n">Diffyy</span><span class="p">,</span>
+                                             <span class="n">surface</span><span class="o">.</span><span class="n">Diffxy</span><span class="p">))</span>
+                    <span class="n">scene_vv</span><span class="p">[</span><span class="n">az_step</span><span class="p">]</span> <span class="o">+=</span> <span class="n">Esn_sp</span>
+            <span class="n">NRCS_avg_hh</span><span class="p">[</span><span class="n">az_step</span><span class="p">]</span> <span class="o">+=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">Esn_sp</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span> <span class="o">/</span> <span class="n">surface_area</span><span class="p">)</span>
+            <span class="n">NRCS_avg_vv</span><span class="p">[</span><span class="n">az_step</span><span class="p">]</span> <span class="o">+=</span> <span class="n">NRCS_avg_hh</span><span class="p">[</span><span class="n">az_step</span><span class="p">]</span>
+
+        <span class="c1"># Bragg</span>
+        <span class="k">if</span> <span class="n">scat_bragg_enable</span><span class="p">:</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">t_now</span> <span class="o">-</span> <span class="n">t_last_rcs_bragg</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">ocean_dt</span><span class="p">:</span>
+
+                <span class="k">if</span> <span class="n">scat_bragg_model</span> <span class="o">==</span> <span class="s1">&#39;romeiser97&#39;</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">pol</span> <span class="o">==</span> <span class="s1">&#39;DP&#39;</span><span class="p">:</span>
+                        <span class="n">RCS_bragg_hh</span><span class="p">,</span> <span class="n">RCS_bragg_vv</span> <span class="o">=</span> <span class="n">rcs_bragg</span><span class="o">.</span><span class="n">rcs</span><span class="p">(</span><span class="n">az_proj_angle</span><span class="p">,</span>
+                                                                   <span class="n">surface</span><span class="o">.</span><span class="n">Diffx</span><span class="p">,</span>
+                                                                   <span class="n">surface</span><span class="o">.</span><span class="n">Diffy</span><span class="p">)</span>
+                    <span class="k">elif</span> <span class="n">pol</span> <span class="o">==</span> <span class="s1">&#39;hh&#39;</span><span class="p">:</span>
+                        <span class="n">RCS_bragg_hh</span> <span class="o">=</span> <span class="n">rcs_bragg</span><span class="o">.</span><span class="n">rcs</span><span class="p">(</span><span class="n">az_proj_angle</span><span class="p">,</span>
+                                                     <span class="n">surface</span><span class="o">.</span><span class="n">Diffx</span><span class="p">,</span>
+                                                     <span class="n">surface</span><span class="o">.</span><span class="n">Diffy</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">RCS_bragg_vv</span> <span class="o">=</span> <span class="n">rcs_bragg</span><span class="o">.</span><span class="n">rcs</span><span class="p">(</span><span class="n">az_proj_angle</span><span class="p">,</span>
+                                                     <span class="n">surface</span><span class="o">.</span><span class="n">Diffx</span><span class="p">,</span>
+                                                     <span class="n">surface</span><span class="o">.</span><span class="n">Diffy</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="n">use_hmtf</span><span class="p">:</span>
+                    <span class="c1"># Fix Bad MTF points</span>
+                    <span class="n">surface</span><span class="o">.</span><span class="n">hMTF</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">surface</span><span class="o">.</span><span class="n">hMTF</span> <span class="o">&lt;</span> <span class="o">-</span><span class="mi">1</span><span class="p">)]</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+                    <span class="k">if</span> <span class="n">do_hh</span><span class="p">:</span>
+                        <span class="n">RCS_bragg_hh</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*=</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">surface</span><span class="o">.</span><span class="n">hMTF</span><span class="p">)</span>
+                        <span class="n">RCS_bragg_hh</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">*=</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">surface</span><span class="o">.</span><span class="n">hMTF</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">do_vv</span><span class="p">:</span>
+                        <span class="n">RCS_bragg_vv</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*=</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">surface</span><span class="o">.</span><span class="n">hMTF</span><span class="p">)</span>
+                        <span class="n">RCS_bragg_vv</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">*=</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">surface</span><span class="o">.</span><span class="n">hMTF</span><span class="p">)</span>
+
+                <span class="n">t_last_rcs_bragg</span> <span class="o">=</span> <span class="n">t_now</span>
+
+            <span class="k">if</span> <span class="n">do_hh</span><span class="p">:</span>
+                <span class="n">scat_bragg_hh</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">RCS_bragg_hh</span><span class="p">)</span>
+                <span class="n">NRCS_bragg_hh_instant_avg</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">RCS_bragg_hh</span><span class="p">)</span> <span class="o">/</span> <span class="n">surface_area</span>
+                <span class="n">NRCS_avg_hh</span><span class="p">[</span><span class="n">az_step</span><span class="p">]</span> <span class="o">+=</span> <span class="n">NRCS_bragg_hh_instant_avg</span>
+            <span class="k">if</span> <span class="n">do_vv</span><span class="p">:</span>
+                <span class="n">scat_bragg_vv</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">RCS_bragg_vv</span><span class="p">)</span>
+                <span class="n">NRCS_bragg_vv_instant_avg</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">RCS_bragg_vv</span><span class="p">)</span> <span class="o">/</span> <span class="n">surface_area</span>
+                <span class="n">NRCS_avg_vv</span><span class="p">[</span><span class="n">az_step</span><span class="p">]</span> <span class="o">+=</span> <span class="n">NRCS_bragg_vv_instant_avg</span>
+
+            <span class="c1"># Doppler phases (Note: Bragg radial velocity taken constant!)</span>
+            <span class="n">surf_phase</span> <span class="o">=</span> <span class="o">-</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">k0</span><span class="p">)</span> <span class="o">*</span> <span class="n">sr_surface</span>
+            <span class="n">cap_phase</span> <span class="o">=</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">k0</span><span class="p">)</span> <span class="o">*</span> <span class="n">t_step</span> <span class="o">*</span> <span class="n">c_b</span> <span class="o">*</span> <span class="p">(</span><span class="n">az_step</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="n">phase_bragg</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">surf_phase</span> <span class="o">-</span> <span class="n">cap_phase</span>  <span class="c1"># + dop_phase_p</span>
+            <span class="n">phase_bragg</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">surf_phase</span> <span class="o">+</span> <span class="n">cap_phase</span>  <span class="c1"># + dop_phase_m</span>
+            <span class="n">bragg_scats</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">rndscat_m</span><span class="o">.</span><span class="n">scats</span><span class="p">(</span><span class="n">t_now</span><span class="p">)</span>
+            <span class="n">bragg_scats</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">rndscat_p</span><span class="o">.</span><span class="n">scats</span><span class="p">(</span><span class="n">t_now</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">do_hh</span><span class="p">:</span>
+                <span class="n">scene_hh</span><span class="p">[</span><span class="n">az_step</span><span class="p">]</span> <span class="o">+=</span> <span class="n">ne</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="s1">&#39;sum(scat_bragg_hh * exp(1j*phase_bragg) * bragg_scats, axis=0)&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">do_vv</span><span class="p">:</span>
+                <span class="n">scene_vv</span><span class="p">[</span><span class="n">az_step</span><span class="p">]</span> <span class="o">+=</span> <span class="n">ne</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="s1">&#39;sum(scat_bragg_vv * exp(1j*phase_bragg) * bragg_scats, axis=0)&#39;</span><span class="p">)</span>
+
+    <span class="n">v_r</span> <span class="o">=</span> <span class="p">(</span><span class="n">surface</span><span class="o">.</span><span class="n">Vx</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">inc</span><span class="p">)</span> <span class="o">-</span>
+           <span class="n">surface</span><span class="o">.</span><span class="n">Vz</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">inc</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">do_hh</span> <span class="ow">and</span> <span class="n">do_vv</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">surface</span><span class="o">.</span><span class="n">Dz</span><span class="p">,</span> <span class="n">v_r</span><span class="p">,</span> <span class="n">scene_hh</span><span class="p">,</span> <span class="n">scene_vv</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">do_hh</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">surface</span><span class="o">.</span><span class="n">Dz</span><span class="p">,</span> <span class="n">v_r</span><span class="p">,</span> <span class="n">scene_hh</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">surface</span><span class="o">.</span><span class="n">Dz</span><span class="p">,</span> <span class="n">v_r</span><span class="p">,</span> <span class="n">scene_vv</span><span class="p">)</span></div>
+
+
+<span class="k">def</span> <span class="nf">view_surface</span><span class="p">(</span><span class="n">S</span><span class="p">,</span> <span class="n">ml</span><span class="o">=</span><span class="mi">2</span><span class="p">):</span>
+    <span class="n">w_h</span> <span class="o">=</span> <span class="n">S</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">v_r</span> <span class="o">=</span> <span class="n">S</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+    <span class="n">cfg</span> <span class="o">=</span> <span class="n">S</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">v_r_mean</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">v_r</span><span class="p">)</span>
+    <span class="n">v_r_std</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">v_r</span><span class="p">)</span>
+    <span class="n">utils</span><span class="o">.</span><span class="n">image</span><span class="p">(</span><span class="n">w_h</span><span class="p">,</span> <span class="n">aspect</span><span class="o">=</span><span class="s1">&#39;equal&#39;</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="n">mpl</span><span class="o">.</span><span class="n">cm</span><span class="o">.</span><span class="n">winter</span><span class="p">,</span>
+                <span class="n">extent</span><span class="o">=</span><span class="p">[</span><span class="mf">0.</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">ocean</span><span class="o">.</span><span class="n">Lx</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">ocean</span><span class="o">.</span><span class="n">Ly</span><span class="p">],</span>
+                <span class="n">xlabel</span><span class="o">=</span><span class="s1">&#39;Ground range [m]&#39;</span><span class="p">,</span> <span class="n">ylabel</span><span class="o">=</span><span class="s1">&#39;Azimuth [m]&#39;</span><span class="p">,</span>
+                <span class="n">title</span><span class="o">=</span><span class="s1">&#39;Surface Height&#39;</span><span class="p">,</span> <span class="n">cbar_xlabel</span><span class="o">=</span><span class="s1">&#39;[m]&#39;</span><span class="p">,</span>
+                <span class="nb">min</span><span class="o">=-</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">w_h</span><span class="p">)</span><span class="o">.</span><span class="n">max</span><span class="p">()),</span>
+                <span class="nb">max</span><span class="o">=</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">w_h</span><span class="p">)</span><span class="o">.</span><span class="n">max</span><span class="p">()))</span>
+    <span class="n">utils</span><span class="o">.</span><span class="n">image</span><span class="p">(</span><span class="n">v_r</span><span class="p">,</span> <span class="n">aspect</span><span class="o">=</span><span class="s1">&#39;equal&#39;</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="n">utils</span><span class="o">.</span><span class="n">bwr_cmap</span><span class="p">,</span>
+                <span class="n">extent</span><span class="o">=</span><span class="p">[</span><span class="mf">0.</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">ocean</span><span class="o">.</span><span class="n">Lx</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">ocean</span><span class="o">.</span><span class="n">Ly</span><span class="p">],</span>
+                <span class="n">xlabel</span><span class="o">=</span><span class="s1">&#39;Ground range [m]&#39;</span><span class="p">,</span> <span class="n">ylabel</span><span class="o">=</span><span class="s1">&#39;Azimuth [m]&#39;</span><span class="p">,</span>
+                <span class="n">title</span><span class="o">=</span><span class="s1">&#39;Surface Radial Velocity&#39;</span><span class="p">,</span> <span class="n">cbar_xlabel</span><span class="o">=</span><span class="s1">&#39;[m/s]&#39;</span><span class="p">,</span>
+                <span class="nb">min</span><span class="o">=-</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">v_r_mean</span><span class="p">)</span> <span class="o">-</span> <span class="mf">4.</span><span class="o">*</span><span class="n">v_r_std</span><span class="p">,</span>
+                <span class="nb">max</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">v_r_mean</span><span class="p">)</span> <span class="o">+</span> <span class="mf">4.</span><span class="o">*</span><span class="n">v_r_std</span><span class="p">)</span>
+    <span class="n">sigma</span> <span class="o">=</span> <span class="p">(</span><span class="n">utils</span><span class="o">.</span><span class="n">smooth</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">S</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span> <span class="n">ml</span><span class="p">)</span> <span class="o">/</span>
+             <span class="n">cfg</span><span class="o">.</span><span class="n">ocean</span><span class="o">.</span><span class="n">dx</span> <span class="o">/</span> <span class="n">cfg</span><span class="o">.</span><span class="n">ocean</span><span class="o">.</span><span class="n">dy</span><span class="p">)</span>
+    <span class="n">s_mean</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">sigma</span><span class="p">)</span>
+    <span class="n">dmin</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="n">s_mean</span> <span class="o">-</span> <span class="mf">1.5</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">sigma</span><span class="p">)])</span>
+    <span class="n">dmin</span> <span class="o">=</span> <span class="n">utils</span><span class="o">.</span><span class="n">db</span><span class="p">(</span><span class="n">s_mean</span> <span class="o">-</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">sigma</span><span class="p">))</span>
+    <span class="c1">#dmin = 0</span>
+    <span class="n">dmax</span> <span class="o">=</span> <span class="n">utils</span><span class="o">.</span><span class="n">db</span><span class="p">(</span><span class="n">s_mean</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">sigma</span><span class="p">))</span>
+    <span class="n">dmin</span> <span class="o">=</span> <span class="n">dmax</span> <span class="o">-</span> <span class="mi">15</span>
+    <span class="c1"># dmax = utils.db(sigma.max())</span>
+    <span class="n">utils</span><span class="o">.</span><span class="n">image</span><span class="p">(</span><span class="n">utils</span><span class="o">.</span><span class="n">db</span><span class="p">(</span><span class="n">sigma</span><span class="p">),</span> <span class="n">aspect</span><span class="o">=</span><span class="s1">&#39;equal&#39;</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="n">utils</span><span class="o">.</span><span class="n">sea_cmap</span><span class="p">,</span>
+                <span class="n">extent</span><span class="o">=</span><span class="p">[</span><span class="mf">0.</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">ocean</span><span class="o">.</span><span class="n">Lx</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">ocean</span><span class="o">.</span><span class="n">Ly</span><span class="p">],</span>
+                <span class="n">xlabel</span><span class="o">=</span><span class="s1">&#39;Ground range [m]&#39;</span><span class="p">,</span> <span class="n">ylabel</span><span class="o">=</span><span class="s1">&#39;Azimuth [m]&#39;</span><span class="p">,</span>
+                <span class="n">title</span><span class="o">=</span><span class="s1">&#39;Backscattering&#39;</span><span class="p">,</span> <span class="n">cbar_xlabel</span><span class="o">=</span><span class="s1">&#39;dB&#39;</span><span class="p">,</span>
+                <span class="nb">min</span><span class="o">=</span><span class="n">dmin</span><span class="p">,</span> <span class="nb">max</span><span class="o">=</span><span class="n">dmax</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">v_r_stats</span><span class="p">(</span><span class="n">S</span><span class="p">,</span> <span class="n">ml</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+    <span class="n">v_r</span> <span class="o">=</span> <span class="n">S</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+    <span class="n">sigma_V</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">S</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span><span class="o">**</span><span class="mi">2</span>
+    <span class="n">sigma_H</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">S</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span><span class="o">**</span><span class="mi">2</span>
+    <span class="n">vmax</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">v_r</span><span class="p">)</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
+    <span class="n">h_v_r</span><span class="p">,</span> <span class="n">bins</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">histogram</span><span class="p">(</span><span class="n">v_r</span><span class="p">,</span> <span class="n">bins</span><span class="o">=</span><span class="mi">2</span> <span class="o">*</span> <span class="n">vmax</span> <span class="o">*</span> <span class="mi">40</span><span class="p">,</span> <span class="n">density</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+    <span class="n">h_v_r_Vw</span><span class="p">,</span> <span class="n">kk</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">histogram</span><span class="p">(</span><span class="n">v_r</span><span class="p">,</span> <span class="n">bins</span><span class="o">=</span><span class="mi">2</span> <span class="o">*</span> <span class="n">vmax</span> <span class="o">*</span> <span class="mi">40</span><span class="p">,</span> <span class="n">density</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                              <span class="n">weights</span><span class="o">=</span><span class="n">sigma_V</span><span class="p">)</span>
+    <span class="n">h_v_r_Hw</span><span class="p">,</span> <span class="n">kk</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">histogram</span><span class="p">(</span><span class="n">v_r</span><span class="p">,</span> <span class="n">bins</span><span class="o">=</span><span class="mi">2</span> <span class="o">*</span> <span class="n">vmax</span> <span class="o">*</span> <span class="mi">40</span><span class="p">,</span> <span class="n">density</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                              <span class="n">weights</span><span class="o">=</span><span class="n">sigma_H</span><span class="p">)</span>
+    <span class="n">bins_</span> <span class="o">=</span> <span class="p">(</span><span class="n">bins</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">bins</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span> <span class="o">/</span> <span class="mi">2</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">()</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">bins_</span><span class="p">,</span> <span class="n">h_v_r</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;True&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">bins_</span><span class="p">,</span> <span class="n">h_v_r_Vw</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;$\sigma_{VV}$ Weighted&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">bins_</span><span class="p">,</span> <span class="n">h_v_r_Hw</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;$\sigma_{HH}$ Weighted&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s2">&quot;$v_r$ [m/s]&quot;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s2">&quot;pdf($v_r$)&quot;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2016, Paco López-Dekker, Gordon Farquharson, Gerard Marull Paretas.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.4.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.8</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

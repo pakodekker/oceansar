@@ -17,6 +17,10 @@ State Files
 
 .. automodule:: osiris.io.state
    :members:
+
+.. automodule:: osiris.io.cfg
+   :members:
 """
 
 from .state import OceanStateFile
+from .cfg import ConfigFile
