@@ -1,9 +1,9 @@
 """
 =======================================================
-Directional Spreading Functions (:mod:`osiris.spread`)
+Directional Spreading Functions (:mod:`oceansar.spread`)
 =======================================================
 
-.. currentmodule:: osiris.spread
+.. currentmodule:: oceansar.spread
 
 Directional Spreading Functions
 
@@ -17,25 +17,25 @@ Available models
 .. toctree::
    :maxdepth: 1
 
-.. automodule:: osiris.spread.banner
+.. automodule:: oceansar.spread.banner
    :members:
 
-.. automodule:: osiris.spread.cos2s
+.. automodule:: oceansar.spread.cos2s
    :members:
 
-.. automodule:: osiris.spread.elfouhaily
+.. automodule:: oceansar.spread.elfouhaily
    :members:
 
-.. automodule:: osiris.spread.hasselmann80
+.. automodule:: oceansar.spread.hasselmann80
    :members:
 
-.. automodule:: osiris.spread.mcdaniel
+.. automodule:: oceansar.spread.mcdaniel
    :members:
 
-.. automodule:: osiris.spread.romeiser97
+.. automodule:: oceansar.spread.romeiser97
    :members:
 
-.. automodule:: osiris.spread.swop
+.. automodule:: oceansar.spread.swop
    :members:
 """
 

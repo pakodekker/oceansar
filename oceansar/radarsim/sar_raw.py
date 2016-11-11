@@ -93,7 +93,7 @@ def sarraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, reu
         do_vv = True
 
     prf = cfg.sar.prf
-    num_ch = cfg.sar.num_ch
+    num_ch = int(cfg.sar.num_ch)
     ant_L = cfg.sar.ant_L
     alt = cfg.sar.alt
     v_ground = cfg.sar.v_ground
@@ -194,13 +194,13 @@ def sarraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, reu
         v_ground = geosar.orbit_to_vel(alt, ground=True)
     t_step = 1./prf
     t_span = (1.5*(sr0*l0/ant_L) + surface.Ly)/v_ground
-    az_steps = np.floor(t_span/t_step)
+    az_steps = np.int(np.floor(t_span/t_step))
 
     # Number of RG samples
     max_sr = np.max(sr) + wh_tol + (np.max(surface.y_full) + (t_span/2.)*v_ground)**2./(2.*sr0)
     min_sr = np.min(sr) - wh_tol
-    rg_samp_orig = np.ceil(((max_sr - min_sr)/sr_res)*over_fs)
-    rg_samp = utils.optimize_fftsize(rg_samp_orig)
+    rg_samp_orig = np.int(np.ceil(((max_sr - min_sr)/sr_res)*over_fs))
+    rg_samp = np.int(utils.optimize_fftsize(rg_samp_orig))
 
     # Other initializations
     if do_hh:
@@ -267,7 +267,7 @@ def sarraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, reu
     if rank == 0:
         print('Computing profiles...')
 
-    for az_step in np.arange(az_steps):
+    for az_step in np.arange(az_steps, dtype=np.int):
 
         ## AZIMUTH & SURFACE UPDATE
         t_now = az_step*t_step
@@ -287,9 +287,9 @@ def sarraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, reu
                          + surface.Dx*sin_inc + surface.Dy*sin_az)
 
         if do_hh:
-            scene_hh = np.zeros([surface.Ny, surface.Nx], dtype=np.complex)
+            scene_hh = np.zeros([int(surface.Ny), int(surface.Nx)], dtype=np.complex)
         if do_vv:
-            scene_vv = np.zeros([surface.Ny, surface.Nx], dtype=np.complex)
+            scene_vv = np.zeros([int(surface.Ny), int(surface.Nx)], dtype=np.complex)
         # Point target
         if add_point_target and rank == 0:
             sr_pt = (sr[0, surface.Nx/2] + az[surface.Ny/2, 0]/2 *
@@ -400,10 +400,7 @@ def sarraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, reu
             beam_pattern = sinc_1tx_nrx(sin_az, ant_L, f0, 1, field=True)
 
         ## GENERATE CHANEL PROFILES
-        for ch in np.arange(num_ch):
-            # Error beam pattern (different for each channel)
-            if use_errors:
-                beam_pattern = errors.pattern(sin_az, ch)
+        for ch in np.arange(num_ch, dtype=np.int):
 
             if do_hh:
                 scene_bp = scene_hh * beam_pattern
@@ -479,15 +476,13 @@ def sarraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, reu
 
         # Calibration factor (projected antenna pattern integrated in azimuth)
         az_axis = np.arange(-t_span/2.*v_ground, t_span/2.*v_ground, sr0*const.c/(np.pi*f0*ant_L*10.))
-        if use_errors:
-            pattern = np.mean(np.array([errors.pattern(az_axis/sr0, ch) for ch in np.arange(num_ch)]), axis=0)
+
+        if cfg.sar.L_total:
+            pattern = sinc_1tx_nrx(az_axis/sr0, ant_L * num_ch, f0,
+                                   num_ch, field=True)
         else:
-            if cfg.sar.L_total:
-                pattern = perfsar.sinc_1tx_nrx(az_axis/sr0, ant_L * num_ch, f0,
-                                               num_ch, field=True)
-            else:
-                pattern = perfsar.sinc_1tx_nrx(az_axis/sr0, ant_L, f0, 1,
-                                               field=True)
+            pattern = sinc_1tx_nrx(az_axis/sr0, ant_L, f0, 1,
+                                   field=True)
         cal_factor = (1. / np.sqrt(np.trapz(np.abs(pattern)**2., az_axis) *
                       sr_res/np.sin(inc_angle)))
 
@@ -503,11 +498,11 @@ def sarraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, reu
             total_raw_vv = total_raw_vv * cal_factor + noise
 
         # Add slow-time error
-        if use_errors:
-            if do_hh:
-                total_raw_hh *= errors.beta_noise
-            if do_vv:
-                total_raw_vv *= errors.beta_noise
+        # if use_errors:
+        #     if do_hh:
+        #         total_raw_hh *= errors.beta_noise
+        #     if do_vv:
+        #         total_raw_vv *= errors.beta_noise
 
         # Save RAW data (and other properties, used by 3rd party software)
         if do_hh and do_vv:

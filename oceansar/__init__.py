@@ -43,4 +43,7 @@ Derived products
 
 .. automodule:: oceansar.scatstats
    :members:
+
+.. automodule:: oceansar.radarsim
+   :members:
 """

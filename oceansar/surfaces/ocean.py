@@ -85,8 +85,8 @@ class OceanSurface(object):
         self.Ny = np.int(self.Ly/self.dy)
 
         if opt_res:
-            self.Nx = utils.optimize_fftsize(self.Nx, fft_max_prime)
-            self.Ny = utils.optimize_fftsize(self.Ny, fft_max_prime)
+            self.Nx = np.int(utils.optimize_fftsize(self.Nx, fft_max_prime))
+            self.Ny = np.int(utils.optimize_fftsize(self.Ny, fft_max_prime))
 
             self.dx = self.Lx/np.float(self.Nx)
             self.dy = self.Ly/np.float(self.Ny)

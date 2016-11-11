@@ -77,7 +77,7 @@ class OceanSurfaceBalancer(object):
         self.displ *= self.Nx
 
         # Process-dependent properties
-        self.Ny = self.counts[self.rank]/self.Nx
+        self.Ny = np.int(self.counts[self.rank]/self.Nx)
         self.y = np.empty(self.Ny)
         if self.rank == self.root:
             y = (np.ascontiguousarray(surface.y), (self.counts/self.Nx, self.displ/self.Nx), MPI.DOUBLE)
