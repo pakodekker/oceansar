@@ -74,7 +74,7 @@ def sarsim(cfg_file=None):
         print('Launching SAR ATI Processor...', flush=True)
 
         returncode = subprocess.call([sys.executable,
-                                      src_path + os.sep + 'sap.py',
+                                      src_path + os.sep + 'ati_processor.py',
                                       '-c', cfg.cfg_file_name,
                                       '-p', cfg.sim.path + os.sep + cfg.sim.proc_file,
                                       '-s', cfg.sim.path + os.sep + cfg.sim.ocean_file,

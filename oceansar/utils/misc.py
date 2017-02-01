@@ -1,5 +1,6 @@
 
 import numpy as np
+from scipy import signal
 
 def get_parFile(parfile=None):
     """Mini gui to get filename
@@ -101,6 +102,7 @@ def balance_elements(N, size):
     displ = np.concatenate(([0], np.cumsum(counts)[:-1]))
 
     return counts, displ
+
 
 def smooth(data, window_len=11, window='flat', axis=None):
     """ Smooth the data using a window with requested size.
