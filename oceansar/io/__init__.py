@@ -25,3 +25,5 @@ State Files
 from .state import OceanStateFile
 from .cfg import ConfigFile
 from .raw import RawFile
+from .netcdf import NETCDFHandler
+from .processed import ProcFile
