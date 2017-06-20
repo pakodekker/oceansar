@@ -82,6 +82,7 @@ def sarraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, reu
     inc_angle = np.deg2rad(cfg.sar.inc_angle)
     f0 = cfg.sar.f0
     pol = cfg.sar.pol
+    squint_r = np.degrees(cfg.sar.squint)
     if pol == 'DP':
         do_hh = True
         do_vv = True

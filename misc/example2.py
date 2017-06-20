@@ -2,7 +2,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-from osiris.surfaces import OceanSurface
+from oceansar.surfaces import OceanSurface
 
 from trampa import utils
 

@@ -1,7 +1,7 @@
 
 import numpy as np
 from scipy import linalg
-
+import types
 
 
 from oceansar import io as wsio
@@ -9,6 +9,8 @@ from oceansar import spec
 from oceansar import spread
 from oceansar import utils
 from oceansar import constants as const
+
+
 
 class OceanSurface(object):
     """ Ocean Surface class
@@ -29,7 +31,8 @@ class OceanSurface(object):
              wind_dir, wind_fetch, wind_U,
              current_mag, current_dir,
              swell_enable=False, swell_ampl=0., swell_dir=0., swell_wl=0.,
-             compute=[], opt_res=True, fft_max_prime=2, choppy_enable=False):
+             compute=[], opt_res=True, fft_max_prime=2, choppy_enable=False,
+             dirspectrum_func=None, depth=None):
 
         """ Initialize surface with parameters
 
@@ -59,6 +62,7 @@ class OceanSurface(object):
             :param opt_res: Automatically adjust resolution to have optimal matrix sizes
             :param fft_max_prime: Maximum prime factor allowed in matrix sizes
             :param choppy_enable: EN/DIS Choppy waves
+            :param dirspectrum_func: optional external directional wavespectrum
         """
 
         ## INITIALIZE CLASS VARIABLES
@@ -128,24 +132,31 @@ class OceanSurface(object):
         self.theta = np.angle(np.exp(1j * (np.arctan2(self.ky, self.kx) -
                                            self.wind_dir_eff)))
         # omega (Deep water: w(k)^2 = g*k)
-        self.omega = np.sqrt(const.g*self.k)
+        if depth is None:
+            self.omega = np.sqrt(const.g*self.k)
+        else:
+            self.omega = np.sqrt(const.g*self.k * np.tanh(self.k * depth))
 
         # Compute directional wave spectrum (1/k*S(k)*D(k,theta))
-        if spec_model not in spec.models:
-            raise NotImplementedError('%s spectrum function not implemented' % spec_model)
-        if spread_model not in spread.models:
-            raise NotImplementedError('%s spreading function not implemented' % spread_model)
-        wave_spec = np.zeros(self.k.shape)
-        wave_spec[good_k] = spec.models[spec_model](self.k[good_k],
-                                                    self.wind_U_eff,
-                                                    self.wind_fetch)
-        wave_spread = np.zeros(self.k.shape)
-        wave_spread[good_k] = spread.models[spread_model](self.k[good_k],
-                                                          self.theta[good_k],
-                                                          self.wind_U_eff,
-                                                          self.wind_fetch)
+        if callable(dirspectrum_func):
+            self.wave_dirspec = np.zeros(self.k.shape)
+            self.wave_dirspec[good_k] = dirspectrum_func(self.kx[good_k], self.ky[good_k])
+        else:
+            if spec_model not in spec.models:
+                raise NotImplementedError('%s spectrum function not implemented' % spec_model)
+            if spread_model not in spread.models:
+                raise NotImplementedError('%s spreading function not implemented' % spread_model)
+            wave_spec = np.zeros(self.k.shape)
+            wave_spec[good_k] = spec.models[spec_model](self.k[good_k],
+                                                        self.wind_U_eff,
+                                                        self.wind_fetch)
+            wave_spread = np.zeros(self.k.shape)
+            wave_spread[good_k] = spread.models[spread_model](self.k[good_k],
+                                                              self.theta[good_k],
+                                                              self.wind_U_eff,
+                                                              self.wind_fetch)
 
-        self.wave_dirspec = (self.kinv)*wave_spec*wave_spread
+            self.wave_dirspec = (self.kinv)*wave_spec*wave_spread
 
         # Filter if cutoff is imposed
         if cutoff_wl and (cutoff_wl != 'auto'):
@@ -174,7 +185,10 @@ class OceanSurface(object):
             self.swell_k = 2.*np.pi/self.swell_wl
             self.swell_kx = self.swell_k*np.cos(self.swell_dir)
             self.swell_ky = self.swell_k*np.sin(self.swell_dir)
-            self.swell_omega = np.sqrt(self.swell_k*const.g)
+            if depth is None:
+                self.swell_omega = np.sqrt(self.swell_k * const.g)
+            else:
+                self.swell_omega = np.sqrt(self.swell_k*const.g * np.tanh(self.swell_k * depth))
             # Swell initial phase (random)
             self.swell_ph0 = np.random.uniform(0., 2.*np.pi)
             # Swell in complex domain (monochromatic)

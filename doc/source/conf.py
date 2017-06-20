@@ -52,7 +52,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = 'OSIRIS'
+project = 'OCEANSAR'
 copyright = '2016, Paco López-Dekker, Gordon Farquharson, Gerard Marull Paretas'
 author = 'Paco López-Dekker, Gordon Farquharson, Gerard Marull Paretas'
 
@@ -231,7 +231,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'OSIRIS.tex', 'OSIRIS Documentation',
+    (master_doc, 'OCEANSAR.tex', 'OCEANSAR Documentation',
      'Paco López-Dekker, Gordon Farquharson, Gerard Marull Paretas', 'manual'),
 ]
 
@@ -261,7 +261,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'osiris', 'OSIRIS Documentation',
+    (master_doc, 'oceansar', 'OCEANSAR Documentation',
      [author], 1)
 ]
 
@@ -275,8 +275,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'OSIRIS', 'OSIRIS Documentation',
-     author, 'OSIRIS', 'One line description of project.',
+    (master_doc, 'OCEANSAR', 'OCEANSAR Documentation',
+     author, 'OCEANSAR', 'One line description of project.',
      'Miscellaneous'),
 ]
 

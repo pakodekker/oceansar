@@ -104,21 +104,62 @@ def balance_elements(N, size):
     return counts, displ
 
 
-def smooth(data, window_len=11, window='flat', axis=None):
+def smooth1d(data, window_len=11, window='flat', axis=0):
+    if window == 'flat':
+        shp = np.array(data.shape).astype(np.int)
+        # shp[axis] += int(window_len)
+        out = np.zeros(shp, dtype=data.dtype)
+        wlh1 = int(window_len / 2)
+        wlh2 = window_len - wlh1
+        wl = int(window_len)
+        normf = np.zeros(shp[axis])
+
+        for ind in range(window_len):
+            # print(ind)
+            i1 = int(ind - wlh1)
+            i2 = i1 + shp[axis]
+            if i1 <= 0:
+                o1 = -i1
+                i1 = 0
+                o2 = shp[axis]
+            else:
+                i2 = shp[axis]
+                o1 = 0
+                o2 = shp[axis] - i1
+            # print((i1, i2, o1, o2))
+
+            normf[o1:o2] += 1
+            if data.ndim == 1 or axis == 0:
+                out[o1:o2] += data[i1:i2]
+            elif axis == 1:
+                out[:, o1:o2] += data[:, i1:i2]
+            elif axis == 2:
+                out[:, :, o1:o2] += data[:, :, i1:i2]
+        shpn = np.ones_like(shp)
+        shpn[axis] = shp[axis]
+        out /= normf.reshape(shpn)
+        # print(normf)
+        return out
+    else:
+        raise ValueError('1d Smoothing with non flat window not yet supported')
+
+
+def smooth(data, window_len_=11, window='flat', axis=None, force_fft=False):
     """ Smooth the data using a window with requested size.
 
         This method is based on the convolution of a scaled window with the signal.
         Works with 1-D and 2-D arrays.
 
         :param data: Input data
-        :param window_len: Dimension of the smoothing window; should be an odd integer
+        :param window_len_: Dimension of the smoothing window; should be an odd integer
         :param window: Type of window from 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'.
                        Flat window will produce a moving average smoothing.
         :param axis: if set, then it smoothes only over that axis
+        :param force_fft: force use of fftconvolve to overide use of direct implementation for flat windows
 
         :returns: the smoothed signal
     """
-
+    window_len = int(window_len_)
     if data.ndim > 2:
         raise ValueError('Arrays with ndim > 2 not supported')
 
@@ -127,6 +168,13 @@ def smooth(data, window_len=11, window='flat', axis=None):
 
     if not window in ['flat', 'hanning', 'hamming', 'bartlett', 'blackman']:
         raise ValueError('Window type not supported')
+
+    if window == 'flat' and ((axis is not None) or (data.ndim == 1)):
+        if axis is None:
+            axis_ = 0
+        else:
+            axis_ = axis
+        return smooth1d(data, window_len, axis=axis_)
 
     # Calculate Kernel
     if window == 'flat':
@@ -143,7 +191,7 @@ def smooth(data, window_len=11, window='flat', axis=None):
         else:
             w = w.reshape((1, w.size))
 
-    y = signal.fftconvolve(data, w/w.sum(), mode='same')
+    y = signal.fftconvolve(data, w / w.sum(), mode='same')
 
     return y
 

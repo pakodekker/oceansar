@@ -69,7 +69,9 @@ def ati_process(cfg_file, proc_output_file, ocean_file, output_file):
     else:
         polt = ['vv']
     # ATI
-    multilooking = cfg.ati.multilooking
+    rg_ml = cfg.ati.rg_ml
+    az_ml = cfg.ati.az_ml
+    ml_win = cfg.ati.ml_win
     plot_save = cfg.ati.plot_save
     plot_path = cfg.ati.plot_path
     plot_format = cfg.ati.plot_format
@@ -122,14 +124,14 @@ def ati_process(cfg_file, proc_output_file, ocean_file, output_file):
 
     # SURFACE RADIAL VELOCITY
     v_radial_surf = surface.Vx*np.sin(inc_angle) - surface.Vz*np.cos(inc_angle)
-    v_radial_surf_ml = utils.smooth(v_radial_surf, res_fact * multilooking)
+    v_radial_surf_ml = utils.smooth(utils.smooth(v_radial_surf, res_fact * rg_ml, axis=1), res_fact * az_ml, axis=0)
     v_radial_surf_mean = np.mean(v_radial_surf)
     v_radial_surf_std = np.std(v_radial_surf)
     v_radial_surf_ml_std = np.std(v_radial_surf_ml)
 
     # SURFACE HORIZONTAL VELOCITY
     v_horizo_surf = surface.Vx
-    v_horizo_surf_ml = utils.smooth(v_horizo_surf, res_fact * multilooking)
+    v_horizo_surf_ml = utils.smooth(utils.smooth(v_horizo_surf, res_fact * rg_ml, axis=1), res_fact * az_ml, axis=0)
     v_horizo_surf_mean = np.mean(v_horizo_surf)
     v_horizo_surf_std = np.std(v_horizo_surf)
     v_horizo_surf_ml_std = np.std(v_horizo_surf_ml)
@@ -191,7 +193,8 @@ def ati_process(cfg_file, proc_output_file, ocean_file, output_file):
     # Intensities
     i_all = []
     for chind in range(proc_data.shape[0]):
-        this_i = utils.smooth(np.abs(proc_data[chind])**2., multilooking)
+        this_i = utils.smooth(utils.smooth(np.abs(proc_data[chind])**2., rg_ml, axis=1, window=ml_win),
+                              az_ml, axis=0, window=ml_win)
         i_all.append(this_i[az_min:az_max, rg_min:rg_max])
     i_all = np.array(i_all)
     # .reshape((ch_dim) + (az_max - az_min, rg_max - rg_min))
@@ -203,9 +206,10 @@ def ati_process(cfg_file, proc_output_file, ocean_file, output_file):
         for chind2 in range(chind1 + 1, proc_data.shape[0]):
             coh_lut[chind1, chind2] = tind
             tind = tind + 1
-            t_interf = utils.smooth(proc_data[chind2] *
-                                    np.conj(proc_data[chind1]),
-                                    multilooking)
+            t_interf = utils.smooth(utils.smooth(proc_data[chind2] *
+                                                 np.conj(proc_data[chind1]),
+                                                 rg_ml, axis=1, window=ml_win),
+                                    az_ml, axis=0, window=ml_win)
             interfs.append(t_interf[az_min:az_max, rg_min:rg_max])
             cohs.append(t_interf[az_min:az_max, rg_min:rg_max] /
                         np.sqrt(i_all[chind1] * i_all[chind2]))
@@ -240,7 +244,7 @@ def ati_process(cfg_file, proc_output_file, ocean_file, output_file):
             plt.imshow(utils.db(i_all[pind]), aspect='equal',
                        origin='lower',
                        vmin=utils.db(np.max(i_all[pind]))-20,
-                       extent=[0., rg_span, 0., az_span])
+                       extent=[0., rg_span, 0., az_span], interpolation='nearest')
             plt.xlabel('Ground range [m]')
             plt.ylabel('Azimuth [m]')
             plt.title("Amplitude")
@@ -256,14 +260,14 @@ def ati_process(cfg_file, proc_output_file, ocean_file, output_file):
             plt.imshow(int_img, aspect='equal',
                        origin='lower',
                        vmin=vmin, vmax=vmax,
-                       extent=[0., rg_span, 0., az_span])
+                       extent=[0., rg_span, 0., az_span], interpolation='nearest')
             plt.xlabel('Ground range [m]')
             plt.ylabel('Azimuth [m]')
             plt.title("Amplitude")
             plt.colorbar()
             plt.savefig(save_path)
 
-    if plot_coh:
+    if plot_coh and ch_dim[0] > 1:
         for pind in range(npol):
             save_path = (plot_path + os.sep + 'ATI_coh_' +
                          polt[pind] + polt[pind] +
@@ -286,8 +290,12 @@ def ati_process(cfg_file, proc_output_file, ocean_file, output_file):
     tau_ati = dist_chan/v_ground
 
     ati_phases = []
-
-    for pind in range(npol):
+    # Hack to avoid interferogram computation if there are no interferometric channels
+    if num_ch > 1:
+        npol_ = npol
+    else:
+        npol_ = 0
+    for pind in range(npol_):
         save_path = (plot_path + os.sep + 'ATI_pha_' +
                      polt[pind] + polt[pind] +
                      '.' + plot_format)
@@ -331,7 +339,7 @@ def ati_process(cfg_file, proc_output_file, ocean_file, output_file):
             plt.colorbar()
             plt.savefig(save_path)
 
-    if npol == 4:  # Bypass this for now
+    if npol_ == 4:  # Bypass this for now
         # Cross pol interferogram
         coh_ind = coh_lut[(0, 1)]
         save_path = (plot_path + os.sep + 'POL_coh_' +
@@ -357,108 +365,114 @@ def ati_process(cfg_file, proc_output_file, ocean_file, output_file):
                     title='XPOL Phase', cbar_xlabel='[rad]',
                     usetex=plot_tex, save=plot_save, save_path=save_path)
 
-    ati_phases = np.array(ati_phases)
+    if num_ch > 1:
+        ati_phases = np.array(ati_phases)
 
-    output.write('--------------------------------------------\n')
-    output.write('SURFACE RADIAL VELOCITY - NO SMOOTHING\n')
-    output.write('MEAN(SURF. V) = %.4f\n' % v_radial_surf_mean)
-    output.write('STD(SURF. V) = %.4f\n' % v_radial_surf_std)
-    output.write('--------------------------------------------\n\n')
+        output.write('--------------------------------------------\n')
+        output.write('SURFACE RADIAL VELOCITY - NO SMOOTHING\n')
+        output.write('MEAN(SURF. V) = %.4f\n' % v_radial_surf_mean)
+        output.write('STD(SURF. V) = %.4f\n' % v_radial_surf_std)
+        output.write('--------------------------------------------\n\n')
 
-    output.write('--------------------------------------------\n')
-    output.write('SURFACE RADIAL VELOCITY - SMOOTHING (WIN. SIZE=%d)\n' % multilooking)
-    output.write('MEAN(SURF. V) = %.4f\n' % v_radial_surf_mean)
-    output.write('STD(SURF. V) = %.4f\n' % v_radial_surf_ml_std)
-    output.write('--------------------------------------------\n\n')
+        output.write('--------------------------------------------\n')
+        output.write('SURFACE RADIAL VELOCITY - SMOOTHING (WIN. SIZE=%dx%d)\n' % (az_ml, rg_ml))
+        output.write('MEAN(SURF. V) = %.4f\n' % v_radial_surf_mean)
+        output.write('STD(SURF. V) = %.4f\n' % v_radial_surf_ml_std)
+        output.write('--------------------------------------------\n\n')
 
-    output.write('--------------------------------------------\n')
-    output.write('SURFACE HORIZONTAL VELOCITY - NO SMOOTHING\n')
-    output.write('MEAN(SURF. V) = %.4f\n' % v_horizo_surf_mean)
-    output.write('STD(SURF. V) = %.4f\n' % v_horizo_surf_std)
-    output.write('--------------------------------------------\n\n')
+        output.write('--------------------------------------------\n')
+        output.write('SURFACE HORIZONTAL VELOCITY - NO SMOOTHING\n')
+        output.write('MEAN(SURF. V) = %.4f\n' % v_horizo_surf_mean)
+        output.write('STD(SURF. V) = %.4f\n' % v_horizo_surf_std)
+        output.write('--------------------------------------------\n\n')
 
-    if plot_vel_hist:
-        # PLOT RADIAL VELOCITY
-        plt.figure()
+        if plot_vel_hist:
+            # PLOT RADIAL VELOCITY
+            plt.figure()
 
-        plt.hist(v_radial_surf.flatten(), 200, normed=True, histtype='step')
-        #plt.hist(v_radial_surf_ml.flatten(), 500, normed=True, histtype='step')
-        plt.grid(True)
-        plt.xlim([-np.abs(v_radial_surf_mean) - 4.*v_radial_surf_std, np.abs(v_radial_surf_mean) + 4.*v_radial_surf_std])
-        plt.xlabel('Radial velocity [m/s]')
-        plt.ylabel('PDF')
-        plt.title('Surface velocity')
+            plt.hist(v_radial_surf.flatten(), 200, normed=True, histtype='step')
+            #plt.hist(v_radial_surf_ml.flatten(), 500, normed=True, histtype='step')
+            plt.grid(True)
+            plt.xlim([-np.abs(v_radial_surf_mean) - 4.*v_radial_surf_std, np.abs(v_radial_surf_mean) + 4.* v_radial_surf_std])
+            plt.xlabel('Radial velocity [m/s]')
+            plt.ylabel('PDF')
+            plt.title('Surface velocity')
 
-        if plot_save:
-            plt.savefig(plot_path + os.sep + 'TRUE_radial_vel_hist.' + plot_format)
-            plt.close()
-        else:
-            plt.show()
+            if plot_save:
+                plt.savefig(plot_path + os.sep + 'TRUE_radial_vel_hist.' + plot_format)
+                plt.close()
+            else:
+                plt.show()
 
-        plt.figure()
-        plt.hist(v_radial_surf_ml.flatten(), 200, normed=True, histtype='step')
-        #plt.hist(v_radial_surf_ml.flatten(), 500, normed=True, histtype='step')
-        plt.grid(True)
-        plt.xlim([-np.abs(v_radial_surf_mean) - 4.*v_radial_surf_std, np.abs(v_radial_surf_mean) + 4.*v_radial_surf_std])
-        plt.xlabel('Radial velocity [m/s]')
-        plt.ylabel('PDF')
-        plt.title('Surface velocity (low pass filtered)')
+            plt.figure()
+            plt.hist(v_radial_surf_ml.flatten(), 200, normed=True, histtype='step')
+            #plt.hist(v_radial_surf_ml.flatten(), 500, normed=True, histtype='step')
+            plt.grid(True)
+            plt.xlim([-np.abs(v_radial_surf_mean) - 4.*v_radial_surf_std, np.abs(v_radial_surf_mean) + 4.* v_radial_surf_std])
+            plt.xlabel('Radial velocity [m/s]')
+            plt.ylabel('PDF')
+            plt.title('Surface velocity (low pass filtered)')
 
-        if plot_save:
-            plt.savefig(plot_path + os.sep + 'TRUE_radial_vel_ml_hist.' + plot_format)
-            plt.close()
-        else:
-            plt.show()
+            if plot_save:
+                plt.savefig(plot_path + os.sep + 'TRUE_radial_vel_ml_hist.' + plot_format)
+                plt.close()
+            else:
+                plt.show()
 
-    if plot_vel:
+        if plot_vel:
 
-        utils.image(v_radial_surf, aspect='equal', cmap=utils.bwr_cmap, extent=[0., rg_span, 0., az_span],
-                    xlabel='Ground range [m]', ylabel='Azimuth [m]', title='Surface Radial Velocity', cbar_xlabel='[m/s]',
-                    min=-np.abs(v_radial_surf_mean) - 4.*v_radial_surf_std, max=np.abs(v_radial_surf_mean) + 4.*v_radial_surf_std,
-                    usetex=plot_tex, save=plot_save, save_path=plot_path + os.sep + 'TRUE_radial_vel.' + plot_format)
-        utils.image(v_radial_surf_ml, aspect='equal', cmap=utils.bwr_cmap, extent=[0., rg_span, 0., az_span],
-                    xlabel='Ground range [m]', ylabel='Azimuth [m]', title='Surface Radial Velocity', cbar_xlabel='[m/s]',
-                    min=-np.abs(v_radial_surf_mean) - 4.*v_radial_surf_std, max=np.abs(v_radial_surf_mean) + 4.*v_radial_surf_std,
-                    usetex=plot_tex, save=plot_save, save_path=plot_path + os.sep + 'TRUE_radial_vel_ml.' + plot_format)
+            utils.image(v_radial_surf, aspect='equal', cmap=utils.bwr_cmap, extent=[0., rg_span, 0., az_span],
+                        xlabel='Ground range [m]', ylabel='Azimuth [m]', title='Surface Radial Velocity', cbar_xlabel='[m/s]',
+                        min=-np.abs(v_radial_surf_mean) - 4.*v_radial_surf_std, max=np.abs(v_radial_surf_mean) + 4.*v_radial_surf_std,
+                        usetex=plot_tex, save=plot_save, save_path=plot_path + os.sep + 'TRUE_radial_vel.' + plot_format)
+            utils.image(v_radial_surf_ml, aspect='equal', cmap=utils.bwr_cmap, extent=[0., rg_span, 0., az_span],
+                        xlabel='Ground range [m]', ylabel='Azimuth [m]', title='Surface Radial Velocity', cbar_xlabel='[m/s]',
+                        min=-np.abs(v_radial_surf_mean) - 4.*v_radial_surf_std, max=np.abs(v_radial_surf_mean) + 4.*v_radial_surf_std,
+                        usetex=plot_tex, save=plot_save, save_path=plot_path + os.sep + 'TRUE_radial_vel_ml.' + plot_format)
 
-    ##  ESTIMATED VELOCITIES
+        ##  ESTIMATED VELOCITIES
 
-    # Note: plot limits are taken from surface calculations to keep the same ranges
+        # Note: plot limits are taken from surface calculations to keep the same ranges
 
-    # ESTIMATE RADIAL VELOCITY
-    v_radial_ests = -ati_phases/tau_ati/(k0*2.)
+        # ESTIMATE RADIAL VELOCITY
+        v_radial_ests = -ati_phases/tau_ati/(k0*2.)
 
-    # ESTIMATE HORIZONTAL VELOCITY
-    v_horizo_ests = -ati_phases/tau_ati/(k0*2.)/np.sin(inc_angle)
+        # ESTIMATE HORIZONTAL VELOCITY
+        v_horizo_ests = -ati_phases/tau_ati/(k0*2.)/np.sin(inc_angle)
 
-    #Trim edges
-    v_radial_ests = v_radial_ests[:, az_guard:-az_guard, 5:-5]
-    v_horizo_ests = v_horizo_ests[:, az_guard:-az_guard, 5:-5]
-    output.write('--------------------------------------------\n')
-    output.write('ESTIMATED RADIAL VELOCITY - NO SMOOTHING\n')
-    for pind in range(npol):
-        output.write("%s Polarization\n" % polt[pind])
-        output.write('MEAN(EST. V) = %.4f\n' % np.mean(v_radial_ests[pind]))
-        output.write('STD(EST. V) = %.4f\n' % np.std(v_radial_ests[pind]))
-    output.write('--------------------------------------------\n\n')
+        #Trim edges
+        v_radial_ests = v_radial_ests[:, az_guard:-az_guard, 5:-5]
+        v_horizo_ests = v_horizo_ests[:, az_guard:-az_guard, 5:-5]
+        output.write('--------------------------------------------\n')
+        output.write('ESTIMATED RADIAL VELOCITY - NO SMOOTHING\n')
+        for pind in range(npol):
+            output.write("%s Polarization\n" % polt[pind])
+            output.write('MEAN(EST. V) = %.4f\n' % np.mean(v_radial_ests[pind]))
+            output.write('STD(EST. V) = %.4f\n' % np.std(v_radial_ests[pind]))
+        output.write('--------------------------------------------\n\n')
 
-    output.write('--------------------------------------------\n')
-    output.write('ESTIMATED RADIAL VELOCITY - SMOOTHING (WIN. SIZE=%d)\n' % multilooking)
-    for pind in range(npol):
-        output.write("%s Polarization\n" % polt[pind])
-        output.write('MEAN(EST. V) = %.4f\n' % np.mean(utils.smooth(v_radial_ests[pind], multilooking)))
-        output.write('STD(EST. V) = %.4f\n' % np.std(utils.smooth(v_radial_ests[pind], multilooking)))
-    output.write('--------------------------------------------\n\n')
+        output.write('--------------------------------------------\n')
+        output.write('ESTIMATED RADIAL VELOCITY - SMOOTHING (WIN. SIZE=%dx%d)\n' % (az_ml, rg_ml))
+        for pind in range(npol):
+            output.write("%s Polarization\n" % polt[pind])
+            output.write('MEAN(EST. V) = %.4f\n' % np.mean(utils.smooth(utils.smooth(v_radial_ests[pind],
+                                                                                     rg_ml, axis=1),
+                                                                        az_ml, axis=0)))
+            output.write('STD(EST. V) = %.4f\n' % np.std(utils.smooth(utils.smooth(v_radial_ests[pind],
+                                                                                   rg_ml, axis=1),
+                                                                      az_ml, axis=0)))
+        output.write('--------------------------------------------\n\n')
 
-    output.write('--------------------------------------------\n')
-    output.write('ESTIMATED HORIZONTAL VELOCITY - NO SMOOTHING\n')
-    for pind in range(npol):
-        output.write("%s Polarization\n" % polt[pind])
-        output.write('MEAN(EST. V) = %.4f\n' % np.mean(v_horizo_ests[pind]))
-        output.write('STD(EST. V) = %.4f\n' % np.std(v_horizo_ests[pind]))
-    output.write('--------------------------------------------\n\n')
+        output.write('--------------------------------------------\n')
+        output.write('ESTIMATED HORIZONTAL VELOCITY - NO SMOOTHING\n')
+        for pind in range(npol):
+            output.write("%s Polarization\n" % polt[pind])
+            output.write('MEAN(EST. V) = %.4f\n' % np.mean(v_horizo_ests[pind]))
+            output.write('STD(EST. V) = %.4f\n' % np.std(v_horizo_ests[pind]))
+        output.write('--------------------------------------------\n\n')
 
-    #Processed NRCS
+    # Processed NRCS
+
     NRCS_est_avg = 10*np.log10(np.mean(np.mean(i_all[:, az_guard:-az_guard, 5:-5], axis=-1), axis=-1))
     output.write('--------------------------------------------\n')
     for pind in range(npol):
@@ -474,7 +488,7 @@ def ati_process(cfg_file, proc_output_file, ocean_file, output_file):
 
     output.close()
 
-    if plot_vel_hist:
+    if plot_vel_hist and num_ch > 1:
         # PLOT RADIAL VELOCITY
         plt.figure()
         plt.hist(v_radial_surf.flatten(), 200, normed=True, histtype='step',
@@ -495,10 +509,6 @@ def ati_process(cfg_file, proc_output_file, ocean_file, output_file):
             plt.close()
         else:
             plt.show()
-
-
-
-
 
     print('----------------------------------------')
     print(time.strftime("ATI Processing finished [%Y-%m-%d %H:%M:%S]", time.localtime()))
