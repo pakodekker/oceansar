@@ -31,6 +31,7 @@ import argparse
 import numpy as np
 from scipy import linalg
 import numexpr as ne
+import datetime
 
 from oceansar import utils
 from oceansar import io as tpio
@@ -136,10 +137,28 @@ def sarraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, reu
                 pass
 
         if (not reuse_ocean_file) or (not surface_full.initialized):
+
+            if hasattr(cfg.ocean, 'use_buoy_data'):
+                if cfg.ocean.use_buoy_data:
+                    bdataf = cfg.ocean.buoy_data_file
+                    date = datetime.datetime(np.int(cfg.ocean.year),
+                                             np.int(cfg.ocean.month),
+                                             np.int(cfg.ocean.day),
+                                             np.int(cfg.ocean.hour),
+                                             np.int(cfg.ocean.minute), 0)
+                    date, bdata = tpio.load_buoydata(bdataf, date)
+                    buoy_spec = tpio.BuoySpectra(bdata, heading=cfg.sar.heading, depth=cfg.ocean.depth)
+                    dirspectrum_func = buoy_spec.Sk2
+                    # Since the wind direction is included in the buoy data
+                    wind_dir = 0
+            else:
+                dirspectrum_func = None
+                wind_dir = np.deg2rad(cfg.ocean.wind_dir)
+
             surface_full.init(cfg.ocean.Lx, cfg.ocean.Ly, cfg.ocean.dx,
                               cfg.ocean.dy, cfg.ocean.cutoff_wl,
                               cfg.ocean.spec_model, cfg.ocean.spread_model,
-                              np.deg2rad(cfg.ocean.wind_dir),
+                              wind_dir,
                               cfg.ocean.wind_fetch, cfg.ocean.wind_U,
                               cfg.ocean.current_mag,
                               np.deg2rad(cfg.ocean.current_dir),
@@ -148,7 +167,9 @@ def sarraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, reu
                               cfg.ocean.swell_wl,
                               compute, cfg.ocean.opt_res,
                               cfg.ocean.fft_max_prime,
-                              choppy_enable=cfg.ocean.choppy_enable)
+                              choppy_enable=cfg.ocean.choppy_enable,
+                              depth=cfg.ocean.depth,
+                              dirspectrum_func=dirspectrum_func)
 
             surface_full.save(ocean_file)
 

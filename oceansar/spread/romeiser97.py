@@ -7,6 +7,7 @@
 
 import numpy as np
 
+
 def romeiser97(k, theta, U_10, fetch):
     # Parameter 'delta' (44) [Fixed to avoid log(0)!]
     c_1 = 400.

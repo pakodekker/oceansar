@@ -27,3 +27,4 @@ from .cfg import ConfigFile
 from .raw import RawFile
 from .netcdf import NETCDFHandler
 from .processed import ProcFile
+from .buoy import load_buoydata, BuoySpectra
