@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/OSIRIS.iml" filepath="$PROJECT_DIR$/.idea/OSIRIS.iml" />
+      <module fileurl="file://$USER_HOME$/CODE/OCEANSAR/.idea/OCEANSAR.iml" filepath="$USER_HOME$/CODE/OCEANSAR/.idea/OCEANSAR.iml" />
     </modules>
   </component>
 </project>

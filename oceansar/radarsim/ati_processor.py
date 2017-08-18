@@ -103,6 +103,12 @@ def ati_process(cfg_file, proc_output_file, ocean_file, output_file):
     # OUTPUT FILE
     output = open(output_file, 'w')
 
+    # Some bookkeeping information
+    output.write('--------------------------------------------\n')
+    output.write('Variance of surface height = %.4f\n' % np.var(surface.Dz))
+    output.write('Stdev of surface height = %.4f\n' % np.std(surface.Dz))
+    output.write('--------------------------------------------\n\n')
+
     # OTHER INITIALIZATIONS
     # Enable TeX
     if plot_tex:

@@ -254,12 +254,12 @@ def sarraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, reu
         bragg_scats = np.zeros([2, surface.Ny, surface.Nx], dtype=np.complex)
         # dop_phase_p = np.random.uniform(0., 2.*np.pi, size=[surface.Ny, surface.Nx])
         # dop_phase_m = np.random.uniform(0., 2.*np.pi, size=[surface.Ny, surface.Nx])
-        tau_c = closure.grid_coherence(cfg.ocean.wind_U,surface.dx, f0)
+        tau_c = closure.grid_coherence(cfg.ocean.wind_U, surface.dx, f0)
         rndscat_p = closure.randomscat_ts(tau_c, (surface.Ny, surface.Nx), prf)
         rndscat_m = closure.randomscat_ts(tau_c, (surface.Ny, surface.Nx), prf)
         # NOTE: This ignores slope, may be changed
-        k_b = 2.*k0*sin_inc
-        c_b = sin_inc*np.sqrt(const.g/k_b + 0.072e-3*k_b)
+        k_b = 2. * k0 * sin_inc
+        c_b = sin_inc * np.sqrt(const.g/k_b + 0.072e-3 * k_b)
 
         if scat_bragg_model == 'romeiser97':
             current_dir = np.deg2rad(cfg.ocean.current_dir)
@@ -404,6 +404,7 @@ def sarraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, reu
 
             # Doppler phases (Note: Bragg radial velocity taken constant!)
             surf_phase = - (2 * k0) * sr_surface
+            # FIXME: radial bragg velocity taken constant...
             cap_phase = (2 * k0) * t_step * c_b * (az_step + 1)
             phase_bragg[0] = surf_phase - cap_phase # + dop_phase_p
             phase_bragg[1] = surf_phase + cap_phase # + dop_phase_m
