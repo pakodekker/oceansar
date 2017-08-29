@@ -2,6 +2,7 @@
 import numpy as np
 from scipy import signal
 
+
 def get_parFile(parfile=None):
     """Mini gui to get filename
     """
@@ -11,9 +12,9 @@ def get_parFile(parfile=None):
     if (parfile is None):
         #output_queue = multiprocessing.Queue()
         #p = multiprocessing.Process(target=_get_parFile, args=(output_queue,))
-        #p.start()
+        # p.start()
         #parfile = output_queue.get()
-        #p.join()
+        # p.join()
         parfile = _get_parFile(1)
     return parfile
 
@@ -47,7 +48,7 @@ def factorize(n):
         while np.mod(n, i) == 0:
             n /= i
             s += 1
-        result = np.append(result, [i]*s)
+        result = np.append(result, [i] * s)
         if n == 1:
             return result
 
@@ -93,10 +94,10 @@ def balance_elements(N, size):
         :returns: (counts, displ) vectors
     """
     # Counts
-    count = np.round(N/size)
-    counts = count*np.ones(size, dtype=np.int)
-    diff = N - count*size
-    counts[:diff] += 1
+    count = np.round(N / size)
+    counts = count * np.ones(size, dtype=np.int)
+    diff = N - count * size
+    counts[:int(diff)] += 1
 
     # Displacements
     displ = np.concatenate(([0], np.cumsum(counts)[:-1]))
@@ -207,6 +208,6 @@ def db(a, linear=False):
 def db2lin(a, amplitude=False):
     """ Mini routine to convert dB to linear"""
     if amplitude:
-        return 10**(a/20)
+        return 10**(a / 20)
     else:
-        return 10**(a/10)
+        return 10**(a / 10)

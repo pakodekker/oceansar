@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# coding=utf-8
 
 """ =============================================
     OCEANSAR SAR Simulation script
@@ -7,6 +8,8 @@
 
     **Arguments**
         - Configuration file
+
+e.g. python oceansar_sarsim.py d:\data\configfile\20160708_NOS.cfg
 
 """
 
@@ -17,13 +20,13 @@ import subprocess
 from oceansar import io as osrio
 from oceansar import utils
 
+
 def sarsim(cfg_file=None):
 
-    print('-------------------------------------------------------------------')
-    print(time.strftime("OCEANSAR SAR Simulator [%Y-%m-%d %H:%M:%S]", time.localtime()))
-    #print('Copyright (c) Gerard Marull Paretas, Paco López-Dekker')
-    print('-------------------------------------------------------------------',
-          flush=True)
+    print('-------------------------------------------------------------------', flush=True)
+    print(time.strftime("OCEANSAR SAR Simulator [%Y-%m-%d %H:%M:%S]", time.localtime()), flush=True)
+    # print('Copyright (c) Gerard Marull Paretas, Paco López-Dekker')
+    print('-------------------------------------------------------------------', flush=True)
     cfg_file = utils.get_parFile(parfile=cfg_file)
     cfg = osrio.ConfigFile(cfg_file)
     # Create output directory if it doesnt exist already
@@ -33,7 +36,7 @@ def sarsim(cfg_file=None):
     # RAW
     if cfg.sim.raw_run:
 
-        print('Launching SAR RAW Generator...', flush=True)
+        print('Launching SAR RAW Generator...')
 
         args = [cfg.sim.mpi_exec,
                 '-np', str(cfg.sim.mpi_num_proc),
@@ -55,7 +58,7 @@ def sarsim(cfg_file=None):
 
     # Processing
     if cfg.sim.proc_run:
-        print('Launching SAR RAW Processor...', flush=True)
+        print('Launching SAR RAW Processor...')
 
         returncode = subprocess.call([sys.executable,
                                       src_path + os.sep + 'sar_processor.py',
@@ -71,7 +74,7 @@ def sarsim(cfg_file=None):
         print('CoRAR Processing')
 
     if cfg.sim.ati_run:
-        print('Launching SAR ATI Processor...', flush=True)
+        print('Launching SAR ATI Processor...')
 
         returncode = subprocess.call([sys.executable,
                                       src_path + os.sep + 'ati_processor.py',
@@ -83,10 +86,9 @@ def sarsim(cfg_file=None):
         if returncode != 0:
             raise Exception('Something went wrong with SAR ATI Processor (return code %d)...' % returncode)
 
-
-    print('----------------------------------')
-    print(time.strftime("End of tasks [%Y-%m-%d %H:%M:%S]", time.localtime()))
-    print('----------------------------------')
+    print('----------------------------------', flush=True)
+    print(time.strftime("End of tasks [%Y-%m-%d %H:%M:%S]", time.localtime()), flush=True)
+    print('----------------------------------', flush=True)
 
 
 if __name__ == '__main__':

@@ -123,9 +123,7 @@ class BuoySpectra():
         return D
 
     def Sk2(self, kx, ky):
-        # Here we change from an East of North convention to a x-y one.
-        # Therefore we calculate the angle with respect to the y axis
-        th = np.arctan2(kx, ky) + np.radians(self.heading)
+        th = np.arctan2(ky, kx) + np.radians(self.heading)
         k = np.sqrt(kx**2 + ky**2)
         k_inv = np.where(k != 0, 1/k, 0)
         return self.Sk(k) * k_inv * self.dirspread(k, th)
@@ -159,11 +157,10 @@ def load_buoydata(file, date=None):
 if __name__ == '__main__':
 
     locpath = "/Users/plopezdekker/DATA/OCEANSAR/BuouyData/M170513184/out/buoyspectra_k13.npz"
-    file = "/Users/plopezdekker/DATA/OCEANSAR/BuouyData/Processed/portugal_buoydata2.npy"
     # load data
     tdate = datetime.datetime(2015,4,26,17,25,21)
     dates, data = load_buoydata(locpath)
-    date, data = load_buoydata(locpath, dates[1])
+    date, data = load_buoydata(locpath, dates[5])
     bS = BuoySpectra(data, heading=-11.2)
     kx = np.linspace(-bS.kmax, bS.kmax, 1001).reshape((1, 1001))
     ky = np.linspace(-bS.kmax, bS.kmax, 1001).reshape((1001, 1))
