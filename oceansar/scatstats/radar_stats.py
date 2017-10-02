@@ -105,13 +105,16 @@ class RadarSurface():
         self.diffxx = np.zeros((ntimes, self.surface.Ny, self.surface.Nx))
         self.diffxy = np.zeros((ntimes, self.surface.Ny, self.surface.Nx))
         self.diffyy = np.zeros((ntimes, self.surface.Ny, self.surface.Nx))
+        self.dx = np.zeros((ntimes, self.surface.Ny, self.surface.Nx))
+        self.dy = np.zeros((ntimes, self.surface.Ny, self.surface.Nx))
         self.dz = np.zeros((ntimes, self.surface.Ny, self.surface.Nx))
-
         self.diffx[0, :, :] = self.surface.Diffx
         self.diffy[0, :, :] = self.surface.Diffy
         self.diffxx[0, :, :] = self.surface.Diffxx
         self.diffyy[0, :, :] = self.surface.Diffyy
         self.diffxy[0, :, :] = self.surface.Diffxy
+        self.dx[0, :, :] = self.surface.Dx
+        self.dy[0, :, :] = self.surface.Dy
         self.dz[0, :, :] = self.surface.Dz
         if self.use_hmtf:
             self.h_mtf = np.zeros((ntimes, self.surface.Ny, self.surface.Nx))
@@ -125,6 +128,8 @@ class RadarSurface():
             self.diffxx[az_step, :, :] = self.surface.Diffxx
             self.diffyy[az_step, :, :] = self.surface.Diffyy
             self.diffxy[az_step, :, :] = self.surface.Diffxy
+            self.dx[az_step, :, :] = self.surface.Dx
+            self.dy[az_step, :, :] = self.surface.Dy
             self.dz[az_step, :, :] = self.surface.Dz
             if self.use_hmtf:
                 self.h_mtf[az_step, :, :] = self.surface.hMTF
@@ -276,7 +281,7 @@ class RadarSurface():
 
             # Note: Projected displacements are added to slant range
             sr_surface = (sr - cos_inc*self.dz[az_step] +
-                          sin_inc * (self.diffx[az_step] * cos_az + self.diffy[az_step] * sin_az))
+                          sin_inc * (self.dx[az_step] * cos_az + self.dy[az_step] * sin_az))
 
 
 
