@@ -15,4 +15,4 @@ This module provides routines to derive statistics using OSIRIS itself
 
 """
 
-from .radar_stats import surface_S, view_surface, v_r_stats
+from .radar_stats import view_surface, v_r_stats, RadarSurface

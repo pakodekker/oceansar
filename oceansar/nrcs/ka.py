@@ -46,7 +46,7 @@ class RCSKA():
 
         # r (local position) vector
         self.r = np.empty(self.shape)
-        self.r[..., 0], self.r[..., 1] = np.meshgrid(x, y)
+        self.r[:, :, 0], self.r[:, :, 1] = np.meshgrid(x, y)
 
 
 #    def field_mono(self, R_i, pol_i, pol_s, theta_i, phi_i,
@@ -106,7 +106,8 @@ class RCSKA():
     def field(self, R_i, R_s,
                     pol_i, pol_s,
                     theta_i, theta_s, phi_i, phi_s,
-                    Dz, Diffx, Diffy, Diffxx, Diffyy, Diffxy):
+                    Dz, Diffx, Diffy, Diffxx, Diffyy, Diffxy,
+                    monostatic = True):
 
         """ Calculates E.M. field
 
@@ -124,46 +125,53 @@ class RCSKA():
             :param Diffxx: Space second derivatives (XX)
             :param Diffyy: Space second derivatives (YY)
             :param Diffxy: Space second derivatives (XY)
+            :param monostatic: Tue for mono geometry
 
         """
 
         ### CACHE ###
-        sin_theta_i = np.sin(theta_i)
-        sin_theta_i = np.repeat(sin_theta_i, self.shape[0], axis=0)
-        cos_theta_i = np.cos(theta_i)
-        cos_theta_i = np.repeat(cos_theta_i, self.shape[0], axis=0)
-        sin_theta_s = np.sin(theta_s)
-        sin_theta_s = np.repeat(sin_theta_s, self.shape[0], axis=0)
-        cos_theta_s = np.cos(theta_s)
-        cos_theta_s = np.repeat(cos_theta_s, self.shape[0], axis=0)
-        tan_theta_i = np.sin(theta_i)
+        sin_theta_i = np.sin(theta_i).reshape((1, theta_i.size))
+        #sin_theta_i = np.repeat(sin_theta_i, self.shape[0], axis=0)
+        cos_theta_i = np.cos(theta_i).reshape((1, theta_i.size))
+        #cos_theta_i = np.repeat(cos_theta_i, self.shape[0], axis=0)
+        tan_theta_i = np.tan(theta_i) # This was sin, I guess this was a bug!
         sin_phi_i = np.sin(phi_i)
         cos_phi_i = np.cos(phi_i)
-        sin_phi_s = np.sin(phi_s)
-        cos_phi_s = np.cos(phi_s)
-
+        h_i = np.empty(self.shape)
+        h_i[:, :, 0] = -sin_phi_i
+        h_i[:, :, 1] = cos_phi_i
+        h_i[:, :, 2] = 0.
+        v_i = np.empty(self.shape)
+        v_i[:, :, 0] = -cos_theta_i*cos_phi_i
+        v_i[:, :, 1] = -cos_theta_i*sin_phi_i
+        v_i[:, :, 2] = -sin_theta_i
+        if monostatic:
+            sin_theta_s = sin_theta_i
+            cos_theta_s = cos_theta_i
+            sin_phi_s = sin_phi_i
+            cos_phi_s = cos_phi_i
+            h_s = h_i
+            v_s = v_i
+        else:
+            sin_theta_s = np.sin(theta_s).reshape((1, theta_i.size))
+            #sin_theta_s = np.repeat(sin_theta_s, self.shape[0], axis=0)
+            cos_theta_s = np.cos(theta_s).reshape((1, theta_i.size))
+            #cos_theta_s = np.repeat(cos_theta_s, self.shape[0], axis=0)
+            sin_phi_s = np.sin(phi_s)
+            cos_phi_s = np.cos(phi_s)
+            h_s = np.empty(self.shape)
+            h_s[:, :, 0] = -sin_phi_s
+            h_s[:, :, 1] = cos_phi_s
+            h_s[:, :, 2] = 0.
+            v_s = np.empty(self.shape)
+            v_s[:, :, 0] = cos_theta_s*cos_phi_s
+            v_s[:, :, 1] = cos_theta_s*sin_phi_s
+            v_s[:, :, 2] = -sin_theta_s
         ### VECTORS ###
         # Position (r) - Update heights
-        self.r[..., 2] = Dz
+        self.r[:, :, 2] = Dz
 
-        ## Polarization vectors (H, V)
-        h_i = np.empty(self.shape)
-        h_s = np.empty(self.shape)
-        h_i[..., 0] = -sin_phi_i
-        h_i[..., 1] = cos_phi_i
-        h_i[..., 2] = 0.
-        h_s[..., 0] = -sin_phi_s
-        h_s[..., 1] = cos_phi_s
-        h_s[..., 2] = 0.
-
-        v_i = np.empty(self.shape)
-        v_s = np.empty(self.shape)
-        v_i[..., 0] = -cos_theta_i*cos_phi_i
-        v_i[..., 1] = -cos_theta_i*sin_phi_i
-        v_i[..., 2] = -sin_theta_i
-        v_s[..., 0] = cos_theta_s*cos_phi_s
-        v_s[..., 1] = cos_theta_s*sin_phi_s
-        v_s[..., 2] = -sin_theta_s
+        # Polarization vectors (H, V)
 
         a_i = h_i if pol_i == 'h' else v_i
         a_s = h_s if pol_s == 'h' else v_s
@@ -171,28 +179,28 @@ class RCSKA():
         # Surface normal (n)
         n = np.empty(self.shape)
         n_norm = np.sqrt(Diffx**2. + Diffy**2. + 1.)
-        n[..., 0] = -Diffx/n_norm
-        n[..., 1] = -Diffy/n_norm
-        n[..., 2] = 1./n_norm
+        n[:, :, 0] = -Diffx/n_norm
+        n[:, :, 1] = -Diffy/n_norm
+        n[:, :, 2] = 1./n_norm
 
         # Incidence direction (n_i)
         n_i = np.empty(self.shape)
-        n_i[..., 0] = sin_theta_i*cos_phi_i
-        n_i[..., 1] = sin_theta_i*sin_phi_i
-        n_i[..., 2] = -cos_theta_i
+        n_i[:, :, 0] = sin_theta_i*cos_phi_i
+        n_i[:, :, 1] = sin_theta_i*sin_phi_i
+        n_i[:, :, 2] = -cos_theta_i
 
         # Scattering direction (n_s)
         n_s = np.empty(self.shape)
-        n_s[..., 0] = sin_theta_s * cos_phi_s
-        n_s[..., 1] = sin_theta_s * sin_phi_s
-        n_s[..., 2] = cos_theta_s
+        n_s[:, :, 0] = sin_theta_s * cos_phi_s
+        n_s[:, :, 1] = sin_theta_s * sin_phi_s
+        n_s[:, :, 2] = cos_theta_s
 
         # Scattering (q)
         q = self.k0*(n_s - n_i)
 
         # Local frame of reference (t, d)
         t = np.cross(n_i, n)
-        t /= np.sqrt(t[..., 0]**2. + t[..., 1]**2. + t[..., 2]**2.)[..., np.newaxis]
+        t /= np.sqrt(np.sum(t**2, axis=2)).reshape((self.shape[0], self.shape[1], 1))
         d = np.cross(n_i, t)
 
 
@@ -212,10 +220,10 @@ class RCSKA():
         n__P__n_i = -cos_theta_l
         n__x__t = np.cross(n, t)
 
-        n__x__Es = (((1. + r_h)*a__P__t)[..., np.newaxis]*n__x__t -
-                    ((1. - r_v)*n__P__n_i*a__P__d)[..., np.newaxis]*t)
-        etha__p__n__x__Hs = -(((1. - r_h)*n__P__n_i*a__P__t)[..., np.newaxis]*t +
-                              ((1. + r_v)*a__P__d)[..., np.newaxis]*n__x__t)
+        n__x__Es = (((1. + r_h)*a__P__t).reshape((self.shape[0], self.shape[1], 1)) * n__x__t -
+                    ((1. - r_v)*n__P__n_i*a__P__d).reshape((self.shape[0], self.shape[1], 1)) * t)
+        etha__p__n__x__Hs = -(((1. - r_h)*n__P__n_i*a__P__t).reshape((self.shape[0], self.shape[1], 1)) * t +
+                              ((1. + r_v)*a__P__d).reshape((self.shape[0], self.shape[1], 1)) * n__x__t)
 
         p = np.sum(a_s*np.cross(n_s, n__x__Es - np.cross(n_s, etha__p__n__x__Hs)), axis=-1)
 

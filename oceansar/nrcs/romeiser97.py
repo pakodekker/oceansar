@@ -6,6 +6,7 @@ from oceansar import spec
 from oceansar import spread
 
 from oceansar import constants as const
+import numexpr as ne
 
 class RCSRomeiser97():
     """ Bragg scattering model (R. Romeiser '97)
@@ -66,8 +67,12 @@ class RCSRomeiser97():
         """
 
         # Parallel (s_p) and orthogonal (s_t) slopes
-        s_p = np.arctan(np.cos(az_angle)*diffx + np.sin(az_angle)*diffy)
-        s_t = np.arctan(-np.sin(az_angle)*diffx + np.cos(az_angle)*diffy)
+        cos_az = np.cos(az_angle)
+        sin_az = np.sin(az_angle)
+        # s_p = np.arctan(cos_az * diffx + sin_az * diffy)
+        # s_t = np.arctan(-sin_az * diffx + cos_az * diffy)
+        s_p = ne.evaluate("arctan(cos_az * diffx + sin_az * diffy)")
+        s_t =  ne.evaluate("arctan(-sin_az * diffx + cos_az * diffy)")
 
         # Effective local incidence angle (6)
         cos_s_t = np.cos(s_t)
@@ -109,7 +114,7 @@ class RCSRomeiser97():
         k_inp = np.array([k_b, k_b])
 
         theta_inp = np.array([phi_b, phi_b + np.pi]) - self.wind_dir
-
+        theta_inp = np.angle(np.exp(1j * theta_inp))
         #if self.sw_spec_func == 'romeiser97':
         spectrum_1D = self.spec_interpolator(k_b.flatten()).reshape((1,) +
                                                                     k_b.shape)
