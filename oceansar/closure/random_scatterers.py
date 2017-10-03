@@ -12,8 +12,8 @@ class randomscat_ts():
         if not (seed is None):
             np.random.seed(seed)
         if N is None:
-            N = int(tau * Fs * 100)
-        self.N = utils.optimize_fftsize(N)
+            N = int(tau * Fs * 200)
+        self.N = utils.optimize_fftsize(N, max_prime=5)
 
         f = np.fft.fftfreq(self.N, 1./Fs)
         a = 1 / (tau**2)

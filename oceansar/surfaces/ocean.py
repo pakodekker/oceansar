@@ -125,7 +125,11 @@ class OceanSurface(object):
 
         # K-theta meshgrid (Polar, wind direction shifted)
         self.k = np.sqrt(self.kx**2 + self.ky**2)
-        good_k = np.where(self.k > np.min(np.array([kx_res, ky_res]))/2.0)
+        good_k = np.where(self.k > np.min(np.array([kx_res, ky_res])) / 2.0)
+        self.kxn = np.zeros_like(self.kx)
+        self.kyn = np.zeros_like(self.kx)
+        self.kxn[good_k] = self.kx[good_k]/ self.k[good_k]
+        self.kyn[good_k] = self.ky[good_k] / self.k[good_k]
         self.kinv = np.zeros(self.k.shape)
         self.kinv[good_k] = 1./self.k[good_k]
         #self.theta = np.arctan2(self.ky, self.kx) - self.wind_dir_eff
@@ -254,6 +258,11 @@ class OceanSurface(object):
         # K-theta meshgrid (Polar, wind direction shifted)
 
         good_k = np.where(self.k > np.min(np.array([kx_res, ky_res]))/2.0)
+        self.kxn = np.zeros_like(self.kx)
+        self.kyn = np.zeros_like(self.kx)
+        self.kxn[good_k] = self.kx[good_k] / self.k[good_k]
+        self.kyn[good_k] = self.ky[good_k] / self.k[good_k]
+
         self.kinv = np.zeros(self.k.shape)
         self.kinv[good_k] = 1./self.k[good_k]
         ## Calculate derivated parameters
@@ -387,8 +396,10 @@ class OceanSurface(object):
 
         # HORIZ. DISPL. & HEIGHT FIELD (Dx, Dy, Dz)
         if 'D' in self.compute:
-            self.Dx[:] = np.real(np.fft.ifft2(1j*self.kx*self.kinv*wave_coefs_phased)) + self.current[0]*self._t
-            self.Dy[:] = np.real(np.fft.ifft2(1j*self.ky*self.kinv*wave_coefs_phased)) + self.current[1]*self._t
+            #self.Dx[:] = np.real(np.fft.ifft2(1j*self.kx*self.kinv*wave_coefs_phased)) + self.current[0]*self._t
+            #self.Dy[:] = np.real(np.fft.ifft2(1j*self.ky*self.kinv*wave_coefs_phased)) + self.current[1]*self._t
+            self.Dx[:] = - np.imag(np.fft.ifft2(self.kxn * wave_coefs_phased)) + self.current[0] * self._t
+            self.Dy[:] = - np.imag(np.fft.ifft2(self.kyn * wave_coefs_phased)) + self.current[1] * self._t
             self.Dz[:] = np.real(np.fft.ifft2(wave_coefs_phased))
             if self.swell_enable:
                 self.Dx += np.real(1j*self.swell_kx/self.swell_k*swell_phased)
@@ -423,8 +434,8 @@ class OceanSurface(object):
             else:
                 aux_x = np.real(np.fft.ifft2(1j*self.kx*wave_coefs_phased))
                 aux_y = np.real(np.fft.ifft2(1j*self.ky*wave_coefs_phased))
-                aux_xx =  np.real(np.fft.ifft2(-self.kx**2.*self.kinv*wave_coefs_phased))
-                aux_yy =  np.real(np.fft.ifft2(-self.ky**2.*self.kinv*wave_coefs_phased))
+                aux_xx = np.real(np.fft.ifft2(-self.kx**2.*self.kinv*wave_coefs_phased))
+                aux_yy = np.real(np.fft.ifft2(-self.ky**2.*self.kinv*wave_coefs_phased))
                 aux_xxx = np.real(np.fft.ifft2(-1j*self.kx**3.*self.kinv*wave_coefs_phased))
                 aux_yyy = np.real(np.fft.ifft2(-1j*self.ky**3.*self.kinv*wave_coefs_phased))
                 aux_xxy = np.real(np.fft.ifft2(-1j*self.kx**2.*self.ky*self.kinv*wave_coefs_phased))
@@ -439,8 +450,8 @@ class OceanSurface(object):
         # FIRST TIME DERIVATIVES - VELOCITY (Vx, Vy, Vz)
         if 'V' in self.compute:
             wave_coefs_diff_t_phased = -1j*self.omega*wave_coefs_phased
-            self.Vx[:] = np.real(np.fft.ifft2(1j*self.kx*self.kinv*wave_coefs_diff_t_phased)) + self.current[0]
-            self.Vy[:] = np.real(np.fft.ifft2(1j*self.ky*self.kinv*wave_coefs_diff_t_phased)) + self.current[1]
+            self.Vx[:] = - np.imag(np.fft.ifft2(self.kxn * wave_coefs_diff_t_phased)) + self.current[0]
+            self.Vy[:] = - np.imag(np.fft.ifft2(self.kyn * wave_coefs_diff_t_phased)) + self.current[1]
             self.Vz[:] = np.real(np.fft.ifft2(wave_coefs_diff_t_phased))
             if self.swell_enable:
                 swell_diff_t_phased = -1j*self.swell_omega*swell_phased

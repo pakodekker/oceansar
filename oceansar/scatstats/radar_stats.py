@@ -389,13 +389,13 @@ class RadarSurface():
             v_r_whh = np.sum(v_r * w) / np.sum(w)
             # FIXME, for now just one lag
 
-            v_ati_hh = -np.angle(np.mean(scene_hh[1] * np.conj(scene_hh[0])) /
-                                 self.t_step *const.c / 2 / self.f0 / 2 / np.pi)
+            v_ati_hh = -(np.angle(np.mean(scene_hh[1] * np.conj(scene_hh[0]))) /
+                         self.t_step *const.c / 2 / self.f0 / 2 / np.pi)
         if do_vv:
             w = np.abs(scene_vv[0])**2
             v_r_wvv = np.sum(v_r * w) / np.sum(w)
-            v_ati_vv = -np.angle(np.mean(scene_vv[1] * np.conj(scene_vv[0])) /
-                                 self.t_step * const.c / 2 / self.f0 / 2 / np.pi)
+            v_ati_vv = -(np.angle(np.mean(scene_vv[1] * np.conj(scene_vv[0]))) /
+                         self.t_step * const.c / 2 / self.f0 / 2 / np.pi)
 
         if do_hh and do_vv:
             return {'v_r': v_r, 'scene_hh': scene_hh, 'scene_vv': scene_vv,
