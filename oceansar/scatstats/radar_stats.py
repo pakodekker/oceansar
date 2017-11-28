@@ -520,3 +520,42 @@ def v_r_stats(rsurf, rel, ml=1):
     plt.xlabel("$v_r$ [m/s]")
     plt.ylabel("pdf($v_r$)")
     plt.legend()
+
+
+if __name__ == '__main__':
+    cfg_file = '/Users/plopezdekker/DATA/OCEANSAR/PAR/sim_example.cfg'
+    #import oceansar.scatstats as ocs
+    import drama.oceans.cmod5n as cm
+    U = 8
+    radsurf_U8 = RadarSurface(cfg_file, winddir=0, U10=U)
+    gmf = radsurf_U8.gmf([25, 35, 45], 18)
+
+    plt.figure()
+
+
+    plt.plot(gmf.azimuth, 10 * np.log10(gmf.NRCS_vv[0]), label='25')
+    plt.plot(gmf.azimuth, 10 * np.log10(gmf.NRCS_vv[1]), label='35')
+    plt.plot(gmf.azimuth, 10 * np.log10(gmf.NRCS_vv[2]), label='45')
+    az = np.linspace(0, 360, 100)
+    plt.plot(az, 10 * np.log10(cm.cmod5n_forward(8, az + 180, np.array([25]))), 'b--')
+    plt.plot(az, 10 * np.log10(cm.cmod5n_forward(8, az + 180, np.array([35]))), 'g--')
+    plt.plot(az, 10 * np.log10(cm.cmod5n_forward(8, az + 180, np.array([45]))), 'r--')
+    plt.ylim((-25, -5))
+    plt.grid(True)
+    plt.legend()
+    plt.title("U=8 m/s")
+    plt.xlabel("Azimuuth [deg]")
+    plt.xlabel("Azimuth [deg]")
+    plt.ylabel("$\sigma_{0,VV}$")
+    plt.ylabel("$\sigma_{0,VV}$ [dB]")
+    plt.figure()
+    plt.plot(gmf.azimuth, gmf.v_r_wvv[0], 'b--', label='25')
+    plt.plot(gmf.azimuth, gmf.v_r_wvv[1], 'g--', label='30')
+    plt.plot(gmf.azimuth, gmf.v_r_wvv[2], 'r--', label='45')
+    plt.plot(gmf.azimuth, gmf.v_ATI_vv[0], 'b')
+    plt.plot(gmf.azimuth, gmf.v_ATI_vv[1], 'g')
+    plt.plot(gmf.azimuth, gmf.v_ATI_vv[2], 'r')
+    plt.ylabel("$v_{Dop,VV}$ [m/s]")
+    plt.xlabel("Azimuth [deg]")
+    plt.title("U=8 m/s")
+    plt.grid(True)

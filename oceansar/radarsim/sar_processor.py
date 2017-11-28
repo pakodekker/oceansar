@@ -24,6 +24,7 @@ from oceansar.utils import geometry as geo
 from oceansar import utils
 from oceansar import io as tpio
 from oceansar import constants as const
+from oceansar.radarsim.antenna import sinc_1tx_nrx
 
 
 def sar_focus(cfg_file, raw_output_file, output_file):
@@ -140,6 +141,15 @@ def sar_focus(cfg_file, raw_output_file, output_file):
         fa = (np.arange(az_size) - az_size / 2) * prf / az_size
         fa = np.roll(fa, int(-az_size / 2))
 
+        ## Compensation of ANTENNA PATTERN
+        ## FIXME this will not work for a long separation betwen Tx and Rx!!!
+        ant_L = cfg.sar.ant_L
+        # fa = 2 * v_orb / l0 * sin_az
+        sin_az = fa * l0 / (2 * v_ground)
+        if cfg.sar.L_total:
+            beam_pattern = sinc_1tx_nrx(sin_az, ant_L * num_ch, f0, num_ch, field=True)
+        else:
+            beam_pattern = sinc_1tx_nrx(sin_az, ant_L, f0, 1, field=True)
         #fa[az_size/2:] = fa[az_size/2:] - prf
         rcmc_fa = sr0 / np.sqrt(1 - (fa * (l0 / 2.) / v_ground)**2.) - sr0
 
@@ -172,8 +182,8 @@ def sar_focus(cfg_file, raw_output_file, output_file):
             'Applying azimuth compression... [Channel %d/%d]' % (ch + 1, num_ch))
 
         n_samp = 2 * (np.int(doppler_bw / (fa[1] - fa[0])) / 2)
-        weighting = az_weighting - \
-            (1. - az_weighting) * np.cos(2 * np.pi * np.linspace(0, 1., n_samp))
+        weighting = (az_weighting -
+                     (1. - az_weighting) * np.cos(2 * np.pi * np.linspace(0, 1., int(n_samp))))
         # Compensate amplitude loss
 
         L_win = np.sum(np.abs(weighting)**2) / weighting.size
@@ -184,7 +194,7 @@ def sar_focus(cfg_file, raw_output_file, output_file):
             # zeros[:n_samp/2] = weighting[:n_samp/2]
             # zeros[-n_samp/2:] = weighting[-n_samp/2:]
             weighting = np.roll(zeros, int(-n_samp / 2))
-
+        weighting = np.where(np.abs(beam_pattern) > 0, weighting/beam_pattern, 0)
         ph_ac = 4. * np.pi / l0 * sr0 * \
             (np.sqrt(1. - (fa * l0 / 2. / v_ground)**2.) - 1.)
 #        for i in np.arange(rg_size):

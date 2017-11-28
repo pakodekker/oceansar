@@ -244,7 +244,8 @@ def ati_process(cfg_file, proc_output_file, ocean_file, output_file):
             plt.imshow(utils.db(i_all[pind]), aspect='equal',
                        origin='lower',
                        vmin=utils.db(np.max(i_all[pind]))-20,
-                       extent=[0., rg_span, 0., az_span], interpolation='nearest')
+                       extent=[0., rg_span, 0., az_span], interpolation='nearest',
+                       cmap='viridis')
             plt.xlabel('Ground range [m]')
             plt.ylabel('Azimuth [m]')
             plt.title("Amplitude")
@@ -260,7 +261,8 @@ def ati_process(cfg_file, proc_output_file, ocean_file, output_file):
             plt.imshow(int_img, aspect='equal',
                        origin='lower',
                        vmin=vmin, vmax=vmax,
-                       extent=[0., rg_span, 0., az_span], interpolation='nearest')
+                       extent=[0., rg_span, 0., az_span], interpolation='nearest',
+                       cmap='viridis')
             plt.xlabel('Ground range [m]')
             plt.ylabel('Azimuth [m]')
             plt.title("Amplitude")

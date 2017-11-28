@@ -164,8 +164,6 @@ def smooth(data, window_len_=11, window='flat', axis=None, force_fft=False):
     if data.ndim > 2:
         raise ValueError('Arrays with ndim > 2 not supported')
 
-    if window_len < 3:
-        return data
 
     if not window in ['flat', 'hanning', 'hamming', 'bartlett', 'blackman']:
         raise ValueError('Window type not supported')
@@ -176,6 +174,9 @@ def smooth(data, window_len_=11, window='flat', axis=None, force_fft=False):
         else:
             axis_ = axis
         return smooth1d(data, window_len, axis=axis_)
+
+    if window_len < 3:
+        return data
 
     # Calculate Kernel
     if window == 'flat':

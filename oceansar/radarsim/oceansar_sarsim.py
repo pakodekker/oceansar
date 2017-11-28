@@ -86,6 +86,19 @@ def sarsim(cfg_file=None):
         if returncode != 0:
             raise Exception('Something went wrong with SAR ATI Processor (return code %d)...' % returncode)
 
+    if cfg.sim.L2_wavespectrum_run:
+        print('Launching L2 Wavespectrum Processor...')
+
+        returncode = subprocess.call([sys.executable,
+                                      src_path + os.sep + 'L2_wavespectrum.py',
+                                      '-c', cfg.cfg_file_name,
+                                      '-p', cfg.sim.path + os.sep + cfg.sim.proc_file,
+                                      '-s', cfg.sim.path + os.sep + cfg.sim.ocean_file,
+                                      '-o', cfg.sim.path + os.sep + cfg.sim.L2_wavespectrum_file])
+
+        if returncode != 0:
+            raise Exception('Something went wrong with wavesprectrum Processor (return code %d)...' % returncode)
+
     print('----------------------------------', flush=True)
     print(time.strftime("End of tasks [%Y-%m-%d %H:%M:%S]", time.localtime()), flush=True)
     print('----------------------------------', flush=True)

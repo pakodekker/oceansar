@@ -78,9 +78,10 @@ class RCSRomeiser97():
         cos_s_t = np.cos(s_t)
         cos_s_t_2 = cos_s_t**2
         sin_s_t_2 = 1 - cos_s_t_2
+        sin_inc_anglep = np.sin(self.inc_angle - s_p)
         cos_inc_anglep = np.cos(self.inc_angle - s_p)
         cos_inc_anglep_2 = cos_inc_anglep**2
-        sin_inc_anglep_2 = 1 - cos_inc_anglep_2
+        sin_inc_anglep_2 = sin_inc_anglep**2
         cos_theta_i = cos_inc_anglep * cos_s_t
         sin_theta_i_2 = 1 - cos_theta_i**2
         #theta_i = np.arccos(np.cos(self.inc_angle - s_p) * np.cos(s_t))
@@ -127,33 +128,42 @@ class RCSRomeiser97():
                                                     self.wind_fetch))
 
         # Calculate RCS & Filter result
-        tan_inc_angle_md = np.tan(self.inc_angle - self.d/2.)
-        tan_inc_angle_pd = np.tan(self.inc_angle + self.d/2.)
+        # tan_inc_angle_md = np.tan(self.inc_angle - self.d/2.)
+        # tan_inc_angle_pd = np.tan(self.inc_angle + self.d/2.)
+        # bad_ones = np.where(np.logical_or(s_p < tan_inc_angle_md, s_p > tan_inc_angle_pd))
+        bad_ones = np.where(4 * sin_inc_anglep_2 < (self.d**2))
         if self.pol == 'vv':
             rcs = T_vv * spectrum * self.dx * self.dy
-            rcs[0] = np.where(((s_p > tan_inc_angle_md) &
-                               (s_p < tan_inc_angle_pd)), 0., rcs[0])
-            rcs[1] = np.where(((s_p > tan_inc_angle_md) &
-                               (s_p < tan_inc_angle_pd)), 0., rcs[1])
+            # rcs[0] = np.where(((s_p > tan_inc_angle_md) &
+            #                    (s_p < tan_inc_angle_pd)), 0., rcs[0])
+            # rcs[1] = np.where(((s_p > tan_inc_angle_md) &
+            #                    (s_p < tan_inc_angle_pd)), 0., rcs[1])
+            rcs[0][bad_ones] = 0
+            rcs[1][bad_ones] = 0
             return rcs
         elif self.pol == 'hh':
             rcs = T_hh * spectrum * self.dx * self.dy
-            rcs[0] = np.where(((s_p > tan_inc_angle_md) &
-                               (s_p < tan_inc_angle_pd)), 0., rcs[0])
-            rcs[1] = np.where(((s_p > tan_inc_angle_md) &
-                               (s_p < tan_inc_angle_pd)), 0., rcs[1])
+            # rcs[0] = np.where(((s_p > tan_inc_angle_md) &
+            #                    (s_p < tan_inc_angle_pd)), 0., rcs[0])
+            # rcs[1] = np.where(((s_p > tan_inc_angle_md) &
+            #                    (s_p < tan_inc_angle_pd)), 0., rcs[1])
+            rcs[0][bad_ones] = 0
+            rcs[1][bad_ones] = 0
             return rcs
         else:
             rcs_vv = T_vv * spectrum * self.dx * self.dy
-            rcs_vv[0] = np.where(((s_p > tan_inc_angle_md) &
-                                  (s_p < tan_inc_angle_pd)), 0., rcs_vv[0])
-            rcs_vv[1] = np.where(((s_p > tan_inc_angle_md) &
-                                  (s_p < tan_inc_angle_pd)), 0., rcs_vv[1])
-
+            # rcs_vv[0] = np.where(((s_p > tan_inc_angle_md) &
+            #                       (s_p < tan_inc_angle_pd)), 0., rcs_vv[0])
+            # rcs_vv[1] = np.where(((s_p > tan_inc_angle_md) &
+            #                       (s_p < tan_inc_angle_pd)), 0., rcs_vv[1])
+            rcs_vv[0][bad_ones] = 0
+            rcs_vv[1][bad_ones] = 0
             rcs_hh = T_hh * spectrum * self.dx * self.dy
-            rcs_hh[0] = np.where(((s_p > tan_inc_angle_md) &
-                                  (s_p < tan_inc_angle_pd)), 0., rcs_hh[0])
-            rcs_hh[1] = np.where(((s_p > tan_inc_angle_md) &
-                                  (s_p < tan_inc_angle_pd)), 0., rcs_hh[1])
+            # rcs_hh[0] = np.where(((s_p > tan_inc_angle_md) &
+            #                       (s_p < tan_inc_angle_pd)), 0., rcs_hh[0])
+            # rcs_hh[1] = np.where(((s_p > tan_inc_angle_md) &
+            #                       (s_p < tan_inc_angle_pd)), 0., rcs_hh[1])
+            # rcs_hh[0][bad_ones] = 0
+            rcs_hh[1][bad_ones] = 0
             return (rcs_hh, rcs_vv)
 

@@ -116,14 +116,21 @@ class BuoySpectra():
         self.kmax = self.k.max()
 
     def dirspread(self, k, theta):
-        wtheta = np.angle(np.exp(1j * (theta - self.dir(k))))
+        # Wave direction in OCEANSAR coordinates, dir_ocs is given by
+        # dir_ocs = heading - dir_buoy + pi/2
+        # This includes a 90 degree change because we go from 0 is North to 0 is ground range, and change of sign
+        # to go from East of North to mathematically positive direction
+        # np.radians(self.heading)
+
+        dir_ocs = np.radians(self.heading) - self.dir(k) + np.pi/2
+        wtheta = np.angle(np.exp(1j * (theta - dir_ocs)))
         s = 2 / self.spread(k)**2 - 1
         # (2 / spr_i) - 1
         D = 2 ** (2 * s - 1) / np.pi * gamma(s + 1.) ** 2 / gamma(2. * s + 1.) * np.cos(wtheta / 2.) ** (2. * s)
         return D
 
     def Sk2(self, kx, ky):
-        th = np.arctan2(ky, kx) + np.radians(self.heading)
+        th = np.arctan2(ky, kx)
         k = np.sqrt(kx**2 + ky**2)
         k_inv = np.where(k != 0, 1/k, 0)
         return self.Sk(k) * k_inv * self.dirspread(k, th)

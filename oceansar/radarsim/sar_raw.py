@@ -24,11 +24,12 @@
 """
 
 from mpi4py import MPI
-
+import os
 import time
 import argparse
 
 import numpy as np
+from matplotlib import pyplot as plt
 from scipy import linalg
 import numexpr as ne
 import datetime
@@ -46,7 +47,8 @@ from oceansar.radarsim import range_profile as raw
 from oceansar.surfaces import OceanSurface, OceanSurfaceBalancer
 
 
-def sarraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, reuse_errors_file):
+def sarraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, reuse_errors_file,
+           plot_save=True):
 
     ###################
     # INITIALIZATIONS #
@@ -172,6 +174,38 @@ def sarraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, reu
                               dirspectrum_func=dirspectrum_func)
 
             surface_full.save(ocean_file)
+            # Now we plot the directional spectrum
+            # self.wave_dirspec[good_k] = dirspectrum_func(self.kx[good_k], self.ky[good_k])
+            plt.figure()
+            plt.imshow(np.fft.fftshift(surface_full.wave_dirspec),
+                       extent=[surface_full.kx.min(), surface_full.kx.max(),
+                               surface_full.ky.min(), surface_full.ky.max()],
+                       origin='lower',
+                       cmap='inferno_r')
+
+            plt.grid(True)
+            pltax = plt.gca()
+            pltax.set_xlim((-0.1, 0.1))
+            pltax.set_ylim((-0.1, 0.1))
+            Narr_length = 0.08 # np.min([surface_full.kx.max(), surface_full.ky.max()])
+            pltax.arrow(0, 0,
+                        -Narr_length * np.sin(np.radians(cfg.sar.heading)),
+                        Narr_length * np.cos(np.radians(cfg.sar.heading)),
+                        fc="k", ec="k")
+            plt.xlabel('$k_x$ [rad/m]')
+            plt.ylabel('$k_y$ [rad/m]')
+            plt.colorbar()
+            #plt.show()
+            # Create plots directory
+            plot_path = os.path.dirname(output_file) + os.sep + 'raw_plots'
+            if plot_save:
+                if not os.path.exists(plot_path):
+                    os.makedirs(plot_path)
+
+            plt.savefig(os.path.join(plot_path, 'input_dirspectrum.png'))
+
+            plt.close()
+
 
     else:
         surface_full = None
@@ -415,7 +449,7 @@ def sarraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, reu
                 scene_vv += ne.evaluate('sum(scat_bragg_vv * exp(1j*phase_bragg) * bragg_scats, axis=0)')
 
         ## ANTENNA PATTERN
-
+        ## FIXME: this assume co-located Tx and Tx, so it will not work for true bistatic configurations
         if cfg.sar.L_total:
             beam_pattern = sinc_1tx_nrx(sin_az, ant_L * num_ch, f0, num_ch, field=True)
         else:
