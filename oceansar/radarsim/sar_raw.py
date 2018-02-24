@@ -153,6 +153,9 @@ def sarraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, reu
                     dirspectrum_func = buoy_spec.Sk2
                     # Since the wind direction is included in the buoy data
                     wind_dir = 0
+                else:
+                    dirspectrum_func = None
+                    wind_dir = np.deg2rad(cfg.ocean.wind_dir)
             else:
                 dirspectrum_func = None
                 wind_dir = np.deg2rad(cfg.ocean.wind_dir)
