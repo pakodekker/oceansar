@@ -13,11 +13,12 @@ LOG:
 
 import numpy as np
 from scipy.constants import g
+import numexpr as ne
 
 rho = 1000.   # Density of water in kg/m^3
 S = 0.072     # Surface tension of water in N/m
 X_0 = 22e3    # Dimensionless fetch
-    
+
 def elfouhaily(k, theta, U_10, fetch):
     # Eq. 3 (below)
     k_0 = g/U_10**2 

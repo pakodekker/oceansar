@@ -512,6 +512,22 @@ def ati_process(cfg_file, proc_output_file, ocean_file, output_file):
         else:
             plt.show()
 
+    # Save some statistics to npz file
+    #
+    if num_ch > 1:
+        filenpz = os.path.join(os.path.dirname(output_file), 'ati_stats.npz')
+        # Mean coh
+        cohs = np.array(cohs)[:, az_guard:-az_guard, 5:-5]
+
+        np.savez(filenpz,
+                 nrcs=NRCS_est_avg,
+                 v_r_dop=np.mean(np.mean(v_radial_ests, axis=-1), axis=-1),
+                 v_r_surf = v_radial_surf_mean,
+                 v_r_surf_std = v_radial_surf_std,
+                 coh_mean= np.mean(np.mean(cohs, axis=-1), axis=-1),
+                 abscoh_mean=np.mean(np.mean(np.abs(cohs), axis=-1), axis=-1),
+                 coh_lut=coh_lut,
+                 pols=polt)
     print('----------------------------------------')
     print(time.strftime("ATI Processing finished [%Y-%m-%d %H:%M:%S]", time.localtime()))
     print('----------------------------------------')

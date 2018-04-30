@@ -374,6 +374,7 @@ class RadarSurface():
                 phase_bragg[1] = surf_phase + cap_phase  # + dop_phase_m
                 bragg_scats[0] = rndscat_m.scats(t_now)
                 bragg_scats[1] = rndscat_p.scats(t_now)
+
                 if do_hh:
                     scene_hh[az_step] += ne.evaluate('sum(scat_bragg_hh * exp(1j*phase_bragg) * bragg_scats, axis=0)')
                 if do_vv:

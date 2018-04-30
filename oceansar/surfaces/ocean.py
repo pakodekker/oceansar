@@ -180,7 +180,7 @@ class OceanSurface(object):
 
         # Complex Gaussian to randomize spectrum coefficients
         random_cg = 1./np.sqrt(2.)*(np.random.normal(0., 1., size=[self.Ny, self.Nx]) +
-                                 1j*np.random.normal(0., 1., size=[self.Ny, self.Nx]))
+                                    1j*np.random.normal(0., 1., size=[self.Ny, self.Nx]))
 
         # Swell spectrum (monochromatic)
         if self.swell_enable:
@@ -197,7 +197,7 @@ class OceanSurface(object):
             self.swell_ph0 = np.random.uniform(0., 2.*np.pi)
             # Swell in complex domain (monochromatic)
             self.swell_exp = self.swell_ampl*np.exp(1j*(self.swell_k*(np.cos(self.swell_dir)*x +
-                                                                     np.sin(self.swell_dir)*y) + self.swell_ph0))
+                                                                      np.sin(self.swell_dir)*y) + self.swell_ph0))
 
         # Initialize coefficients
         self.wave_coefs = self.Nx*self.Ny*np.sqrt(2.*self.wave_dirspec*kx_res*ky_res)*random_cg
