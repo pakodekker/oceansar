@@ -167,13 +167,17 @@ class ConfigFile():
                 if type(element_value) is int:
                     file.write('%s=%d\n' % (element, element_value))
 
-                elif type(element_value) is float:
+                elif (type(element_value) is float) or (type(element_value) is np.float32):
+                    file.write('%s=%.2f\n' % (element, element_value))
+
+                elif type(element_value) is np.float64:
                     file.write('%s=%.2f\n' % (element, element_value))
 
                 elif type(element_value) is bool:
                     file.write('%s=%s\n' % (element, 'True' if element_value else 'False'))
 
-                elif (type(element_value) is str) or (type(element_value) is unicode):
+                # unicode not supported in Python3  or (type(element_value) is unicode)
+                elif type(element_value) is str:
                     file.write('%s=%s\n' % (element, element_value))
 
                 elif type(element_value) is list:
