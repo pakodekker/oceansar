@@ -19,7 +19,9 @@ from collections import namedtuple
 
 
 GMF = namedtuple('GMF', ['U10', 'azimuth', 'incident', 'NRCS_hh', 'NRCS_vv', 'v_r_whh', 'v_r_wvv',
-                         'v_ATI_hh', 'v_ATI_vv'])
+                         'v_ATI_hh', 'v_ATI_vv',
+                         'sigma_v_r', 'sigma_v_r_whh', 'sigma_v_r_wvv',
+                         'surfcoh_ati_hh', 'surfcoh_ati_vv'])
 
 
 class RadarSurface():
@@ -57,6 +59,7 @@ class RadarSurface():
             self.pol = cfg.sar.pol
         else:
             self.pol = pol
+
         l0 = const.c / self.f0
         k0 = 2. * np.pi * self.f0 / const.c
         if self.pol == 'DP':
@@ -173,7 +176,7 @@ class RadarSurface():
                                                self.surface.wind_fetch,
                                                scat_bragg_spec, scat_bragg_spread,
                                                scat_bragg_d)
-        else:
+        elif scat_bragg_enable:
             raise NotImplementedError('RCS model %s for Bragg scattering not implemented' % scat_bragg_model)
 
     def surface_S(self, az_deg=0):
@@ -384,37 +387,55 @@ class RadarSurface():
                self.surface.Vy * np.sin(inc) * np.sin(az_rad) -
                self.surface.Vz * np.cos(inc))
 
+        sigma_v_r = np.std(v_r)
         # Some stats
+        def weighted_stats(v, w):
+            wm = np.sum(v * w) / np.sum(w)
+            wsigma = np.sqrt(np.sum(w * (v - wm)**2) / np.sum(w))
+            return wm, wsigma
+
         if do_hh:
             w = np.abs(scene_hh[0])**2
-            v_r_whh = np.sum(v_r * w) / np.sum(w)
+            # v_r_whh = np.sum(v_r * w) / np.sum(w)
+            v_r_whh, sigma_v_r_whh = weighted_stats(v_r, w)
             # FIXME, for now just one lag
 
             v_ati_hh = -(np.angle(np.mean(scene_hh[1] * np.conj(scene_hh[0]))) /
                          self.t_step *const.c / 2 / self.f0 / 2 / np.pi)
+            surfcoh_ati_hh = (np.mean(scene_hh[1] * np.conj(scene_hh[0]))/
+                              np.sqrt(np.mean(np.abs(scene_hh[1])**2) * np.mean(np.abs(scene_hh[0])**2)))
         if do_vv:
             w = np.abs(scene_vv[0])**2
-            v_r_wvv = np.sum(v_r * w) / np.sum(w)
+            # v_r_wvv = np.sum(v_r * w) / np.sum(w)
+            v_r_wvv, sigma_v_r_wvv = weighted_stats(v_r, w)
             v_ati_vv = -(np.angle(np.mean(scene_vv[1] * np.conj(scene_vv[0]))) /
                          self.t_step * const.c / 2 / self.f0 / 2 / np.pi)
+            surfcoh_ati_vv = (np.mean(scene_vv[1] * np.conj(scene_vv[0])) /
+                              np.sqrt(np.mean(np.abs(scene_vv[1]) ** 2) * np.mean(np.abs(scene_vv[0]) ** 2)))
 
         if do_hh and do_vv:
             return {'v_r': v_r, 'scene_hh': scene_hh, 'scene_vv': scene_vv,
                     'NRCS_hh': NRCS_avg_hh, 'NRCS_vv': NRCS_avg_vv,
                     'v_r_whh': v_r_whh, 'v_r_wvv': v_r_wvv,
-                    'v_ATI_hh': v_ati_hh, 'v_ATI_vv': v_ati_vv}
+                    'v_ATI_hh': v_ati_hh, 'v_ATI_vv': v_ati_vv,
+                    'sigma_v_r': sigma_v_r, 'sigma_v_r_whh': sigma_v_r_whh, 'sigma_v_r_wvv': sigma_v_r_wvv,
+                    'surfcoh_ati_hh': surfcoh_ati_hh, 'surfcoh_ati_vv': surfcoh_ati_vv}
             # return (cfg, self.surface.Dz, v_r, scene_hh, scene_vv)
         elif do_hh:
             return {'v_r': v_r, 'scene_hh': scene_hh, 'scene_vv': None,
                     'NRCS_hh': NRCS_avg_hh, 'NRCS_vv': None,
                     'v_r_whh': v_r_whh, 'v_r_wvv': None,
-                    'v_ATI_hh': v_ati_hh, 'v_ATI_vv': None}
+                    'v_ATI_hh': v_ati_hh, 'v_ATI_vv': None,
+                    'sigma_v_r': sigma_v_r, 'sigma_v_r_whh': sigma_v_r_whh,
+                    'surfcoh_ati_hh': surfcoh_ati_hh}
             # return (cfg, self.surface.Dz, v_r, scene_hh)
         else:
             return {'v_r': v_r, 'scene_hh': None, 'scene_vv': scene_vv,
                     'NRCS_hh': None, 'NRCS_vv': NRCS_avg_vv,
                     'v_r_whh': None, 'v_r_wvv': v_r_wvv,
-                    'v_ATI_hh': None, 'v_ATI_vv': v_ati_vv}
+                    'v_ATI_hh': None, 'v_ATI_vv': v_ati_vv,
+                    'sigma_v_r': sigma_v_r, 'sigma_v_r_wvv': sigma_v_r_wvv,
+                    'surfcoh_ati_vv': surfcoh_ati_vv}
             # return (cfg, self.surface.Dz, v_r, scene_vv)
 
     def gmf(self, inc_deg, naz=12):
@@ -434,6 +455,11 @@ class RadarSurface():
         v_r_wvv = np.zeros_like(nrcs_hh)
         v_ati_hh = np.zeros_like(nrcs_hh)
         v_ati_vv = np.zeros_like(nrcs_hh)
+        sigma_v_r = np.zeros_like(nrcs_hh)
+        sigma_v_r_whh = np.zeros_like(nrcs_hh)
+        sigma_v_r_wvv = np.zeros_like(nrcs_hh)
+        surfcoh_hh = np.zeros_like(nrcs_hh)
+        surfcoh_vv = np.zeros_like(nrcs_hh)
         for inc_ind in range(incs.size):
             self.set_inc(incs[inc_ind])
             print("Incident angle: %4.2f degree" % (incs[inc_ind]))
@@ -445,8 +471,13 @@ class RadarSurface():
                 v_r_wvv[inc_ind, az_ind] = res["v_r_wvv"]
                 v_ati_hh[inc_ind, az_ind] = res["v_ATI_hh"]
                 v_ati_vv[inc_ind, az_ind] = res["v_ATI_vv"]
-
-        return GMF(self.wind_u, azs, incs, nrcs_hh, nrcs_vv, v_r_whh, v_r_wvv, v_ati_hh, v_ati_vv)
+                sigma_v_r[inc_ind, az_ind] = res["sigma_v_r"]
+                sigma_v_r_whh[inc_ind, az_ind] = res["sigma_v_r_whh"]
+                sigma_v_r_wvv[inc_ind, az_ind] = res["sigma_v_r_wvv"]
+                surfcoh_hh[inc_ind, az_ind] = np.abs(res["surfcoh_ati_hh"])
+                surfcoh_vv[inc_ind, az_ind] = np.abs(res["surfcoh_ati_vv"])
+        return GMF(self.wind_u, azs, incs, nrcs_hh, nrcs_vv, v_r_whh, v_r_wvv, v_ati_hh, v_ati_vv,
+                   sigma_v_r, sigma_v_r_whh, sigma_v_r_wvv, surfcoh_hh, surfcoh_vv)
 
 
 def view_surface(radsurf, rel, ml=2):
@@ -524,24 +555,24 @@ def v_r_stats(rsurf, rel, ml=1):
 
 
 if __name__ == '__main__':
-    cfg_file = '/Users/plopezdekker/DATA/OCEANSAR/PAR/sim_example.cfg'
+    cfg_file = '/Users/plopezdekker/DATA/OCEANSAR/PAR/SKIM_proxy.cfg'
     #import oceansar.scatstats as ocs
     import drama.oceans.cmod5n as cm
     U = 8
-    radsurf_U8 = RadarSurface(cfg_file, winddir=0, U10=U)
-    gmf = radsurf_U8.gmf([25, 35, 45], 18)
+    radsurf_U8 = RadarSurface(cfg_file, winddir=0, U10=U, t_step=1e-3)
+    gmf = radsurf_U8.gmf([6, 12], 18)
 
     plt.figure()
 
 
-    plt.plot(gmf.azimuth, 10 * np.log10(gmf.NRCS_vv[0]), label='25')
-    plt.plot(gmf.azimuth, 10 * np.log10(gmf.NRCS_vv[1]), label='35')
-    plt.plot(gmf.azimuth, 10 * np.log10(gmf.NRCS_vv[2]), label='45')
+    plt.plot(gmf.azimuth, 10 * np.log10(gmf.NRCS_vv[0]), label='6')
+    plt.plot(gmf.azimuth, 10 * np.log10(gmf.NRCS_vv[1]), label='12')
+    #plt.plot(gmf.azimuth, 10 * np.log10(gmf.NRCS_vv[2]), label='45')
     az = np.linspace(0, 360, 100)
-    plt.plot(az, 10 * np.log10(cm.cmod5n_forward(8, az + 180, np.array([25]))), 'b--')
-    plt.plot(az, 10 * np.log10(cm.cmod5n_forward(8, az + 180, np.array([35]))), 'g--')
-    plt.plot(az, 10 * np.log10(cm.cmod5n_forward(8, az + 180, np.array([45]))), 'r--')
-    plt.ylim((-25, -5))
+    plt.plot(az, 10 * np.log10(cm.cmod5n_forward(8, az + 180, np.array([6]))), 'b--')
+    plt.plot(az, 10 * np.log10(cm.cmod5n_forward(8, az + 180, np.array([12]))), 'g--')
+    #plt.plot(az, 10 * np.log10(cm.cmod5n_forward(8, az + 180, np.array([45]))), 'r--')
+    #plt.ylim((-25, -0))
     plt.grid(True)
     plt.legend()
     plt.title("U=8 m/s")
@@ -550,13 +581,26 @@ if __name__ == '__main__':
     plt.ylabel("$\sigma_{0,VV}$")
     plt.ylabel("$\sigma_{0,VV}$ [dB]")
     plt.figure()
-    plt.plot(gmf.azimuth, gmf.v_r_wvv[0], 'b--', label='25')
-    plt.plot(gmf.azimuth, gmf.v_r_wvv[1], 'g--', label='30')
-    plt.plot(gmf.azimuth, gmf.v_r_wvv[2], 'r--', label='45')
+    plt.plot(gmf.azimuth, gmf.v_r_wvv[0], 'b--', label='6')
+    plt.plot(gmf.azimuth, gmf.v_r_wvv[1], 'g--', label='12')
+    #plt.plot(gmf.azimuth, gmf.v_r_wvv[2], 'r--', label='45')
     plt.plot(gmf.azimuth, gmf.v_ATI_vv[0], 'b')
     plt.plot(gmf.azimuth, gmf.v_ATI_vv[1], 'g')
-    plt.plot(gmf.azimuth, gmf.v_ATI_vv[2], 'r')
+    #plt.plot(gmf.azimuth, gmf.v_ATI_vv[2], 'r')
     plt.ylabel("$v_{Dop,VV}$ [m/s]")
+    plt.xlabel("Azimuth [deg]")
+    plt.title("U=8 m/s")
+    plt.grid(True)
+
+    plt.figure()
+    v2dop = radsurf_U8.f0/3e8 * 2
+    plt.plot(gmf.azimuth, v2dop * gmf.v_r_wvv[0], 'b--', label='6')
+    plt.plot(gmf.azimuth, v2dop * gmf.v_r_wvv[1], 'g--', label='12')
+    # plt.plot(gmf.azimuth, gmf.v_r_wvv[2], 'r--', label='45')
+    plt.plot(gmf.azimuth, v2dop * gmf.v_ATI_vv[0], 'b')
+    plt.plot(gmf.azimuth, v2dop * gmf.v_ATI_vv[1], 'g')
+    # plt.plot(gmf.azimuth, gmf.v_ATI_vv[2], 'r')
+    plt.ylabel("$f_{Dop,VV}$ [Hz]")
     plt.xlabel("Azimuth [deg]")
     plt.title("U=8 m/s")
     plt.grid(True)

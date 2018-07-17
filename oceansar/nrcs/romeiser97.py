@@ -94,14 +94,16 @@ class RCSRomeiser97():
         # Weighting function (10) & Dimensions to mace RCS (not NRCS)
         w = cos_inc_anglep/(np.cos(self.inc_angle) * np.cos(s_p))
         # T(s_p, s_n) (5)
-
+        sin_s_t_2_over_sin_theta_i_2 = sin_s_t_2 / sin_theta_i_2
+        sin_inc_anglep_2_x_cos_s_t_2_over_sin_theta_i_2 = sin_inc_anglep_2 * cos_s_t_2 / sin_theta_i_2
+        F0 = 8 * np.pi * (self.k0 * cos_theta_i)**4
         if self.pol == 'vv' or self.pol == 'DP':
-            T_vv = (8.*np.pi*(self.k0**4.)*(cos_theta_i**4.) *
-                    np.abs(((sin_inc_anglep_2)*cos_s_t_2/sin_theta_i_2 * b_vv) + ((sin_s_t_2/sin_theta_i_2) * b_hh))**2.)
+            T_vv = (F0 *
+                    np.abs((sin_inc_anglep_2_x_cos_s_t_2_over_sin_theta_i_2 * b_vv) + (sin_s_t_2_over_sin_theta_i_2 * b_hh))**2.)
             T_vv = w * T_vv
         if self.pol == 'hh' or self.pol == 'DP':
-            T_hh = (8.*np.pi*(self.k0**4.)*(cos_theta_i**4.) *
-                    np.abs(((sin_inc_anglep_2)*cos_s_t_2/sin_theta_i_2 * b_hh) + ((sin_s_t_2/sin_theta_i_2) * b_vv))**2.)
+            T_hh = (F0 *
+                    np.abs((sin_inc_anglep_2_x_cos_s_t_2_over_sin_theta_i_2 * b_hh) + (sin_s_t_2_over_sin_theta_i_2 * b_vv))**2.)
             T_hh = w * T_hh
 
         # T = T*w
