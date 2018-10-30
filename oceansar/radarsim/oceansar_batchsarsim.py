@@ -35,7 +35,7 @@ v_current_mag = [0.]
 # Surface current direction [deg]
 v_current_dir = [0]
 # SAR incidence angle [deg]
-v_inc_angle = [41]
+v_inc_angle = [41, 26]
 n_rep = 1
 cfg_file_name = 'config.cfg'
 
@@ -140,20 +140,22 @@ def postprocess_batch_sim(template_file, plots=True, fontsize=14, pltsymb = ['o'
                 'size': fontsize}
         mpl.rc('font', **font)
 
-        plt.figure()
-        for ind in range(np.size(v_wind_U)):
-            plt.plot(v_wind_dir, (mean_abscohs[ind, :, 0, 0, 0, 0, 4]),
-                     pltsymb[int(np.mod(ind, len(pltsymb)))],
-                     label=("U = %2.1f" % (v_wind_U[ind])))
-        plt.xlabel("Wind direction w.r.t. radar LOS [deg]")
-        plt.ylabel("$\gamma$")
-        plt.legend(loc=0)
-        plt.grid(True)
-        plt.tight_layout()
+        for ind_inc in range(np.size(v_inc_angle)):
+            plt.figure()
+            for ind in range(np.size(v_wind_U)):
+                plt.plot(v_wind_dir, np.abs(mean_cohs[ind, :, 0, 0, ind_inc, 0, 4]),
+                         pltsymb[int(np.mod(ind, len(pltsymb)))],
+                         label=("U = %2.1f" % (v_wind_U[ind])))
+            plt.xlabel("Wind direction w.r.t. radar LOS [deg]")
+            plt.ylabel("$\gamma$")
+            plt.title(r"Coherence at $\theta_i=%i$" % int(v_inc_angle[ind_inc]))
+            plt.legend(loc=0)
+            plt.grid(True)
+            plt.tight_layout()
 
         plt.figure()
         for ind in range(np.size(v_wind_U)):
-            plt.plot(v_wind_dir, v_r_dop[ind, :, 0, 0, 0, 0, 1],
+            plt.plot(v_wind_dir, v_r_dop[ind, :, 0, 0, 1, 0, 1],
                      pltsymb[int(np.mod(ind, len(pltsymb)))],
                      label=("U = %2.1f" % (v_wind_U[ind])))
 
@@ -165,7 +167,7 @@ def postprocess_batch_sim(template_file, plots=True, fontsize=14, pltsymb = ['o'
 
         plt.figure()
         for ind in range(np.size(v_wind_U)):
-            plt.plot(v_wind_dir, nrcs[ind, :, 0, 0, 0, 0, 1],
+            plt.plot(v_wind_dir, nrcs[ind, :, 0, 0, 1, 0, 1],
                      pltsymb[int(np.mod(ind, len(pltsymb)))],
                      label=("U = %2.1f" % (v_wind_U[ind])))
 

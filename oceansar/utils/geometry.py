@@ -130,7 +130,7 @@ def sr_to_geo(slant_range, orbit_alt,
     theta_i_interp = interpolate.InterpolatedUnivariateSpline(sr, theta_i, k=2)(slant_range)
     gr_interp = interpolate.InterpolatedUnivariateSpline(sr, gr, k=2)(slant_range)
     b_interp = interpolate.InterpolatedUnivariateSpline(sr, b, k=2)(slant_range)
-    return (gr_interp, theta_i_interp, theta_l_interp, b_interp)
+    return gr_interp, theta_i_interp, theta_l_interp, b_interp
 
 
 def gr_to_geo(ground_range, orbit_alt, r_planet=const.r_earth):

@@ -24,7 +24,7 @@ State Files
 
 from .state import OceanStateFile
 from .cfg import ConfigFile
-from .raw import RawFile
+from .raw import RawFile, SkimRawFile
 from .netcdf import NETCDFHandler
 from .processed import ProcFile
 from .buoy import load_buoydata, BuoySpectra

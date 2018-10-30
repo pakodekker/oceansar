@@ -86,19 +86,19 @@ class RadarSurface():
             self.wind_u = U10
         if self.use_hmtf:
             compute.append('hMTF')
-            self.surface.init(cfg.ocean.Lx, cfg.ocean.Ly, cfg.ocean.dx,
-                              cfg.ocean.dy, cfg.ocean.cutoff_wl,
-                              cfg.ocean.spec_model, cfg.ocean.spread_model,
-                              self.wind_dir,
-                              cfg.ocean.wind_fetch, self.wind_u,
-                              cfg.ocean.current_mag,
-                              np.deg2rad(cfg.ocean.current_dir),
-                              cfg.ocean.swell_enable, cfg.ocean.swell_ampl,
-                              np.deg2rad(cfg.ocean.swell_dir),
-                              cfg.ocean.swell_wl,
-                              compute, cfg.ocean.opt_res,
-                              cfg.ocean.fft_max_prime,
-                              choppy_enable=cfg.ocean.choppy_enable)
+        self.surface.init(cfg.ocean.Lx, cfg.ocean.Ly, cfg.ocean.dx,
+                          cfg.ocean.dy, cfg.ocean.cutoff_wl,
+                          cfg.ocean.spec_model, cfg.ocean.spread_model,
+                          self.wind_dir,
+                          cfg.ocean.wind_fetch, self.wind_u,
+                          cfg.ocean.current_mag,
+                          np.deg2rad(cfg.ocean.current_dir),
+                          cfg.ocean.swell_enable, cfg.ocean.swell_ampl,
+                          np.deg2rad(cfg.ocean.swell_dir),
+                          cfg.ocean.swell_wl,
+                          compute, cfg.ocean.opt_res,
+                          cfg.ocean.fft_max_prime,
+                          choppy_enable=cfg.ocean.choppy_enable)
         # Get a surface realization calculated
         print("Computing surface realizations")
         self.surface.t = 0
