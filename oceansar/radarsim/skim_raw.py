@@ -79,18 +79,18 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
     # INITIALIZATIONS #
     ###################
 
-    ## MPI SETUP
+    # MPI SETUP
     comm = MPI.COMM_WORLD
     size, rank = comm.Get_size(), comm.Get_rank()
 
-    ## WELCOME
+    #  WELCOME
     if rank == 0:
         print('-------------------------------------------------------------------')
         print(time.strftime("- OCEANSAR SKIM RAW GENERATOR: %Y-%m-%d %H:%M:%S", time.localtime()))
         # print('- Copyright (c) Gerard Marull Paretas, Paco Lopez Dekker')
         print('-------------------------------------------------------------------')
 
-    ## CONFIGURATION FILE
+    #  CONFIGURATION FILE
     # Note: variables are 'copied' to reduce code verbosity
     cfg = tpio.ConfigFile(cfg_file)
 
@@ -140,22 +140,21 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
     # OCEAN / OTHERS
     ocean_dt = cfg.ocean.dt
 
-    add_point_target = False
-    use_numba = True
+    add_point_target = False  # This for debugging
     n_sinc_samples = 8
     sinc_ovs = 20
     chan_sinc_vec = raw.calc_sinc_vec(n_sinc_samples, sinc_ovs, Fs=over_fs)
+    # Set win direction with respect to beam
+    # I hope the following line is correct, maybe sign is wrong
+    wind_dir = cfg.radar.azimuth - cfg.ocean.wind_dir
     # OCEAN SURFACE
     if rank == 0:
         print('Initializing ocean surface...')
-
         surface_full = OceanSurface()
-
         # Setup compute values
         compute = ['D', 'Diff', 'Diff2']
         if use_hmtf:
             compute.append('hMTF')
-
         # Try to reuse initialized surface
         if reuse_ocean_file:
             try:
@@ -164,7 +163,6 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
                 pass
 
         if (not reuse_ocean_file) or (not surface_full.initialized):
-
             if hasattr(cfg.ocean, 'use_buoy_data'):
                 if cfg.ocean.use_buoy_data:
                     bdataf = cfg.ocean.buoy_data_file
@@ -174,16 +172,18 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
                                              np.int(cfg.ocean.hour),
                                              np.int(cfg.ocean.minute), 0)
                     date, bdata = tpio.load_buoydata(bdataf, date)
+                    # FIX-ME: direction needs to consider also azimuth of beam
                     buoy_spec = tpio.BuoySpectra(bdata, heading=cfg.radar.heading, depth=cfg.ocean.depth)
                     dirspectrum_func = buoy_spec.Sk2
                     # Since the wind direction is included in the buoy data
                     wind_dir = 0
                 else:
                     dirspectrum_func = None
-                    wind_dir = np.deg2rad(cfg.ocean.wind_dir)
+
+                    wind_dir = np.deg2rad(wind_dir)
             else:
                 dirspectrum_func = None
-                wind_dir = np.deg2rad(cfg.ocean.wind_dir)
+                wind_dir = np.deg2rad(wind_dir)
 
             surface_full.init(cfg.ocean.Lx, cfg.ocean.Ly, cfg.ocean.dx,
                               cfg.ocean.dy, cfg.ocean.cutoff_wl,
@@ -191,9 +191,9 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
                               wind_dir,
                               cfg.ocean.wind_fetch, cfg.ocean.wind_U,
                               cfg.ocean.current_mag,
-                              np.deg2rad(cfg.ocean.current_dir),
+                              np.deg2rad(cfg.radar.azimuth - cfg.ocean.current_dir),
                               cfg.ocean.swell_enable, cfg.ocean.swell_ampl,
-                              np.deg2rad(cfg.ocean.swell_dir),
+                              np.deg2rad(cfg.radar.azimuth - cfg.ocean.swell_dir),
                               cfg.ocean.swell_wl,
                               compute, cfg.ocean.opt_res,
                               cfg.ocean.fft_max_prime,
@@ -629,7 +629,7 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
         #     if do_vv:
         #         total_raw_vv *= errors.beta_noise
 
-        # Save RAW data (and other properties, used by 3rd party software)
+        # Save RAW data
         if do_hh and do_vv:
             rshp = (1,) + total_raw_hh.shape
             total_raw = np.concatenate((total_raw_hh.reshape(rshp),
