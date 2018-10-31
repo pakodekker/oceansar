@@ -87,44 +87,45 @@ def skim_process(cfg_file, raw_output_file, output_file):
 
 
     if plot_raw:
-        utils.image(np.real(raw_data[0]), min=-np.max(np.abs(raw_data[0])), max=np.max(np.abs(raw_data[0])), cmap='gray',
-                    aspect=np.float(
-                        raw_data[0].shape[1]) / np.float(raw_data[0].shape[0]),
-                    title='Raw Data', xlabel='Range samples', ylabel='Azimuth samples',
-                    usetex=plot_tex,
-                    save=plot_save, save_path=plot_path + os.sep +
-                    'plot_raw_real.%s' % (plot_format),
-                    dpi=150)
-        utils.image(np.imag(raw_data[0]), min=-np.max(np.abs(raw_data[0])), max=np.max(np.abs(raw_data[0])), cmap='gray',
-                    aspect=np.float(
-                        raw_data[0].shape[1]) / np.float(raw_data[0].shape[0]),
-                    title='Raw Data', xlabel='Range samples', ylabel='Azimuth samples',
-                    usetex=plot_tex,
-                    save=plot_save, save_path=plot_path + os.sep +
-                    'plot_raw_imag.%s' % (plot_format),
-                    dpi=150)
-        utils.image(np.abs(raw_data[0]), min=0, max=np.max(np.abs(raw_data[0])), cmap='gray',
-                    aspect=np.float(
-                        raw_data[0].shape[1]) / np.float(raw_data[0].shape[0]),
-                    title='Raw Data', xlabel='Range samples', ylabel='Azimuth samples',
-                    usetex=plot_tex,
-                    save=plot_save, save_path=plot_path + os.sep +
-                    'plot_raw_amp.%s' % (plot_format),
-                    dpi=150)
-        utils.image(np.angle(raw_data[0]), min=-np.pi, max=np.pi, cmap='gray',
-                    aspect=np.float(
-                        raw_data[0].shape[1]) / np.float(raw_data[0].shape[0]),
-                    title='Raw Data', xlabel='Range samples', ylabel='Azimuth samples',
-                    usetex=plot_tex, save=plot_save,
-                    save_path=plot_path + os.sep +
-                    'plot_raw_phase.%s' % (plot_format),
-                    dpi=150)
+        plt.figure()
+        plt.imshow(np.real(raw_data[0]), vmin=-np.max(np.abs(raw_data[0])), vmax=np.max(np.abs(raw_data[0])),
+                   origin='lower', aspect=np.float(raw_data[0].shape[1]) / np.float(raw_data[0].shape[0]),
+                   cmap='viridis')
+        #plt.title()
+        plt.xlabel("Range [samples]")
+        plt.ylabel("Azimuth [samples")
+        plt.savefig(plot_path + os.sep  +'plot_raw_real.%s' % (plot_format), dpi=150)
+        plt.close()
+        # utils.image(np.imag(raw_data[0]), min=-np.max(np.abs(raw_data[0])), max=np.max(np.abs(raw_data[0])), cmap='gray',
+        #             aspect=np.float(
+        #                 raw_data[0].shape[1]) / np.float(raw_data[0].shape[0]),
+        #             title='Raw Data', xlabel='Range samples', ylabel='Azimuth samples',
+        #             usetex=plot_tex,
+        #             save=plot_save, save_path=plot_path + os.sep +
+        #             'plot_raw_imag.%s' % (plot_format),
+        #             dpi=150)
+        # utils.image(np.abs(raw_data[0]), min=0, max=np.max(np.abs(raw_data[0])), cmap='gray',
+        #             aspect=np.float(
+        #                 raw_data[0].shape[1]) / np.float(raw_data[0].shape[0]),
+        #             title='Raw Data', xlabel='Range samples', ylabel='Azimuth samples',
+        #             usetex=plot_tex,
+        #             save=plot_save, save_path=plot_path + os.sep +
+        #             'plot_raw_amp.%s' % (plot_format),
+        #             dpi=150)
+        # utils.image(np.angle(raw_data[0]), min=-np.pi, max=np.pi, cmap='gray',
+        #             aspect=np.float(
+        #                 raw_data[0].shape[1]) / np.float(raw_data[0].shape[0]),
+        #             title='Raw Data', xlabel='Range samples', ylabel='Azimuth samples',
+        #             usetex=plot_tex, save=plot_save,
+        #             save_path=plot_path + os.sep +
+        #             'plot_raw_phase.%s' % (plot_format),
+        #             dpi=150)
 
-        # Optimize matrix sizes
-        az_size_orig, rg_size_orig = raw_data[0].shape
-        optsize = utils.optimize_fftsize(raw_data[0].shape)
-        optsize = [raw_data.shape[0], optsize[0], optsize[1]]
-        data = np.zeros(optsize, dtype=complex)
+    # Optimize matrix sizes
+    az_size_orig, rg_size_orig = raw_data[0].shape
+    optsize = utils.optimize_fftsize(raw_data[0].shape)
+    optsize = [raw_data.shape[0], optsize[0], optsize[1]]
+    data = np.zeros(optsize, dtype=complex)
 
 
     print('-----------------------------------------')

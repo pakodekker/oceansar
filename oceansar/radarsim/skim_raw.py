@@ -293,7 +293,7 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
     print("skim_raw: Doppler Centroid is %f Hz" % (np.mean(dop0)))
     if cfg.srg.two_scale_Doppler:
         # We will compute less surface realizations
-        n_pulses_b = utils.optimize_fftsize(int(cfg.srg.surface_coh_time * prf))
+        n_pulses_b = utils.optimize_fftsize(int(cfg.srg.surface_coh_time * prf))/2
         az_steps_ = int(np.ceil(az_steps / n_pulses_b))
         t_step = t_step * n_pulses_b
         # Maximum length in azimuth that we can consider to have the same geometric Doppler
@@ -648,7 +648,7 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
             rshp = (1,) + NRCS_avg_vv.shape
             NRCS_avg = NRCS_avg_vv.reshape(rshp)
 
-        raw_file = tpio.RawFile(output_file, 'w', total_raw.shape)
+        raw_file = tpio.SkimRawFile(output_file, 'w', total_raw.shape)
         raw_file.set('inc_angle', np.rad2deg(inc_angle))
         raw_file.set('f0', f0)
         # raw_file.set('num_ch', num_ch)
