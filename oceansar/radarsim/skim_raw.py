@@ -289,8 +289,8 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
     gr_prof, inc_prof, look_prof, b_prof = geosar.sr_to_geo(sr_prof, alt)
     look_prof = look_prof.reshape((1, look_prof.size))
     sr_prof = sr_prof.reshape((1, look_prof.size))
-    dop0 = 2 * v_orb * np.sin(look) * np.sin(squint_r) / l0
-    print("skim_raw: Doppler Centroid is %f Hz" % (np.mean(dop0)))
+    dop_ref = 2 * v_orb * np.sin(look_prof) * np.sin(squint_r) / l0
+    print("skim_raw: Doppler Centroid is %f Hz" % (np.mean(dop_ref)))
     if cfg.srg.two_scale_Doppler:
         # We will compute less surface realizations
         n_pulses_b = utils.optimize_fftsize(int(cfg.srg.surface_coh_time * prf))/2
@@ -662,6 +662,7 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
         raw_file.set('raw_data*', total_raw)
         raw_file.set('NRCS_avg', NRCS_avg)
         raw_file.set('azimuth', cfg.radar.azimuth)
+        raw_file.set('dop_ref', dop_ref)
         raw_file.close()
 
         print(time.strftime("Finished [%Y-%m-%d %H:%M:%S]", time.localtime()))

@@ -45,6 +45,8 @@ class SkimRawFile(NETCDFHandler):
                                                       ('pol_dim',
                                                        'az_dim',
                                                        'rg_dim'))
+            dop_ref = self.__file__.createVariable('dop_ref', 'f8', ('rg_dim',))
+            dop_ref.units = '[Hz]'
         # Variables
             inc_angle = self.__file__.createVariable('inc_angle', 'f8')
             inc_angle.units = '[deg]'

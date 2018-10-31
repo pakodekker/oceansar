@@ -14,8 +14,8 @@
       <file leaf-file-name="skim_raw.py" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/oceansar/radarsim/skim_raw.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="61">
-              <caret line="201" column="43" lean-forward="false" selection-start-line="201" selection-start-column="43" selection-end-line="201" selection-end-column="43" />
+            <state relative-caret-position="233">
+              <caret line="664" column="39" lean-forward="false" selection-start-line="664" selection-start-column="39" selection-end-line="664" selection-end-column="39" />
               <folding>
                 <element signature="e#1424#2259#0" expanded="false" />
               </folding>
@@ -26,8 +26,8 @@
       <file leaf-file-name="raw.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/oceansar/io/raw.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="295">
-              <caret line="29" column="27" lean-forward="true" selection-start-line="29" selection-start-column="27" selection-end-line="29" selection-end-column="27" />
+            <state relative-caret-position="170">
+              <caret line="48" column="33" lean-forward="false" selection-start-line="48" selection-start-column="33" selection-end-line="48" selection-end-column="33" />
               <folding />
             </state>
           </provider>
@@ -141,9 +141,9 @@
         <option value="$PROJECT_DIR$/oceansar/radarsim/oceansar_skimsim.py" />
         <option value="$PROJECT_DIR$/oceansar/utils/geometry.py" />
         <option value="$PROJECT_DIR$/oceansar/io/__init__.py" />
-        <option value="$PROJECT_DIR$/oceansar/io/raw.py" />
         <option value="$PROJECT_DIR$/oceansar/radarsim/skim_processor.py" />
         <option value="$PROJECT_DIR$/oceansar/radarsim/skim_raw.py" />
+        <option value="$PROJECT_DIR$/oceansar/io/raw.py" />
       </list>
     </option>
   </component>
@@ -630,14 +630,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/oceansar/io/raw.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="295">
-          <caret line="29" column="27" lean-forward="true" selection-start-line="29" selection-start-column="27" selection-end-line="29" selection-end-column="27" />
-          <folding />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/oceansar/utils/misc.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="0">
@@ -664,10 +656,18 @@
         </state>
       </provider>
     </entry>
+    <entry file="file://$PROJECT_DIR$/oceansar/io/raw.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="170">
+          <caret line="48" column="33" lean-forward="false" selection-start-line="48" selection-start-column="33" selection-end-line="48" selection-end-column="33" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/oceansar/radarsim/skim_raw.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="61">
-          <caret line="201" column="43" lean-forward="false" selection-start-line="201" selection-start-column="43" selection-end-line="201" selection-end-column="43" />
+        <state relative-caret-position="233">
+          <caret line="664" column="39" lean-forward="false" selection-start-line="664" selection-start-column="39" selection-end-line="664" selection-end-column="39" />
           <folding>
             <element signature="e#1424#2259#0" expanded="false" />
           </folding>
