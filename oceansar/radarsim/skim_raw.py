@@ -58,16 +58,16 @@ def upsample_and_dopplerize(raw, dop, n_up, prf):
     """
     dims = raw.shape
 
-    out = np.zeros([raw.shape[0] * int(n_up), raw.shape[2]], dtype=np.complex)
+    out = np.zeros([raw.shape[0] * int(n_up), raw.shape[2]], dtype=np.complex64)
     # tmp = np.zeros([raw.shape[0] * int(n_up), raw.shape[2]], dtype=np.complex)
-    t = (np.arange(dims[0] * n_up) / prf).reshape((dims[0] * n_up, 1))
+    t = (np.arange(dims[0] * int(n_up)) / prf).reshape((dims[0] * int(n_up), 1))
     t2pi = t * (np.pi * 2)
     for ind in range(raw.shape[1]):
-        raw_zp = np.zeros([raw.shape[0] * int(n_up), raw.shape[2]], dtype=np.complex)
+        raw_zp = np.zeros([raw.shape[0] * int(n_up), raw.shape[2]], dtype=np.complex64)
         raw_zp[0:dims[0]] = np.fft.fftshift(np.fft.fft(raw[:, ind, :], axis=0), axes=(0,))
         raw_zp = np.fft.ifft(np.roll(raw_zp, int(-dims[0]/2), axis=0), axis=0)
         dop_phase = t2pi * (dop[ind]).reshape((1, dims[2]))
-        out = out + raw_zp * np.exp(1j * dop_phase)
+        out[:] = out[:] + raw_zp * np.exp(1j * dop_phase)
 
     return out
 
@@ -316,9 +316,11 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
         # Doppler centroid
         # sin(a+da) = sin(a) + cos(a)*da - 1/2*sin(a)*da**2
         az = surface.y.reshape((surface.Ny, 1))
-        da = az/sr_prof
+        # FIX-ME: this is a coarse approximation
+        da = az/gr_prof
         sin_az = np.sin(squint_r) + np.cos(squint_r) * da - 0.5 * np.sin(squint_r) * da**2
         dop0 = 2 * v_orb * np.sin(look_prof) * sin_az / l0
+        # print("Max az: %f" % (np.max(az)))
         dop0 = np.mean(np.reshape(dop0, (surface.Ny/ny_integ, ny_integ, rg_samp)), axis=1)
     else:
         az_steps_ = az_steps
@@ -394,6 +396,15 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
         # az = np.repeat((surface.y - az_now)[:, np.newaxis], surface.Nx, axis=1)
         az = (surface.y - az_now).reshape((surface.Ny, 1))
         surface.t = t_now
+        #if az_step == 0:
+        # print("Max Dx: %f" % (np.max(surface.Dx)))
+        # print("Max Dy: %f" % (np.max(surface.Dy)))
+        # print("Max Dz: %f" % (np.max(surface.Dz)))
+        # print("Max Diffx: %f" % (np.max(surface.Diffx)))
+        # print("Max Diffy: %f" % (np.max(surface.Diffy)))
+        # print("Max Diffxx: %f" % (np.max(surface.Diffxx)))
+        # print("Max Diffyy: %f" % (np.max(surface.Diffyy)))
+        # print("Max Diffxy: %f" % (np.max(surface.Diffxy)))
         # COMPUTE RCS FOR EACH MODEL
         # Note: SAR processing is range independent as slant range is fixed
         sin_az = az / sr
@@ -559,10 +570,12 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
             if do_hh:
                 proc_raw_hh[az_step] = np.sum(np.reshape(proc_raw_hh_,
                                                          (surface.Ny/ny_integ, ny_integ, rg_samp)), axis=1)
+                print("Max abs(HH): %f" % np.max(np.abs(proc_raw_hh[az_step])))
             if do_vv:
                 #print(proc_raw_vv.shape)
                 proc_raw_vv[az_step] = np.sum(np.reshape(proc_raw_vv_,
                                                          (surface.Ny / ny_integ, ny_integ, rg_samp)), axis=1)
+                print("Max abs(VV): %f" % np.max(np.abs(proc_raw_vv[az_step])))
         # SHOW PROGRESS (%)
         current_progress = np.int((100*az_step)/az_steps_)
         if current_progress != last_progress:
@@ -572,6 +585,9 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
     if cfg.srg.two_scale_Doppler:
         # No we have to up-sample and add Doppler
         print("skim_raw: Dopplerizing and upsampling")
+        print(dop0.max())
+        print(n_pulses_b)
+        print(prf)
         if do_hh:
             proc_raw_hh = upsample_and_dopplerize(proc_raw_hh, dop0, n_pulses_b, prf)
         if do_vv:

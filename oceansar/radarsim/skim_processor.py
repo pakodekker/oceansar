@@ -92,6 +92,7 @@ def skim_process(cfg_file, raw_output_file, output_file):
     # RAW DATA
     raw_file = tpio.RawFile(raw_output_file, 'r')
     raw_data = raw_file.get('raw_data*')
+    info.msg("Raw data max: %f" % (np.max(np.abs(raw_data))))
     dop_ref = raw_file.get('dop_ref')
     sr0 = raw_file.get('sr0')
     azimuth = raw_file.get('azimuth')

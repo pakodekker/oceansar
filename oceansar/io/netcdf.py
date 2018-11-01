@@ -23,7 +23,7 @@ class NETCDFHandler(object):
             :param name: Variable name
         """
         if name[-1] == '*':
-            content = np.empty(self.__file__.variables[name[:-1] + '_r'].shape, complex)
+            content = np.empty(self.__file__.variables[name[:-1] + '_r'].shape, dtype=np.complex64)
             content.real = self.__file__.variables[name[:-1] + '_r'][:]
             content.imag = self.__file__.variables[name[:-1] + '_i'][:]
         else:
