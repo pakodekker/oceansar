@@ -27,19 +27,42 @@ from oceansar import constants as const
 from oceansar.radarsim.antenna import sinc_1tx_nrx
 
 
+class prinfo(object):
+    def __init__(self, verbosity, header='processing'):
+        self.verbosity = verbosity
+        self.header = header
+
+    def msg(self, message, importance=2):
+        if importance > (2 - self.verbosity):
+            print("%s -- %s" % (self.header, message))
+
+
+def pulse_pair(data, prf):
+    pp = data[1:] * np.conj(data[0:-1])
+    # Phase to dop
+    p2d = 1 / (2 * np.pi) * prf
+    # average complex phasors
+    pp_rg_avg = np.mean(pp, axis=-1)
+    pp_rg_avg_dop = p2d * np.angle(pp_rg_avg)
+    # average phase to eliminate biases due to amplitude variations
+    phase_rg_avg_dop = p2d * np.mean(np.angle(pp), axis=-1)
+    # Coherence
+    coh_rg_avg = pp_rg_avg / np.sqrt(np.mean(np.abs(data[1:])**2, axis=-1) *
+                                     np.mean(np.abs(data[0:-1])**2, axis=-1))
+    return pp_rg_avg_dop, phase_rg_avg_dop, np.abs(coh_rg_avg)
+
+
 def skim_process(cfg_file, raw_output_file, output_file):
 
     ###################
     # INITIALIZATIONS #
     ###################
 
-    print('-------------------------------------------------------------------')
-    print(time.strftime("- OCEANSAR SKIM Processor: %Y-%m-%d %H:%M:%S", time.localtime()))
-    print('-------------------------------------------------------------------')
-
     # CONFIGURATION FILE
     cfg = tpio.ConfigFile(cfg_file)
-
+    info = prinfo(cfg.sim.verbosity, "processor")
+    # Say hello
+    info.msg(time.strftime("Starting: %Y-%m-%d %H:%M:%S", time.localtime()))
     # PROCESSING
     az_weighting = cfg.processing.az_weighting
     doppler_bw = cfg.processing.doppler_bw
@@ -51,6 +74,7 @@ def skim_process(cfg_file, raw_output_file, output_file):
     plot_rcmc_dopp = cfg.processing.plot_rcmc_dopp
     plot_rcmc_time = cfg.processing.plot_rcmc_time
     plot_image_valid = cfg.processing.plot_image_valid
+    doppler_demod = cfg.processing.doppler_demod
 
     # radar
     f0 = cfg.radar.f0
@@ -68,9 +92,11 @@ def skim_process(cfg_file, raw_output_file, output_file):
     # RAW DATA
     raw_file = tpio.RawFile(raw_output_file, 'r')
     raw_data = raw_file.get('raw_data*')
+    dop_ref = raw_file.get('dop_ref')
     sr0 = raw_file.get('sr0')
     azimuth = raw_file.get('azimuth')
     raw_file.close()
+    #n_az
 
     # OTHER INITIALIZATIONS
     # Create plots directory
@@ -124,14 +150,24 @@ def skim_process(cfg_file, raw_output_file, output_file):
     # Optimize matrix sizes
     az_size_orig, rg_size_orig = raw_data[0].shape
     optsize = utils.optimize_fftsize(raw_data[0].shape)
-    optsize = [raw_data.shape[0], optsize[0], optsize[1]]
+    # optsize = [optsize[0], optsize[1]]
     data = np.zeros(optsize, dtype=complex)
+    data[0:az_size_orig, 0:rg_size_orig] = raw_data[0]
+    # Doppler demodulation according to geometric Doppler
+    if doppler_demod:
+        info.msg("Doppler demodulation")
+        t_vec = (np.arange(optsize[0])/prf).reshape((optsize[0], 1))
+        data[:, 0:rg_size_orig] = (data[:, 0:rg_size_orig] *
+                                   np.exp((2j * np.pi) * t_vec * dop_ref.reshape((1, rg_size_orig))))
+    # Pulse pair
+    info.msg("Pulse-pair processing")
+    dop_pp_avg, dop_pha_avg, coh = pulse_pair(data[0:az_size_orig, 0:rg_size_orig], prf)
+    info.msg("Mean DCA (pulse-pair average): %f Hz" % (np.mean(dop_pp_avg)))
+    info.msg("Mean DCA (pulse-pair phase average): %f Hz" % (np.mean(dop_pha_avg)))
+    info.msg("Mean coherence: %f " % (np.mean(coh)))
 
 
-    print('-----------------------------------------')
-    print(time.strftime(
-        "Processing finished [%Y-%m-%d %H:%M:%S]", time.localtime()))
-    print('-----------------------------------------')
+    info.msg(time.strftime("All done [%Y-%m-%d %H:%M:%S]", time.localtime()))
 
 
 if __name__ == '__main__':

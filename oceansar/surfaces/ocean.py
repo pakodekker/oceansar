@@ -92,25 +92,25 @@ class OceanSurface(object):
             self.Nx = np.int(utils.optimize_fftsize(self.Nx, fft_max_prime))
             self.Ny = np.int(utils.optimize_fftsize(self.Ny, fft_max_prime))
 
-            self.dx = self.Lx/np.float(self.Nx)
-            self.dy = self.Ly/np.float(self.Ny)
+            self.dx = np.float32(self.Lx/np.float(self.Nx))
+            self.dy = np.float32(self.Ly/np.float(self.Ny))
 
         # X-Y vector
-        self.x = np.linspace(-self.Lx/2., self.Lx/2., self.Nx)
-        self.y = np.linspace(-self.Ly/2., self.Ly/2., self.Ny)
+        self.x = np.linspace(-self.Lx/2., self.Lx/2., self.Nx, dtype=np.float32)
+        self.y = np.linspace(-self.Ly/2., self.Ly/2., self.Ny, dtype=np.float32)
 
         # Currents
-        self.current = self.current_mag * np.array([np.cos(self.current_dir),
-                                                    np.sin(self.current_dir)])
+        self.current = (self.current_mag * np.array([np.cos(self.current_dir),
+                                                     np.sin(self.current_dir)])).astype(np.float32)
         U_eff_vec = (self.wind_U * np.array([np.cos(self.wind_dir),
                                              np.sin(self.wind_dir)]) -
-                     self.current)
+                     self.current).astype(np.float32)
         self.wind_U_eff = linalg.norm(U_eff_vec)
-        self.wind_dir_eff = np.arctan2(U_eff_vec[1], U_eff_vec[0])
+        self.wind_dir_eff = np.arctan2(U_eff_vec[1], U_eff_vec[0]).astype(np.float32)
 
         # Maximum Kx, Ky (Sampling theorem, 2*pi/(2*res))
-        kmax_x = np.pi/self.dx
-        kmax_y = np.pi/self.dy
+        kmax_x = np.float32(np.pi/self.dx)
+        kmax_y = np.float32(np.pi/self.dy)
 
         # Kx-Ky meshgrid (0:N/2, -N/2:-1)
         #kx_o = np.linspace(-kmax_x, kmax_x, self.Nx)
