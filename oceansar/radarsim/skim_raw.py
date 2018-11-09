@@ -321,7 +321,9 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
         sin_az = np.sin(squint_r) + np.cos(squint_r) * da - 0.5 * np.sin(squint_r) * da**2
         dop0 = 2 * v_orb * np.sin(look_prof) * sin_az / l0
         # print("Max az: %f" % (np.max(az)))
-        dop0 = np.mean(np.reshape(dop0, (surface.Ny/ny_integ, ny_integ, rg_samp)), axis=1)
+        #dop0 = np.mean(np.reshape(dop0, (surface.Ny/ny_integ, ny_integ, rg_samp)), axis=1)
+        s_int = np.int(surface.Ny / ny_integ)
+        dop0 = np.mean(np.reshape(dop0, (s_int, np.int(ny_integ), rg_samp)), axis=1)
     else:
         az_steps_ = az_steps
         if do_hh:
@@ -567,14 +569,15 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
                                    rg_only=cfg.srg.two_scale_Doppler)
         if cfg.srg.two_scale_Doppler:
             #Integrate in azimuth
+           s_int = np.int(surface.Ny/ny_integ)
             if do_hh:
                 proc_raw_hh[az_step] = np.sum(np.reshape(proc_raw_hh_,
-                                                         (surface.Ny/ny_integ, ny_integ, rg_samp)), axis=1)
+                                                         (s_int, ny_integ, rg_samp)), axis=1)
                 print("Max abs(HH): %f" % np.max(np.abs(proc_raw_hh[az_step])))
             if do_vv:
                 #print(proc_raw_vv.shape)
                 proc_raw_vv[az_step] = np.sum(np.reshape(proc_raw_vv_,
-                                                         (surface.Ny / ny_integ, ny_integ, rg_samp)), axis=1)
+                                                         (s_int, ny_integ, rg_samp)), axis=1)
                 print("Max abs(VV): %f" % np.max(np.abs(proc_raw_vv[az_step])))
         # SHOW PROGRESS (%)
         current_progress = np.int((100*az_step)/az_steps_)
