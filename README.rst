@@ -38,5 +38,6 @@ General Roadmap
 Aside from extending OCEANSAR to RAR concepts, such as **SKIM** (currently in progress), current emphasis is on extending simulation capabilities to the bistatic case, with the **STEREOID** mission concept as reference scenario.
 
 Things to be done:
+
 * Include models for breaking waves and/or white capping.
 * Implement routines to compute expected statistics of radar returns.
