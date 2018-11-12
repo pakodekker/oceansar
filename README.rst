@@ -6,8 +6,7 @@ OCEANSAR (Ocean SAR simulator) provides a number of tools to do just that. It pr
 * Routines to calculate a number of directional wave spectra.
 * Routines to calculate time-varying (Lagrangian) ocean surfaces applying linear wave theory.
 * Code to calculate the instantaneous NRCS for *Bragg scatterting* and for *specular scattering*.
-* Code to calculate time varying complex scattering coefficients (and their temporal evolution) considering the
-various scattering mechanisms considered.
+* Code to calculate time varying complex scattering coefficients (and their temporal evolution) considering thevarious scattering mechanisms considered.
 * Code to simulate raw and processed multi-channel SAR data.
 
 The code is highly flexible and can be customized to particular radar concepts. For example, we have recently added code to simulate radar signals emulating SKIM's configuration.
