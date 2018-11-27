@@ -47,28 +47,32 @@ from oceansar.radarsim import range_profile as raw
 from oceansar.surfaces import OceanSurface, OceanSurfaceBalancer
 
 
-def upsample_and_dopplerize(raw, dop, n_up, prf):
+def upsample_and_dopplerize(ssraw, dop, n_up, prf):
     """
 
-    :param raw: data
+    :param ssraw: data
     :param dop: Geomeytric Dopper
     :param n_up: Upsampling factor
     :param prf: PRF
     :return:
     """
-    dims = raw.shape
-
-    out = np.zeros([raw.shape[0] * int(n_up), raw.shape[2]], dtype=np.complex64)
+    dims = ssraw.shape
+    print(n_up)
+    out = np.zeros((dims[0] * int(n_up), dims[2]), dtype=np.complex64)
     # tmp = np.zeros([raw.shape[0] * int(n_up), raw.shape[2]], dtype=np.complex)
     t = (np.arange(dims[0] * int(n_up)) / prf).reshape((dims[0] * int(n_up), 1))
     t2pi = t * (np.pi * 2)
-    for ind in range(raw.shape[1]):
-        raw_zp = np.zeros([raw.shape[0] * int(n_up), raw.shape[2]], dtype=np.complex64)
-        raw_zp[0:dims[0]] = np.fft.fftshift(np.fft.fft(raw[:, ind, :], axis=0), axes=(0,))
-        raw_zp = np.fft.ifft(np.roll(raw_zp, int(-dims[0]/2), axis=0), axis=0)
+    for ind in range(dims[1]):
+        raw_zp = np.zeros((dims[0] * int(n_up), dims[2]), dtype=np.complex64)
+        raw_zp[0:dims[0]] = np.fft.fftshift(np.fft.fft(ssraw[:, ind, :], axis=0), axes=(0,))
+        raw_zp = np.roll(raw_zp, int(-dims[0]/2), axis=0)
+        raw_zp = np.conj(np.fft.fft(np.conj(raw_zp), axis=0)) / dims[0]
         dop_phase = t2pi * (dop[ind]).reshape((1, dims[2]))
-        out[:] = out[:] + raw_zp * np.exp(1j * dop_phase)
+        out = out + raw_zp * np.exp(1j * dop_phase)
 
+    # out = np.zeros([ssraw.shape[0], int(n_up), ssraw.shape[2]], dtype=np.complex64)
+    # out = out + np.sum(ssraw, axis=1).reshape((dims[0], 1, dims[2]))
+    # out = out.reshape((ssraw.shape[0] * int(n_up), ssraw.shape[2]))
     return out
 
 
@@ -294,6 +298,8 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
     if cfg.srg.two_scale_Doppler:
         # We will compute less surface realizations
         n_pulses_b = utils.optimize_fftsize(int(cfg.srg.surface_coh_time * prf))/2
+        print("skim_raw: down-sampling rate =%i" % (n_pulses_b))
+        # n_pulses_b = 4
         az_steps_ = int(np.ceil(az_steps / n_pulses_b))
         t_step = t_step * n_pulses_b
         # Maximum length in azimuth that we can consider to have the same geometric Doppler
@@ -393,7 +399,7 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
     for az_step in np.arange(az_steps_, dtype=np.int):
 
         # AZIMUTH & SURFACE UPDATE
-        t_now = az_step*t_step
+        t_now = az_step * t_step
         az_now = (t_now - t_span/2.)*v_ground * np.cos(squint_r)
         # az = np.repeat((surface.y - az_now)[:, np.newaxis], surface.Nx, axis=1)
         az = (surface.y - az_now).reshape((surface.Ny, 1))
@@ -536,9 +542,11 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
         if cfg.srg.two_scale_Doppler:
             sr_surface_ = sr_surface
             if do_hh:
+                proc_raw_hh_step[:, :] = 0
                 proc_raw_hh_ = proc_raw_hh_step
                 scene_bp_hh = scene_hh * beam_pattern
             if do_vv:
+                proc_raw_vv_step[:, :] = 0
                 proc_raw_vv_ = proc_raw_vv_step
                 scene_bp_vv = scene_vv * beam_pattern
         else:
@@ -569,7 +577,7 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
                                    rg_only=cfg.srg.two_scale_Doppler)
         if cfg.srg.two_scale_Doppler:
             #Integrate in azimuth
-           s_int = np.int(surface.Ny/ny_integ)
+            s_int = np.int(surface.Ny/ny_integ)
             if do_hh:
                 proc_raw_hh[az_step] = np.sum(np.reshape(proc_raw_hh_,
                                                          (s_int, ny_integ, rg_samp)), axis=1)
