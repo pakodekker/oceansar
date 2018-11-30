@@ -212,3 +212,13 @@ def db2lin(a, amplitude=False):
         return 10**(a / 20)
     else:
         return 10**(a / 10)
+
+
+class PrInfo(object):
+    def __init__(self, verbosity, header='processing'):
+        self.verbosity = verbosity
+        self.header = header
+
+    def msg(self, message, importance=2):
+        if importance > (2 - self.verbosity):
+            print("%s -- %s" % (self.header, message))

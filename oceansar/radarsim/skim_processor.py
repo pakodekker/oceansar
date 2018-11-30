@@ -27,14 +27,7 @@ from oceansar import constants as const
 from oceansar.radarsim.antenna import sinc_1tx_nrx
 
 
-class prinfo(object):
-    def __init__(self, verbosity, header='processing'):
-        self.verbosity = verbosity
-        self.header = header
 
-    def msg(self, message, importance=2):
-        if importance > (2 - self.verbosity):
-            print("%s -- %s" % (self.header, message))
 
 
 def pulse_pair(data, prf):
@@ -45,11 +38,23 @@ def pulse_pair(data, prf):
     pp_rg_avg = np.mean(pp, axis=-1)
     pp_rg_avg_dop = p2d * np.angle(pp_rg_avg)
     # average phase to eliminate biases due to amplitude variations
-    phase_rg_avg_dop = p2d * np.mean(np.angle(pp), axis=-1)
+    # FIXME
+    phase_rg_avg_dop = p2d * np.mean(np.angle(pp[:, 700:1300]), axis=-1)
     # Coherence
     coh_rg_avg = pp_rg_avg / np.sqrt(np.mean(np.abs(data[1:])**2, axis=-1) *
                                      np.mean(np.abs(data[0:-1])**2, axis=-1))
     return pp_rg_avg_dop, phase_rg_avg_dop, np.abs(coh_rg_avg)
+
+
+def unfocused_sar(data, n_sar):
+    dimsin = data.shape
+    data_rshp = data.reshape((int(dimsin[0] / n_sar),
+                              int(n_sar), dimsin[1]))
+    # DFT in azimuth
+    data_ufcs = np.fft.fft(data_rshp, axis=1)
+    # focused average intensity
+    int_ufcs = np.mean(np.abs(data_ufcs)**2, axis=0)
+    return int_ufcs
 
 
 def skim_process(cfg_file, raw_output_file, output_file):
@@ -60,7 +65,7 @@ def skim_process(cfg_file, raw_output_file, output_file):
 
     # CONFIGURATION FILE
     cfg = tpio.ConfigFile(cfg_file)
-    info = prinfo(cfg.sim.verbosity, "processor")
+    info = utils.PrInfo(cfg.sim.verbosity, "processor")
     # Say hello
     info.msg(time.strftime("Starting: %Y-%m-%d %H:%M:%S", time.localtime()))
     # PROCESSING
@@ -111,7 +116,6 @@ def skim_process(cfg_file, raw_output_file, output_file):
     ########################
     # PROCESSING MAIN LOOP #
     ########################
-
 
     if plot_raw:
         plt.figure()
@@ -168,7 +172,7 @@ def skim_process(cfg_file, raw_output_file, output_file):
         info.msg("Doppler demodulation")
         t_vec = (np.arange(optsize[0])/prf).reshape((optsize[0], 1))
         data[:, 0:rg_size_orig] = (data[:, 0:rg_size_orig] *
-                                   np.exp((2j * np.pi) * t_vec * dop_ref.reshape((1, rg_size_orig))))
+                                   np.exp((-2j * np.pi) * t_vec * dop_ref.reshape((1, rg_size_orig))))
     # Pulse pair
     info.msg("Pulse-pair processing")
     dop_pp_avg, dop_pha_avg, coh = pulse_pair(data[0:az_size_orig, 0:rg_size_orig], prf)
@@ -176,9 +180,23 @@ def skim_process(cfg_file, raw_output_file, output_file):
     info.msg("Mean DCA (pulse-pair phase average): %f Hz" % (np.mean(dop_pha_avg)))
     info.msg("Mean coherence: %f " % (np.mean(coh)))
     info.msg("Saving output to %s" % (output_file))
+    # Unfocused SAR
+    info.msg("Unfocused SAR")
+    int_unfcs = unfocused_sar(data[0:az_size_orig, 0:rg_size_orig], cfg.processing.n_sar)
+    plt.figure()
+    plt.imshow(np.fft.fftshift(int_unfcs, axes=(0,)),
+               origin='lower', aspect='auto',
+               cmap='viridis')
+    # plt.title()
+    plt.xlabel("Range [samples]")
+    plt.ylabel("Doppler [samples")
+    plt.savefig(plot_path + os.sep + 'ufcs_int.%s' % (plot_format), dpi=150)
+    plt.close()
+    plt.figure()
     np.savez(output_file,
              dop_pp_avg=dop_pp_avg,
-             coh=coh)
+             coh=coh,
+             ufcs_intensity=int_unfcs)
 
     info.msg(time.strftime("All done [%Y-%m-%d %H:%M:%S]", time.localtime()))
 
