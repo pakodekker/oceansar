@@ -123,6 +123,15 @@ def skim_process(cfg_file, raw_output_file, output_file):
         plt.ylabel("Azimuth [samples")
         plt.savefig(plot_path + os.sep  +'plot_raw_real.%s' % (plot_format), dpi=150)
         plt.close()
+        plt.figure()
+        plt.imshow(np.abs(raw_data[0]), vmin=0, vmax=np.max(np.abs(raw_data[0])),
+                   origin='lower', aspect=np.float(raw_data[0].shape[1]) / np.float(raw_data[0].shape[0]),
+                   cmap='viridis')
+        #plt.title()
+        plt.xlabel("Range [samples]")
+        plt.ylabel("Azimuth [samples")
+        plt.savefig(plot_path + os.sep  +'plot_raw_abs.%s' % (plot_format), dpi=150)
+        plt.close()
         # utils.image(np.imag(raw_data[0]), min=-np.max(np.abs(raw_data[0])), max=np.max(np.abs(raw_data[0])), cmap='gray',
         #             aspect=np.float(
         #                 raw_data[0].shape[1]) / np.float(raw_data[0].shape[0]),
@@ -166,7 +175,10 @@ def skim_process(cfg_file, raw_output_file, output_file):
     info.msg("Mean DCA (pulse-pair average): %f Hz" % (np.mean(dop_pp_avg)))
     info.msg("Mean DCA (pulse-pair phase average): %f Hz" % (np.mean(dop_pha_avg)))
     info.msg("Mean coherence: %f " % (np.mean(coh)))
-
+    info.msg("Saving output to %s" % (output_file))
+    np.savez(output_file,
+             dop_pp_avg=dop_pp_avg,
+             coh=coh)
 
     info.msg(time.strftime("All done [%Y-%m-%d %H:%M:%S]", time.localtime()))
 
