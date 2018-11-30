@@ -56,6 +56,9 @@ def upsample_and_dopplerize(ssraw, dop, n_up, prf):
     :param prf: PRF
     :return:
     """
+    # FIXME
+    # We should add global (mean) range cell migration here
+    # The varying part is handled in the main loop of the code
     dims = ssraw.shape
     print(n_up)
     out = np.zeros((dims[0] * int(n_up), dims[2]), dtype=np.complex64)
@@ -97,7 +100,7 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
     #  CONFIGURATION FILE
     # Note: variables are 'copied' to reduce code verbosity
     cfg = tpio.ConfigFile(cfg_file)
-
+    info = utils.PrInfo(cfg.sim.verbosity, "SKIM raw")
     # RAW
     wh_tol = cfg.srg.wh_tol
     nesz = cfg.srg.nesz
@@ -311,8 +314,9 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
             ny_integ = 1
         else:
             ny_integ = int(2**np.floor(np.log2(ny_integ)))
-        print("skim_raw: size of intermediate radar data: %f MB" % (8 * ny_integ * az_steps_ * rg_samp *1e-6))
-        print("skim_raw: ny_integ=%i" % (ny_integ))
+        info.msg("skim_raw: size of intermediate radar data: %f MB" % (8 * ny_integ * az_steps_ * rg_samp *1e-6),
+                 importance=1)
+        info.msg("skim_raw: ny_integ=%i" % (ny_integ), importance=1)
         if do_hh:
             proc_raw_hh = np.zeros([az_steps_, int(surface.Ny / ny_integ), rg_samp], dtype=np.complex)
             proc_raw_hh_step = np.zeros([surface.Ny, rg_samp], dtype=np.complex)
@@ -419,11 +423,20 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
         az_proj_angle = np.arcsin(az / gr0)
         # Note: Projected displacements are added to slant range
         if cfg.srg.two_scale_Doppler:
+            # slant-range for phase
             sr_surface = (sr - cos_inc * surface.Dz
                           + surface.Dx * sin_inc + surface.Dy * sin_az)
+            if cfg.srg.rcm:
+                # add non common rcm
+                sr_surface4rcm = sr_surface + az / 2 * sin_az
+            else:
+                sr_surface4rcm = sr_surface
         else:
+            # FIXME: check if global shift is included, in case we care about slow simulations
+            # slant-range for phase and Doppler
             sr_surface = (sr - cos_inc*surface.Dz + az/2*sin_az
                           + surface.Dx*sin_inc + surface.Dy*sin_az)
+            sr_surface4rcm = sr_surface
 
         if do_hh:
             scene_hh = np.zeros([int(surface.Ny), int(surface.Nx)], dtype=np.complex)
@@ -540,7 +553,7 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
 
         # GENERATE CHANEL PROFILES
         if cfg.srg.two_scale_Doppler:
-            sr_surface_ = sr_surface
+            sr_surface_ = sr_surface4rcm
             if do_hh:
                 proc_raw_hh_step[:, :] = 0
                 proc_raw_hh_ = proc_raw_hh_step
@@ -550,7 +563,7 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
                 proc_raw_vv_ = proc_raw_vv_step
                 scene_bp_vv = scene_vv * beam_pattern
         else:
-            sr_surface_ = sr_surface.flatten()
+            sr_surface_ = sr_surface4rcm.flatten()
             if do_hh:
                 proc_raw_hh_ = proc_raw_hh[az_step]
                 scene_bp_hh = (scene_hh * beam_pattern).flatten()
@@ -581,21 +594,21 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
             if do_hh:
                 proc_raw_hh[az_step] = np.sum(np.reshape(proc_raw_hh_,
                                                          (s_int, ny_integ, rg_samp)), axis=1)
-                print("Max abs(HH): %f" % np.max(np.abs(proc_raw_hh[az_step])))
+                info.msg("Max abs(HH): %f" % np.max(np.abs(proc_raw_hh[az_step])), importance=1)
             if do_vv:
                 #print(proc_raw_vv.shape)
                 proc_raw_vv[az_step] = np.sum(np.reshape(proc_raw_vv_,
                                                          (s_int, ny_integ, rg_samp)), axis=1)
-                print("Max abs(VV): %f" % np.max(np.abs(proc_raw_vv[az_step])))
+                info.msg("Max abs(VV): %f" % np.max(np.abs(proc_raw_vv[az_step])), importance=1)
         # SHOW PROGRESS (%)
         current_progress = np.int((100*az_step)/az_steps_)
         if current_progress != last_progress:
             last_progress = current_progress
-            print('SP,%d,%d,%d%%' % (rank, size, current_progress))
+            info.msg('SP,%d,%d,%d%%' % (rank, size, current_progress), importance=1)
 
     if cfg.srg.two_scale_Doppler:
         # No we have to up-sample and add Doppler
-        print("skim_raw: Dopplerizing and upsampling")
+        info.msg("skim_raw: Dopplerizing and upsampling")
         print(dop0.max())
         print(n_pulses_b)
         print(prf)
@@ -614,7 +627,7 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
 
     ## PROCESS REDUCED RAW DATA & SAVE (ROOT)
     if rank == 0:
-        print('Processing and saving results...')
+        info.msg('calibrating and saving results...')
 
         # Filter and decimate
         #range_filter = np.ones_like(total_raw)

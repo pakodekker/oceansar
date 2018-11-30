@@ -16,4 +16,4 @@ Ocean surfaces
    :members:
 
 """
-from .misc import factorize, balance_elements, optimize_fftsize, get_parFile, smooth, db, db2lin
+from .misc import factorize, balance_elements, optimize_fftsize, get_parFile, smooth, db, db2lin, PrInfo
