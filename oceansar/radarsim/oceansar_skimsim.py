@@ -19,6 +19,7 @@ import time
 import subprocess
 from oceansar import io as osrio
 from oceansar import utils
+import argparse
 
 
 def skimsim(cfg_file=None):
@@ -79,7 +80,11 @@ def skimsim(cfg_file=None):
 if __name__ == '__main__':
 
     # INPUT ARGUMENTS
-    if len(sys.argv) < 2:
-        skimsim()
-    else:
-        skimsim(sys.argv[1])
+    #if len(sys.argv) < 2:
+    #    skimsim()
+    #else:
+    #    skimsim(sys.argv[1])
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-c', '--cfg_file_name')
+    args = parser.parse_args()
+    skimsim(args.cfg_file_name)

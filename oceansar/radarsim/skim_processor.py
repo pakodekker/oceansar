@@ -24,7 +24,6 @@ from oceansar.utils import geometry as geo
 from oceansar import utils
 from oceansar import io as tpio
 from oceansar import constants as const
-from oceansar.radarsim.antenna import sinc_1tx_nrx
 
 
 
@@ -270,7 +269,8 @@ def delta_k_processing(raw_output_file, cfg_file):
         plt.imshow(np.abs(raw_int))
         plt.xlabel("Range (pixel)")
         plt.ylabel("Azimuth (pixel)")
-        plot_path = os.path.dirname(cfg.sim.path) + os.sep + 'delta_k_spectrum_plots'
+        
+        plot_path = cfg.sim.path + os.sep + 'delta_k_spectrum_plots'
         
         if not os.path.exists(plot_path):
             os.makedirs(plot_path)
@@ -398,7 +398,7 @@ def delta_k_processing(raw_output_file, cfg_file):
     plt.xlabel("Azimuth interval [Pixel]")
     plt.ylabel("Angular velocity (rad/s)") 
     
-    plot_path = os.path.dirname(cfg.sim.path) + os.sep + 'delta_k_spectrum_plots'
+    plot_path = cfg.sim.path + os.sep + 'delta_k_spectrum_plots'
     plt.savefig(os.path.join(plot_path, 'Angular_velocity.png'))
     plt.close()
     
@@ -407,8 +407,8 @@ def delta_k_processing(raw_output_file, cfg_file):
         Omiga_f = Omiga_p[:,0]
     else:
         Omiga_f = Omiga_p_z
+    Omiga_s = Omiga_f
 
-    
     Omiga_b = Omiga_f
     for iii in range(1,cfg.processing.stps):
        if (np.std(Omiga_f)>cfg.processing.threshold):
@@ -422,6 +422,13 @@ def delta_k_processing(raw_output_file, cfg_file):
            print((iii+1)*cfg.processing.stp)
            print(np.mean(Omiga_b))
            break    
+       
+    path_s = cfg.sim.path + os.sep + 'delta_k_spectrum_plots'
+    np.save(os.path.join(path_s, 'Angular_velocity.npy'),
+            [Omiga_s, np.mean(Omiga_b), np.size(Omiga_s), analyse_num])
+          
+    
+        
 
 def cal_delta_f(light_velocity = 0, inc = 0, wave_scale = 10):
     
@@ -443,15 +450,16 @@ def delta_k_spectrum(Scene_scope = 0, r_int_num = 0, inc = 0,
     xx = analysis_deltaf[1:np.size(analysis_deltan)] / 1e6
     fig = plt.figure()
     ax1 = fig.add_subplot(111)
-    ax1.plot(xx, 10*(np.log10(RCS_power[1:np.size(analysis_deltan)])));
+    ax1.plot(xx, 10*(np.log10(RCS_power[1:np.size(analysis_deltan)])))
     ax1.set_xlabel("Delta_f [MHz]")
     ax1.set_ylabel("Power (dB)")
-    plot_path = os.path.dirname(cfg.sim.path) + os.sep + 'delta_k_spectrum_plots'
+    plot_path = cfg.sim.path + os.sep + 'delta_k_spectrum_plots'
    
     
     plt.savefig(os.path.join(plot_path, 'delta_k_spectrum.png'))
-    plt.close()       
-        
+    plt.close()             
+
+
 
 if __name__ == '__main__':
 

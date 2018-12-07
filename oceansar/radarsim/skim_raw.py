@@ -220,8 +220,8 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
 
             plt.grid(True)
             pltax = plt.gca()
-            pltax.set_xlim((-0.1, 0.1))
-            pltax.set_ylim((-0.1, 0.1))
+            pltax.set_xlim((-1, 1))
+            pltax.set_ylim((-1, 1))
             Narr_length = 0.08 # np.min([surface_full.kx.max(), surface_full.ky.max()])
             pltax.arrow(0, 0,
                         -Narr_length * np.sin(np.radians(cfg.radar.heading)),
