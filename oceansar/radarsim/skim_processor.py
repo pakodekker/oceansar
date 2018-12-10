@@ -228,7 +228,7 @@ def delta_k_processing(raw_output_file, cfg_file):
     n_sar_r = cfg.processing.n_sar_r 
     n_sar_a = cfg.processing.n_sar_a 
     R_n = round(cfg.ocean.Lx * cfg.ocean.dx*np.sin(inc*np.pi/180)/(const.c/2/fs))
-    
+       
     #processing option
     rang_img = cfg.processing.rang_img
     Azi_img = cfg.processing.Azi_img
@@ -246,10 +246,11 @@ def delta_k_processing(raw_output_file, cfg_file):
     az_int = cfg.processing.az_int
     Delta_lag = cfg.processing.Delta_lag
     num_az = cfg.processing.num_az
-    list = range(1,num_az)
-    analyse_num = range(2,Az_smaples - az_int -1 - num_az)
-    Scene_scope = ((R_samples-1) * const.c / fs / 2) / 2    
+    list = range(1, num_az)
+    analyse_num = range(2, Az_smaples - az_int - 1 - num_az)
+    Scene_scope = ((R_samples - 1) * const.c / fs / 2) / 2    
     dk_higha = np.zeros((np.size(analyse_num),r_int_num), dtype='complex128')
+    k_w = 2 * np.pi / wave_scale
     
     raw_data = raw_data_extraction(raw_output_file)
     raw_data = raw_data[0]
@@ -308,7 +309,9 @@ def delta_k_processing(raw_output_file, cfg_file):
         analyse_num = range(2,s_a - az_int -1)
         
     Omiga_p = np.zeros((np.size(analyse_num),np.size(list)+1), dtype=np.float)
-    Omiga_p_z = np.zeros(np.size(analyse_num), dtype=np.float)            
+    Omiga_p_z = np.zeros(np.size(analyse_num), dtype=np.float)  
+    Phase_p = np.zeros((np.size(analyse_num),np.size(list)+1), dtype=np.float)
+    Phase_p_z = np.zeros(np.size(analyse_num), dtype=np.float)            
     
     if rang_img & Azi_img:  
         for ind_x in range(s_r):
@@ -329,7 +332,9 @@ def delta_k_processing(raw_output_file, cfg_file):
                 pha = np.mean(-np.angle(np.mean(data_ufcs[analyse_num[ind]
                 :analyse_num[ind]+az_int,:] * np.conj(data_ufcs[0:az_int,:]), axis=0)))   
                 Omiga_p_z[ind] = pha / analyse_num[ind] * PRF / n_sar_a
-        Omiga_p_z = Omiga_p_z / s_r     
+                Phase_p_z[ind] = Omiga_p_z[ind] / k_w
+        Omiga_p_z = Omiga_p_z / s_r
+        Phase_p_z = Phase_p_z / s_r
             
     elif rang_img:
         for ind_x in range(s_r):
@@ -342,7 +347,9 @@ def delta_k_processing(raw_output_file, cfg_file):
                 pha = -np.angle(np.mean(dk_higha[analyse_num[ind]
                 :analyse_num[ind]+az_int] * np.conj(dk_higha[0:az_int])))
                 Omiga_p_z[ind] = pha / analyse_num[ind] * PRF + Omiga_p_z[ind]
-        Omiga_p_z = Omiga_p_z / s_r                
+                Phase_p_z[ind] = Omiga_p_z[ind] / k_w
+        Omiga_p_z = Omiga_p_z / s_r   
+        Phase_p_z = Phase_p_z / s_r             
     elif Azi_img: 
         spck_f = np.fft.fftshift(np.fft.fft(raw_data, axis=1), axes=(1,))
         #delta-k processing
@@ -359,7 +366,8 @@ def delta_k_processing(raw_output_file, cfg_file):
         for ind in range(np.size(analyse_num)):
             pha = np.mean(-np.angle(np.mean(data_ufcs[analyse_num[ind]
             :analyse_num[ind]+az_int,:] * np.conj(data_ufcs[0:az_int,:]), axis=0)))   
-            Omiga_p_z[ind] = pha / analyse_num[ind] * PRF / n_sar_a 
+            Omiga_p_z[ind] = pha / analyse_num[ind] * PRF / n_sar_a
+            Phase_p_z[ind] = Omiga_p_z[ind] / k_w
                
     else:      
         spck_f = np.fft.fftshift(np.fft.fft(raw_data, axis=1), axes=(1,))
@@ -371,6 +379,7 @@ def delta_k_processing(raw_output_file, cfg_file):
             pha = -np.angle(np.mean(dk_higha[analyse_num[ind]
              :analyse_num[ind]+az_int] * np.conj(dk_higha[0:az_int])))
             Omiga_p_z[ind] = pha / analyse_num[ind] * PRF 
+            Phase_p_z[ind] = Omiga_p_z[ind] / k_w
                
     #Considering delta-k processing with lags    
     if Delta_lag:
@@ -380,7 +389,8 @@ def delta_k_processing(raw_output_file, cfg_file):
                 dk_higha = np.mean(dk_inda, axis=1)
                 pha = -np.angle(np.mean(dk_higha[analyse_num[ind]
                 :analyse_num[ind]+az_int] * np.conj(dk_higha[0:az_int])))
-                Omiga_p[ind,iii] = pha / analyse_num[ind] * PRF     
+                Omiga_p[ind,iii] = pha / analyse_num[ind] * PRF  
+                Phase_p_z[ind,iii] = Omiga_p_z[ind,iii] / k_w
                         
             print(iii / (np.size(list)+1))
         dk_higha = np.mean(dk_high, axis=1)
@@ -388,7 +398,9 @@ def delta_k_processing(raw_output_file, cfg_file):
             pha = -np.angle(np.mean(dk_higha[analyse_num[ind]
             :analyse_num[ind]+az_int] * np.conj(dk_higha[0:az_int])))
             Omiga_p_z[ind] = pha / analyse_num[ind] * PRF 
+            Phase_p_z[ind] = Omiga_p_z[ind] / k_w
         Omiga_p[:,0] = Omiga_p_z 
+        Phase_p[:,0] = Phase_p_z
         
            
     if Azi_img:
@@ -402,30 +414,52 @@ def delta_k_processing(raw_output_file, cfg_file):
     plt.savefig(os.path.join(plot_path, 'Angular_velocity.png'))
     plt.close()
     
+    plt.figure()
+    plt.plot(analyse_num, Phase_p_z)
+    plt.xlabel("Azimuth interval [Pixel]")
+    plt.ylabel("Phase velocity (m/s)") 
+    
+    plot_path = cfg.sim.path + os.sep + 'delta_k_spectrum_plots'
+    plt.savefig(os.path.join(plot_path, 'Phase_velocity.png'))
+    plt.close()
+    
   
     if Delta_lag:
         Omiga_f = Omiga_p[:,0]
+        Phase_f = Phase_p[:,0]
     else:
         Omiga_f = Omiga_p_z
+        Phase_f = Phase_p_z
     Omiga_s = Omiga_f
+    Phase_s = Phase_f
 
     Omiga_b = Omiga_f
+    Phase_s = Phase_f
     for iii in range(1,cfg.processing.stps):
        if (np.std(Omiga_f)>cfg.processing.threshold):
            if np.size(list)>0:
                Omiga_b = Omiga_p[((iii+1)*cfg.processing.stp):,:]
                Omiga_f = Omiga_b[:,0]
+               
+               Phase_b = Phase_p[((iii+1)*cfg.processing.stp):,:]
+               Phase_f = Phase_b[:,0]
            else:
                Omiga_b = Omiga_p_z[((iii+1)*cfg.processing.stp):]
-               Omiga_f = Omiga_b              
+               Omiga_f = Omiga_b  
+               Phase_b = Phase_p_z[((iii+1)*cfg.processing.stp):]
+               Phase_f = Phase_b 
        else:
            print((iii+1)*cfg.processing.stp)
-           print(np.mean(Omiga_b))
+           print(np.mean(Omiga_b), 'rad/s')
+           print(np.mean(Phase_b), 'm/s')
            break    
        
     path_s = cfg.sim.path + os.sep + 'delta_k_spectrum_plots'
     np.save(os.path.join(path_s, 'Angular_velocity.npy'),
             [Omiga_s, np.mean(Omiga_b), np.size(Omiga_s), analyse_num])
+    
+    np.save(os.path.join(path_s, 'Phase_velocity.npy'),
+            [Phase_s, np.mean(Phase_b), np.size(Phase_s), analyse_num])
           
     
         
