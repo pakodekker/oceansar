@@ -47,13 +47,17 @@ def pulse_pair(data, prf):
 
 def unfocused_sar(data, n_sar):
     dimsin = data.shape
-    data_rshp = data.reshape((int(dimsin[0] / n_sar),
-                              int(n_sar), dimsin[1]))
+    if np.size(dimsin) == 1:
+        data_rshp = data.reshape((int(dimsin[0] / n_sar),
+                              int(n_sar)))
+    else:
+        data_rshp = data.reshape((int(dimsin[0] / n_sar),
+                                  int(n_sar), dimsin[1]))
     # DFT in azimuth
     data_ufcs = np.fft.fft(data_rshp, axis=1)
     # focused average intensity
     int_ufcs = np.mean(np.abs(data_ufcs)**2, axis=0)
-    return int_ufcs
+    return int_ufcs, data_ufcs
 
 
 def skim_process(cfg_file, raw_output_file, output_file):
@@ -181,7 +185,7 @@ def skim_process(cfg_file, raw_output_file, output_file):
     info.msg("Saving output to %s" % (output_file))
     # Unfocused SAR
     info.msg("Unfocused SAR")
-    int_unfcs = unfocused_sar(data[0:az_size_orig, 0:rg_size_orig], cfg.processing.n_sar)
+    int_unfcs, data_ufcs = unfocused_sar(data[0:az_size_orig, 0:rg_size_orig], cfg.processing.n_sar)
     plt.figure()
     plt.imshow(np.fft.fftshift(int_unfcs, axes=(0,)),
                origin='lower', aspect='auto',
@@ -212,266 +216,264 @@ def raw_data_extraction(raw_output_file=None):
     
     
 def delta_k_processing(raw_output_file, cfg_file):
-    
-    #heading
-    print('-------------------------------------------------------------------'
-          , flush=True)#flush is true is for correctly showing
+    # heading
+    # flush is true is for correctly showing
+    print('-------------------------------------------------------------------', flush=True)
     print('Delta-k processing begins...')
-    
-    #parameters
+    # parameters
     cfg = tpio.ConfigFile(cfg_file)
-    Az_smaples = cfg.radar.n_pulses
-    PRF = cfg.radar.prf
-    fs = cfg.radar.Fs
-    R_samples = cfg.radar.n_rg
-    inc = cfg.radar.inc_angle
-    n_sar_r = cfg.processing.n_sar_r 
     n_sar_a = cfg.processing.n_sar_a 
-    R_n = round(cfg.ocean.Lx * cfg.ocean.dx*np.sin(inc*np.pi/180)/(const.c/2/fs))
-       
-    #processing option
-    rang_img = cfg.processing.rang_img
     Azi_img = cfg.processing.Azi_img
-        
-    #imaging signs
-    plot_pattern = True
-    plot_spectrum = False
-    win_sign = False
-    
-    #processing parameters
-    analysis_deltan =  np.linspace(0,500,501) #for delta-k spectrum analysis
-    RCS_power = np.zeros_like(analysis_deltan)
-    wave_scale = cfg.processing.wave_scale 
-    r_int_num = cfg.processing.r_int_num
-    az_int = cfg.processing.az_int
-    Delta_lag = cfg.processing.Delta_lag
-    num_az = cfg.processing.num_az
-    list = range(1, num_az)
-    analyse_num = range(2, Az_smaples - az_int - 1 - num_az)
-    Scene_scope = ((R_samples - 1) * const.c / fs / 2) / 2    
-    dk_higha = np.zeros((np.size(analyse_num),r_int_num), dtype='complex128')
-    k_w = 2 * np.pi / wave_scale
-    
-    raw_data = raw_data_extraction(raw_output_file)
-    raw_data = raw_data[0]
-        
-    #adding window
-    if win_sign:
-        han_win = np.zeros(raw_data.shape[1])
-        han_win[np.int(R_samples/2-R_n/2):np.int(R_samples/2+R_n/2)] = np.hamming(
-                np.int(R_samples/2+R_n/2)-np.int(R_samples/2-R_n/2))
-        raw_data = raw_data * han_win.reshape((1, han_win.size))
-    
-    #showing pattern of the ocean waves
-    #intensity
-    raw_int = raw_data * np.conj(raw_data)
-    if plot_pattern:
-        plt.figure()
-        plt.imshow(np.abs(raw_int))
-        plt.xlabel("Range (pixel)")
-        plt.ylabel("Azimuth (pixel)")
-        
-        plot_path = cfg.sim.path + os.sep + 'delta_k_spectrum_plots'
-        
-        if not os.path.exists(plot_path):
-            os.makedirs(plot_path)
-        plt.savefig(os.path.join(plot_path, 'Pattern.png'))
-        plt.close()
-    
-    intens_spectrum = np.mean(np.fft.fft(np.abs(raw_int), axis=1), axis=0)
-    
-    if plot_spectrum:
-        plt.figure()
-        #plt.plot(np.linspace(1,np.int(Sp_x/2),np.int(Sp_x/2)-1) / 4 / Scene_scope, 10 * np.log10(np.abs(intens_spectrum[1:np.int(Sp_x/2)]) / np.abs(intens_spectrum[1:np.int(Sp_x/2)]).max()))
-        plt.plot(10 * np.log10(np.abs(intens_spectrum[1:np.int(R_samples/2)])))
-        plt.xlabel("Delta_k [1/m]")
-        plt.ylabel("Power (dB)")
-        
-    #showing Delta-k spectrum for analysis
-    delta_k_spectrum(Scene_scope, r_int_num, inc, 
-                     raw_data, RCS_power, analysis_deltan, cfg)
-    
-    #Calculating the required delta_f value
-    delta_f = cal_delta_f(const.c, inc, wave_scale)
-    delta_k = delta_f / const.c
-    ind_N = np.int(round(delta_k * (2 * Scene_scope) * 2)) 
-        
-    #sar processing
-    if rang_img:
-        s_r = round(R_samples / n_sar_r)
-        r_int_num = round(r_int_num/s_r)
-        ind_N = round(ind_N/s_r)
-        data_rshp = raw_data.reshape((Az_smaples,s_r,
-                             n_sar_r,))
-    elif Azi_img:
-        s_a = round(Az_smaples/n_sar_a)
-        az_int = int(az_int / n_sar_a)-2
-        analyse_num = range(2,s_a - az_int -1)
-        
-    Omiga_p = np.zeros((np.size(analyse_num),np.size(list)+1), dtype=np.float)
-    Omiga_p_z = np.zeros(np.size(analyse_num), dtype=np.float)  
-    Phase_p = np.zeros((np.size(analyse_num),np.size(list)+1), dtype=np.float)
-    Phase_p_z = np.zeros(np.size(analyse_num), dtype=np.float)            
-    
-    if rang_img & Azi_img:  
-        for ind_x in range(s_r):
-            r_data = data_rshp[:,ind_x,:]
-            spck_f = np.fft.fftshift(np.fft.fft(r_data, axis=1), axes=(1,))
-             #delta-k processing
-            dk_high = spck_f[:,0:r_int_num]*np.conj(spck_f[:,ind_N:ind_N+r_int_num])
-            dk_higha = np.mean(dk_high, axis=1)
-            #azimuth sar azimuth processing          
-            dimsin = dk_higha.shape
-            data_a = dk_higha.reshape((int(dimsin[0] / n_sar_a),
-                             n_sar_a))
-            # DFT in azimuth
-            data_ufcs = np.fft.fftshift(np.fft.fft(data_a, axis=1), axes=(1,))
-            #int_ufcs = np.mean(data_ufc, axis=0)
-            
-            for ind in range(np.size(analyse_num)):
-                pha = np.mean(-np.angle(np.mean(data_ufcs[analyse_num[ind]
-                :analyse_num[ind]+az_int,:] * np.conj(data_ufcs[0:az_int,:]), axis=0)))   
-                Omiga_p_z[ind] = pha / analyse_num[ind] * PRF / n_sar_a
-                Phase_p_z[ind] = Omiga_p_z[ind] / k_w
-        Omiga_p_z = Omiga_p_z / s_r
-        Phase_p_z = Phase_p_z / s_r
-            
-    elif rang_img:
-        for ind_x in range(s_r):
-            r_data = data_rshp[:,ind_x,:]
-            spck_f = np.fft.fftshift(np.fft.fft(r_data, axis=1), axes=(1,))
-            #delta-k processing
-            dk_high = spck_f[:,0:r_int_num]*np.conj(spck_f[:,ind_N:ind_N+r_int_num])
-            dk_higha = np.mean(dk_high, axis=1)
-            for ind in range(np.size(analyse_num)):
-                pha = -np.angle(np.mean(dk_higha[analyse_num[ind]
-                :analyse_num[ind]+az_int] * np.conj(dk_higha[0:az_int])))
-                Omiga_p_z[ind] = pha / analyse_num[ind] * PRF + Omiga_p_z[ind]
-                Phase_p_z[ind] = Omiga_p_z[ind] / k_w
-        Omiga_p_z = Omiga_p_z / s_r   
-        Phase_p_z = Phase_p_z / s_r             
-    elif Azi_img: 
-        spck_f = np.fft.fftshift(np.fft.fft(raw_data, axis=1), axes=(1,))
-        #delta-k processing
-        dk_high = spck_f[:,0:r_int_num]*np.conj(spck_f[:,ind_N:ind_N+r_int_num])
-        dk_higha = np.mean(dk_high, axis=1)
-        #azimuth sar azimuth processing          
-        dimsin = dk_higha.shape
-        data_a = dk_higha.reshape((int(dimsin[0] / n_sar_a),
-                             n_sar_a))
-        # DFT in azimuth
-        data_ufcs = np.fft.fftshift(np.fft.fft(data_a, axis=1), axes=(1,))
-        #int_ufcs = np.mean(data_ufc, axis=0)
-            
-        for ind in range(np.size(analyse_num)):
-            pha = np.mean(-np.angle(np.mean(data_ufcs[analyse_num[ind]
-            :analyse_num[ind]+az_int,:] * np.conj(data_ufcs[0:az_int,:]), axis=0)))   
-            Omiga_p_z[ind] = pha / analyse_num[ind] * PRF / n_sar_a
-            Phase_p_z[ind] = Omiga_p_z[ind] / k_w
-               
-    else:      
-        spck_f = np.fft.fftshift(np.fft.fft(raw_data, axis=1), axes=(1,))
-        
-        #Extracting the information of wave_scale
-        dk_high = spck_f[:,0:r_int_num] * np.conj(spck_f[:,ind_N:ind_N+r_int_num])
-        dk_higha = np.mean(dk_high, axis=1)
-        for ind in range(np.size(analyse_num)):
-            pha = -np.angle(np.mean(dk_higha[analyse_num[ind]
-             :analyse_num[ind]+az_int] * np.conj(dk_higha[0:az_int])))
-            Omiga_p_z[ind] = pha / analyse_num[ind] * PRF 
-            Phase_p_z[ind] = Omiga_p_z[ind] / k_w
-               
-    #Considering delta-k processing with lags    
-    if Delta_lag:
-        for iii in list:     
-            for ind in range(np.size(analyse_num)):
-                dk_inda = spck_f[iii:,0:r_int_num]*np.conj(spck_f[0:-iii,ind_N:ind_N+r_int_num])
-                dk_higha = np.mean(dk_inda, axis=1)
-                pha = -np.angle(np.mean(dk_higha[analyse_num[ind]
-                :analyse_num[ind]+az_int] * np.conj(dk_higha[0:az_int])))
-                Omiga_p[ind,iii] = pha / analyse_num[ind] * PRF  
-                Phase_p_z[ind,iii] = Omiga_p_z[ind,iii] / k_w
-                        
-            print(iii / (np.size(list)+1))
-        dk_higha = np.mean(dk_high, axis=1)
-        for ind in range(np.size(analyse_num)):
-            pha = -np.angle(np.mean(dk_higha[analyse_num[ind]
-            :analyse_num[ind]+az_int] * np.conj(dk_higha[0:az_int])))
-            Omiga_p_z[ind] = pha / analyse_num[ind] * PRF 
-            Phase_p_z[ind] = Omiga_p_z[ind] / k_w
-        Omiga_p[:,0] = Omiga_p_z 
-        Phase_p[:,0] = Phase_p_z
-        
-           
-    if Azi_img:
-        analyse_num = np.array(analyse_num) * n_sar_a
-    plt.figure()
-    plt.plot(analyse_num, Omiga_p_z)
-    plt.xlabel("Azimuth interval [Pixel]")
-    plt.ylabel("Angular velocity (rad/s)") 
-    
-    plot_path = cfg.sim.path + os.sep + 'delta_k_spectrum_plots'
-    plt.savefig(os.path.join(plot_path, 'Angular_velocity.png'))
-    plt.close()
-    
-    plt.figure()
-    plt.plot(analyse_num, Phase_p_z)
-    plt.xlabel("Azimuth interval [Pixel]")
-    plt.ylabel("Phase velocity (m/s)") 
-    
-    plot_path = cfg.sim.path + os.sep + 'delta_k_spectrum_plots'
-    plt.savefig(os.path.join(plot_path, 'Phase_velocity.png'))
-    plt.close()
-    
-  
-    if Delta_lag:
-        Omiga_f = Omiga_p[:,0]
-        Phase_f = Phase_p[:,0]
-    else:
-        Omiga_f = Omiga_p_z
-        Phase_f = Phase_p_z
-    Omiga_s = Omiga_f
-    Phase_s = Phase_f
+    # radar
+    f0 = cfg.radar.f0
+    prf = cfg.radar.prf
+    # num_ch = cfg.radar.num_ch
+    alt = cfg.radar.alt
+    v_ground = cfg.radar.v_ground
+    wei_dop = 0
+    m_ind = 0
 
-    Omiga_b = Omiga_f
-    Phase_s = Phase_f
-    for iii in range(1,cfg.processing.stps):
-       if (np.std(Omiga_f)>cfg.processing.threshold):
-           if np.size(list)>0:
-               Omiga_b = Omiga_p[((iii+1)*cfg.processing.stp):,:]
-               Omiga_f = Omiga_b[:,0]
-               
-               Phase_b = Phase_p[((iii+1)*cfg.processing.stp):,:]
-               Phase_f = Phase_b[:,0]
-           else:
-               Omiga_b = Omiga_p_z[((iii+1)*cfg.processing.stp):]
-               Omiga_f = Omiga_b  
-               Phase_b = Phase_p_z[((iii+1)*cfg.processing.stp):]
-               Phase_f = Phase_b 
-       else:
-           print((iii+1)*cfg.processing.stp)
-           print(np.mean(Omiga_b), 'rad/s')
-           print(np.mean(Phase_b), 'm/s')
-           break    
-       
-    path_s = cfg.sim.path + os.sep + 'delta_k_spectrum_plots'
-    np.save(os.path.join(path_s, 'Angular_velocity.npy'),
-            [Omiga_s, np.mean(Omiga_b), np.size(Omiga_s), analyse_num])
+    # CALCULATE PARAMETERS
+    l0 = const.c / f0
+    if v_ground == 'auto':
+        v_ground = geo.orbit_to_vel(alt, ground=True)
     
-    np.save(os.path.join(path_s, 'Phase_velocity.npy'),
-            [Phase_s, np.mean(Phase_b), np.size(Phase_s), analyse_num])
+    if Azi_img:  # 2-D unfocusing
+        path = cfg.sim.path
+        data = np.load(os.path.join(path, 'pp_data.nc.npz'))
+        Doppler_av = np.mean(data['dop_pp_avg'])
+        dp_axis = np.linspace(-prf / 2, prf / 2, n_sar_a)
+        val_d = np.abs(dp_axis - Doppler_av)
+        m_d =np.where(val_d==min(val_d))
+        m_ind = np.int(m_d[0])
+        f_in = prf / n_sar_a
+        beamwide = l0 / cfg.radar.ant_L
+        Bw = 2 * v_ground/ l0 * beamwide
+        Bw_eff = np.abs(Bw *np.sin(cfg.radar.azimuth))
+        wei_dop = Bw_eff / f_in
+            
+    # Analyse different waves               
+    sim_path_ref = cfg.sim.path + os.sep + 'wavelength%.1f'
+    for inn in range(np.size(cfg.processing.wave_scale)):
+        wave_scale = cfg.processing.wave_scale[inn]
+        path_p = sim_path_ref % (wave_scale)
+        if not os.path.exists(path_p):
+            os.makedirs(path_p)  
+        else:
+            sim_path_ref = cfg.sim.path + os.sep + 'wavelength%.1f_unfocus'
+            path_p = sim_path_ref % (wave_scale)
+            if not os.path.exists(path_p):
+                os.makedirs(path_p)  
+            
+                
+        # imaging signs
+        plot_pattern = False
+        plot_spectrum = False
+        win_sign = False
+        
+        # processing parameters and initial parameters
+        # radar parameters
+        Az_smaples = cfg.radar.n_pulses
+        PRF = cfg.radar.prf
+        fs = cfg.radar.Fs
+        R_samples = cfg.radar.n_rg
+        inc = cfg.radar.inc_angle
+        n_sar_r = cfg.processing.n_sar_r 
+        R_n = round(cfg.ocean.Lx * cfg.ocean.dx*np.sin(inc*np.pi/180)/(const.c/2/fs))
+        rang_img = cfg.processing.rang_img 
+        analysis_deltan =  np.linspace(0,500,501) #for delta-k spectrum analysis
+        r_int_num = cfg.processing.r_int_num
+        az_int = cfg.processing.az_int
+        Delta_lag = cfg.processing.Delta_lag
+        num_az = cfg.processing.num_az
+        list = range(1, num_az)
+        analyse_num = range(2, Az_smaples - az_int - 1 - num_az)
+        Scene_scope = ((R_samples - 1) * const.c / fs / 2) / 2    
+        k_w = 2 * np.pi / wave_scale
+        # initialization parameters       
+        dk_higha = np.zeros((np.size(analyse_num),r_int_num), dtype='complex128')
+        RCS_power = np.zeros_like(analysis_deltan)
+                     
+        # get raw data
+        raw_data = raw_data_extraction(raw_output_file)
+        raw_data = raw_data[0]
+            
+        # adding window
+        if win_sign:
+            han_win = np.zeros(raw_data.shape[1])
+            han_win[np.int(R_samples/2-R_n/2):np.int(R_samples/2+R_n/2)] = np.hamming(
+                    np.int(R_samples/2+R_n/2)-np.int(R_samples/2-R_n/2))
+            raw_data = raw_data * han_win.reshape((1, han_win.size))
+        
+        # showing pattern of the ocean waves
+        # intensity
+        raw_int = raw_data * np.conj(raw_data)
+        if plot_pattern:
+            plt.figure()
+            plt.imshow(np.abs(raw_int))
+            plt.xlabel("Range (pixel)")
+            plt.ylabel("Azimuth (pixel)")
+            
+            plot_path = cfg.sim.path + os.sep + 'delta_k_spectrum_plots'
+            
+            if not os.path.exists(plot_path):
+                os.makedirs(plot_path)
+            plt.savefig(os.path.join(plot_path, 'Pattern.png'))
+            plt.close()
+        intens_spectrum = np.mean(np.fft.fft(np.abs(raw_int), axis=1), axis=0)
+        if plot_spectrum:
+            plt.figure()
+            plt.plot(10 * np.log10(np.abs(intens_spectrum[1:np.int(R_samples/2)])))
+            plt.xlabel("Delta_k [1/m]")
+            plt.ylabel("Power (dB)")
+            
+        # Showing Delta-k spectrum for analysis
+        delta_k_spectrum(Scene_scope, r_int_num, inc, 
+                         raw_data, RCS_power, analysis_deltan, path_p)
+        # Calculating the required delta_f value
+        delta_f = cal_delta_f(const.c, inc, wave_scale)
+        delta_k = delta_f / const.c
+        ind_N = np.int(round(delta_k * (2 * Scene_scope) * 2)) 
+        # sar processing parameters transfor
+        s_r, r_int_num, ind_N, data_rshp, s_a, az_int, analyse_num, n_sar_a = Transform(raw_data, R_samples, 
+                    n_sar_r, r_int_num, Az_smaples, ind_N, az_int, n_sar_a, analyse_num, rang_img, Azi_img)
+        # initialization parameters       
+        dk_higha = np.zeros((np.size(analyse_num),r_int_num), dtype='complex128')
+        RCS_power = np.zeros_like(analysis_deltan)
+        Omiga_p = np.zeros((np.size(analyse_num),np.size(list)+1), dtype=np.float)
+        Omiga_p_z = np.zeros(np.size(analyse_num), dtype=np.float)  
+        Phase_p = np.zeros((np.size(analyse_num),np.size(list)+1), dtype=np.float)
+        Phase_p_z = np.zeros(np.size(analyse_num), dtype=np.float) 
+        
+        # Delta-k processing
+        if rang_img & Azi_img:  # 2-D unfocusing
+            for ind_x in range(s_r):
+                r_data = data_rshp[:, ind_x, :]
+                spck_f = np.fft.fftshift(np.fft.fft(r_data, axis=1), axes=(1,))
+                dk_high = spck_f[:,0:r_int_num]*np.conj(spck_f[:,ind_N:ind_N+r_int_num])
+                dk_higha = np.mean(dk_high, axis=1)
+                # azimuth sar azimuth processing          
+                dimsin = dk_higha.shape
+                int_unfcs, data_a = unfocused_sar(dk_higha, n_sar_a)
+                data_ufcs = np.fft.fftshift(data_a, axes=(1,))
+                              
+                for ind in range(np.size(analyse_num)):
+                   Omiga_p_z[ind], Phase_p_z[ind] = Calculation(data_ufcs[analyse_num[ind]:
+                                                    analyse_num[ind]+az_int,:], data_ufcs[0:az_int,:], 
+                                                    analyse_num[ind], PRF, k_w, n_sar_a, m_ind, wei_dop, Azi_img)
+                Omiga_p_z[ind] = Omiga_p_z[ind] + Omiga_p_z[ind]
+                Phase_p_z[ind] = Phase_p_z[ind] + Phase_p_z[ind]
+            Omiga_p_z = Omiga_p_z / s_r
+            Phase_p_z = Phase_p_z / s_r
+                
+        elif rang_img: # range unfocusing
+            for ind_x in range(s_r):
+                r_data = data_rshp[:,ind_x,:]
+                spck_f = np.fft.fftshift(np.fft.fft(r_data, axis=1), axes=(1,))
+                dk_high = spck_f[:,0:r_int_num]*np.conj(spck_f[:,ind_N:ind_N+r_int_num])
+                dk_higha = np.mean(dk_high, axis=1)
+                for ind in range(np.size(analyse_num)):
+                    Omiga_p_z[ind], Phase_p_z[ind] = Calculation(dk_higha[analyse_num[ind]
+                                                    :analyse_num[ind]+az_int], dk_higha[0:az_int], 
+                                                     analyse_num[ind], PRF, k_w, n_sar_a, m_ind, wei_dop, Azi_img)
+                Omiga_p_z[ind] = Omiga_p_z[ind] + Omiga_p_z[ind]
+                Phase_p_z[ind] = Phase_p_z[ind] + Phase_p_z[ind]
+            Omiga_p_z = Omiga_p_z / s_r   
+            Phase_p_z = Phase_p_z / s_r             
+        elif Azi_img: # azimuth unfocusing
+            spck_f = np.fft.fftshift(np.fft.fft(raw_data, axis=1), axes=(1,))
+            dk_high = spck_f[:,0:r_int_num]*np.conj(spck_f[:,ind_N:ind_N+r_int_num])
+            dk_higha = np.mean(dk_high, axis=1)
+            # azimuth sar azimuth processing  
+            int_unfcs, data_a = unfocused_sar(dk_higha, n_sar_a)
+            data_ufcs = np.fft.fftshift(data_a, axes=(1,))
+            
+            # Estimate phase    
+            for ind in range(np.size(analyse_num)):
+                Omiga_p_z[ind], Phase_p_z[ind] = Calculation(data_ufcs[analyse_num[ind]
+                                                    :analyse_num[ind]+az_int,:], data_ufcs[0:az_int,:], 
+                                                    analyse_num[ind], PRF, k_w, n_sar_a, m_ind, wei_dop, Azi_img)
+                   
+        else: # none unfocusing     
+            spck_f = np.fft.fftshift(np.fft.fft(raw_data, axis=1), axes=(1,))
+            
+            # Extracting the information of wave_scale
+            dk_high = spck_f[:,0:r_int_num] * np.conj(spck_f[:,ind_N:ind_N+r_int_num])
+            dk_higha = np.mean(dk_high, axis=1)
+            for ind in range(np.size(analyse_num)):
+                Omiga_p_z[ind], Phase_p_z[ind] = Calculation(dk_higha[analyse_num[ind]
+                                                :analyse_num[ind]+az_int], dk_higha[0:az_int], 
+                                                 analyse_num[ind], PRF, k_w, n_sar_a, m_ind, wei_dop, Azi_img)               
+                   
+        # Considering delta-k processing with lags    
+        if Delta_lag:
+            for iii in list:     
+                for ind in range(np.size(analyse_num)):
+                    dk_inda = spck_f[iii:,0:r_int_num]*np.conj(spck_f[0:-iii,ind_N:ind_N+r_int_num])
+                    dk_higha = np.mean(dk_inda, axis=1)
+                    pha = -np.angle(np.mean(dk_higha[analyse_num[ind]
+                    :analyse_num[ind]+az_int] * np.conj(dk_higha[0:az_int])))
+                    Omiga_p[ind,iii] = pha / analyse_num[ind] * PRF  
+                    Phase_p_z[ind,iii] = Omiga_p_z[ind,iii] / k_w
+                            
+                print(iii / (np.size(list)+1))
+            dk_higha = np.mean(dk_high, axis=1)
+            for ind in range(np.size(analyse_num)):
+                pha = -np.angle(np.mean(dk_higha[analyse_num[ind]
+                :analyse_num[ind]+az_int] * np.conj(dk_higha[0:az_int])))
+                Omiga_p_z[ind] = pha / analyse_num[ind] * PRF 
+                Phase_p_z[ind] = Omiga_p_z[ind] / k_w
+            Omiga_p[:,0] = Omiga_p_z 
+            Phase_p[:,0] = Phase_p_z
+            
+        # processing results       
+        if Azi_img:
+            analyse_num = np.array(analyse_num) * n_sar_a
+        plt.figure()
+        plt.plot(analyse_num, Omiga_p_z)
+        plt.xlabel("Azimuth interval [Pixel]")
+        plt.ylabel("Angular velocity (rad/s)") 
+        
+        plot_path = path_p + os.sep + 'delta_k_spectrum_plots'
+        if not os.path.exists(path_p):
+            os.makedirs(path_p) 
+        plt.savefig(os.path.join(plot_path, 'Angular_velocity.png'))
+        plt.close()
+        
+        plt.figure()
+        plt.plot(analyse_num, Phase_p_z)
+        plt.xlabel("Azimuth interval [Pixel]")
+        plt.ylabel("Phase velocity (m/s)") 
+        
+        plt.savefig(os.path.join(plot_path, 'Phase_velocity.png'))
+        plt.close()
+        #save the result data
+        if Delta_lag: # lag case
+            Omiga_f = Omiga_p[:,0]
+            Phase_f = Phase_p[:,0]
+        else: # normal case
+            Omiga_f = Omiga_p_z
+            Phase_f = Phase_p_z
+        Omiga_s = Omiga_f
+        Phase_s = Phase_f
+                
+        np.save(os.path.join(plot_path, 'Angular_velocity.npy'),
+                [Omiga_s, np.mean(Omiga_s), np.size(Omiga_s), analyse_num])
+        
+        np.save(os.path.join(plot_path, 'Phase_velocity.npy'),
+                [Phase_s, np.mean(Phase_s), np.size(Phase_s), analyse_num])
           
     
         
 
 def cal_delta_f(light_velocity = 0, inc = 0, wave_scale = 10):
     
-    delta_f = light_velocity / 2 / wave_scale / np.sin(inc * np.pi /180)
+    delta_ff = light_velocity / 2 / wave_scale / np.sin(inc * np.pi /180)
     
-    return delta_f
+    return delta_ff
 
 def delta_k_spectrum(Scene_scope = 0, r_int_num = 0, inc = 0, 
-                     raw_data = False, RCS_power = False, analysis_deltan = False, cfg = None):
+                     raw_data = False, RCS_power = False, analysis_deltan = False, path_p = None):
     
     spck_f = np.fft.fftshift(np.fft.fft(raw_data, axis=1), axes=(1,))
     
@@ -487,11 +489,56 @@ def delta_k_spectrum(Scene_scope = 0, r_int_num = 0, inc = 0,
     ax1.plot(xx, 10*(np.log10(RCS_power[1:np.size(analysis_deltan)])))
     ax1.set_xlabel("Delta_f [MHz]")
     ax1.set_ylabel("Power (dB)")
-    plot_path = cfg.sim.path + os.sep + 'delta_k_spectrum_plots'
+    plot_path = path_p + os.sep + 'delta_k_spectrum_plots'
+    if not os.path.exists(plot_path):
+        os.makedirs(plot_path)  
    
     
     plt.savefig(os.path.join(plot_path, 'delta_k_spectrum.png'))
-    plt.close()             
+    plt.close() 
+
+def Calculation(data1 = False, data2 = False, 
+                in_no = 0, PRF = 0, k_w = 0, n_sar_a = 0, m_ind = 0, wei_dop = 0, Azi_img = False): 
+    if Azi_img:
+        pha_f = -np.angle(np.mean(data1 * np.conj(data2), axis=0))
+        pha_ff = pha_f [int(m_ind - round(wei_dop / 2)):int(m_ind + round(wei_dop / 2))]
+        pha = np.mean(pha_ff) 
+        Omiga = pha / in_no * PRF / n_sar_a
+        Phase = Omiga / k_w 
+    else:
+        pha = -np.angle(np.mean(data1 * np.conj(data2)))
+        Omiga = pha / in_no * PRF / n_sar_a
+        Phase = Omiga / k_w 
+    return Omiga, Phase 
+
+def Transform (raw_data = False, R_samples = 0, n_sar_r = 0, r_int_num = 0, 
+               Az_smaples = 0, ind_N = 0, az_int = 0, n_sar_a = 0, analyse_num = False, rang_img = False, Azi_img = False):   
+    if rang_img & Azi_img:
+        s_rr = round(R_samples / n_sar_r)
+        r_int_num = round(r_int_num/s_rr)
+        ind_N = round(ind_N/s_rr)
+        data_rshp = raw_data.reshape((Az_smaples, s_rr, n_sar_r))
+        s_a = round(Az_smaples/n_sar_a)
+        az_int = int(az_int / n_sar_a)-2
+        analyse_num = range(2, s_a - az_int - 1)
+    elif rang_img:
+        s_rr = round(R_samples / n_sar_r)
+        r_int_num = round(r_int_num/s_rr)
+        ind_N = round(ind_N/s_rr)
+        data_rshp = raw_data.reshape((Az_smaples, s_rr, n_sar_r))
+        s_a = Az_smaples
+    elif Azi_img:
+        s_rr = R_samples
+        s_a = round(Az_smaples/n_sar_a)
+        az_int = int(az_int / n_sar_a)-2
+        analyse_num = range(2, s_a - az_int - 1)
+        data_rshp = raw_data
+    else:
+        s_rr = R_samples
+        n_sar_a = 1
+        data_rshp = raw_data
+        s_a = Az_smaples
+    return s_rr, r_int_num, ind_N, data_rshp, s_a, az_int, analyse_num, n_sar_a
 
 
 
@@ -503,6 +550,10 @@ if __name__ == '__main__':
     parser.add_argument('-r', '--raw_file')
     parser.add_argument('-o', '--output_file')
     args = parser.parse_args()
-
-    skim_process(args.cfg_file, args.raw_file, args.output_file)
-    delta_k_processing(args.raw_file, args.cfg_file)
+    Proc = False
+    if Proc:
+        skim_process(args.cfg_file, args.raw_file, args.output_file)
+        delta_k_processing(args.raw_file, args.cfg_file)
+    else:
+        delta_k_processing(args.raw_file, args.cfg_file)
+    #delta_k_processing(r'C:\Users\lyh\Documents\SKIM_12deg_rar_0\Time0_inc_s6_azimuth_s0\raw_data.nc', r'C:\Users\lyh\Documents\SKIM_12deg_rar_0\Time0_inc_s6_azimuth_s0\config.cfg')
