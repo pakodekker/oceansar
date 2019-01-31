@@ -27,6 +27,7 @@ osr_script = os.path.dirname(os.path.realpath(__file__)) + os.sep + 'oceansar_sk
 # TODO: make this part of the configuration file
 ## Definition of simulation parameters to be varied, this sho
 <<<<<<< HEAD
+<<<<<<< HEAD
 Time = range(0,15) 
 # incidence angle [deg]
 inc_s = [12, 6]
@@ -35,6 +36,8 @@ azimuth_s = [0, 45, 90, 135, 180, 225, 270, 315]
 No = np.arange(0,20)
 
 =======
+=======
+>>>>>>> parent of 60eb239... Delete oceansar_batchsarsim_skim.py
 Time = range(0,5) 
 # incidence angle [deg]
 inc_s = [12, 6]
@@ -43,12 +46,16 @@ azimuth_s = [90, 60, 30 ,0]
 
 wave_scale = [100, 37.5, 25, 12.5]
 #wave_scale = [100, 37.5, 25, 12.5]
+<<<<<<< HEAD
+>>>>>>> parent of 60eb239... Delete oceansar_batchsarsim_skim.py
+=======
 >>>>>>> parent of 60eb239... Delete oceansar_batchsarsim_skim.py
 
 n_rep = 1
 cfg_file_name = 'config.cfg'
 
 def batch_skimsim(template_file):
+<<<<<<< HEAD
 <<<<<<< HEAD
     
     for iii in range(np.size(No)):
@@ -78,6 +85,8 @@ def batch_skimsim(template_file):
                     cfg.save(cfg.sim.path + os.sep + cfg_file_name)
         
 =======
+=======
+>>>>>>> parent of 60eb239... Delete oceansar_batchsarsim_skim.py
     cfg_file = utils.get_parFile(parfile=template_file)
     ref_cfg = osrio.ConfigFile(cfg_file)
     step = 0
@@ -110,6 +119,9 @@ def batch_skimsim(template_file):
                     # Save configuration file into an alternate file
                     cfg.save(cfg.sim.path + os.sep + cfg_file_name)
     
+<<<<<<< HEAD
+>>>>>>> parent of 60eb239... Delete oceansar_batchsarsim_skim.py
+=======
 >>>>>>> parent of 60eb239... Delete oceansar_batchsarsim_skim.py
                     ### LAUNCH MACSAR ###
                     subprocess.call([sys.executable, osr_script, '-c', cfg.sim.path + os.sep + cfg_file_name])
@@ -120,12 +132,18 @@ def postprocess_batch_sim(template_file, plots=True):
     ref_cfg = osrio.ConfigFile(cfg_file)
    
 <<<<<<< HEAD
+<<<<<<< HEAD
     if cfg.processing.Azi_img:
         sim_path_ref = ref_cfg.sim.path + os.sep + 'Time%d_inc_s%d_azimuth_s%d' + os.sep + 'wavelength%.1f_unfocus'
     else:
         sim_path_ref = ref_cfg.sim.path + os.sep + 'Time%d_inc_s%d_azimuth_s%d' + os.sep + 'wavelength%.1f'
         
     wave_scale = ref_cfg.processing.wave_scale
+=======
+    sim_path_ref = ref_cfg.sim.path + os.sep + 'Time%d_inc_s%d_azimuth_s%d_wavelength%1f'
+    n_all = (np.size(Time) * np.size(inc_s) *
+             np.size(azimuth_s) * np.size(wave_scale) * n_rep)
+>>>>>>> parent of 60eb239... Delete oceansar_batchsarsim_skim.py
 =======
     sim_path_ref = ref_cfg.sim.path + os.sep + 'Time%d_inc_s%d_azimuth_s%d_wavelength%1f'
     n_all = (np.size(Time) * np.size(inc_s) *
@@ -202,6 +220,7 @@ def postprocess_batch_sim(template_file, plots=True):
                          
                          plt.savefig(os.path.join(ref_cfg.sim.path, 'Time_averaging_angular_velocity_%d_%d_%.1f.png' % (inc_s[ind_inc], azimuth_s[ind_azimuth], wave_scale[ind_wavelength])))                
                          plt.close()
+<<<<<<< HEAD
 <<<<<<< HEAD
                          
 def postprocess_batch_read(template_file, plots=True):
@@ -325,6 +344,8 @@ if __name__ == '__main__':
             postprocess_batch_read_fd(sys.argv[1], plots=True)
             
 =======
+=======
+>>>>>>> parent of 60eb239... Delete oceansar_batchsarsim_skim.py
 
 
 if __name__ == '__main__':
@@ -335,5 +356,8 @@ if __name__ == '__main__':
     else:
         batch_skimsim(sys.argv[1])
         postprocess_batch_sim(sys.argv[1], plots=True)
+<<<<<<< HEAD
+>>>>>>> parent of 60eb239... Delete oceansar_batchsarsim_skim.py
+=======
 >>>>>>> parent of 60eb239... Delete oceansar_batchsarsim_skim.py
 
