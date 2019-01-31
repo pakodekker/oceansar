@@ -17,7 +17,7 @@ import sys
 import os
 import time
 import subprocess
-from oceansar import io as osrio
+from oceansar import ocs_io as osrio
 from oceansar import utils
 import argparse
 

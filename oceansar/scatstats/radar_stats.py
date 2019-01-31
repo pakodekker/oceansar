@@ -6,7 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy import linalg
 import numexpr as ne
-from oceansar import io
+from oceansar import ocs_io
 from oceansar import utils
 import oceansar.utils.geometry as geosar
 from oceansar import constants as const
@@ -26,24 +26,29 @@ GMF = namedtuple('GMF', ['U10', 'azimuth', 'incident', 'NRCS_hh', 'NRCS_vv', 'v_
 
 class RadarSurface():
 
-    def __init__(self, cfg_file=None, ntimes=2, t_step=10e-3, pol='DP', winddir=0, U10=None):
+    def __init__(self, cfg_file=None, ntimes=2, t_step=10e-3, pol='DP', winddir=0, U10=None,
+                 po_model=None):
         """ This function generates a (short) time series of surface realizations.
 
                 :param scf_file: the full path to the configuration with all OCEANSAR parameters
                 :param ntimes: number of time samples generated.
                 :param t_step: spacing between time samples. This can be interpreted as the Pulse Repetition Interval
-                :param winddir: to force wind direction
+                :param wind:dir: to force wind direction
                 :param U10: to force wind force
+                :param po_model: one of None, spa (stationary phase approximation, or facet approach)
 
                 :returns: a tuple with the configuration object, the surfaces, the radial velocities for each grid point,
                       and the complex scattering coefficients
         """
         cfg_file = utils.get_parFile(parfile=cfg_file)
-        cfg = io.ConfigFile(cfg_file)
+        cfg = ocs_io.ConfigFile(cfg_file)
         self.cfg = cfg
         self.use_hmtf = cfg.srg.use_hmtf
         self.scat_spec_enable = cfg.srg.scat_spec_enable
-        self.scat_spec_mode = cfg.srg.scat_spec_mode
+        if po_model is None:
+            self.scat_spec_mode = cfg.srg.scat_spec_mode
+        else:
+            self.scat_spec_mode = po_model
         self.scat_bragg_enable = cfg.srg.scat_bragg_enable
         self.scat_bragg_model = cfg.srg.scat_bragg_model
         self.scat_bragg_d = cfg.srg.scat_bragg_d
@@ -51,12 +56,16 @@ class RadarSurface():
         self.scat_bragg_spread = cfg.srg.scat_bragg_spread
 
         # SAR
-        self.inc_angle = np.deg2rad(cfg.sar.inc_angle)
-        self.alt = self.cfg.sar.alt
-        self.f0 = self.cfg.sar.f0
-        self.prf = cfg.sar.prf
+        try:
+            radcfg = cfg.sar
+        except AttributeError:
+            radcfg = cfg.radar
+        self.inc_angle = np.deg2rad(radcfg.inc_angle)
+        self.alt = radcfg.alt
+        self.f0 = radcfg.f0
+        self.prf = radcfg.prf
         if pol is None:
-            self.pol = cfg.sar.pol
+            self.pol = radcfg.pol
         else:
             self.pol = pol
 
@@ -146,13 +155,13 @@ class RadarSurface():
         """
         cfg = self.cfg
         use_hmtf = cfg.srg.use_hmtf
-        scat_spec_enable = cfg.srg.scat_spec_enable
-        scat_spec_mode = cfg.srg.scat_spec_mode
-        scat_bragg_enable = cfg.srg.scat_bragg_enable
-        scat_bragg_model = cfg.srg.scat_bragg_model
-        scat_bragg_d = cfg.srg.scat_bragg_d
-        scat_bragg_spec = cfg.srg.scat_bragg_spec
-        scat_bragg_spread = cfg.srg.scat_bragg_spread
+        scat_spec_enable = self.scat_spec_enable
+        scat_spec_mode = self.scat_spec_mode
+        scat_bragg_enable = self.scat_bragg_enable
+        scat_bragg_model = self.scat_bragg_model
+        scat_bragg_d = self.scat_bragg_d
+        scat_bragg_spec = self.scat_bragg_spec
+        scat_bragg_spread = self.scat_bragg_spread
         self.inc_is_set = True
         self.inc_angle = np.radians(inc_deg)
         inc = np.array([self.inc_angle]).reshape((1, 1))
@@ -194,19 +203,23 @@ class RadarSurface():
             return
 
         cfg = self.cfg
-        use_hmtf = cfg.srg.use_hmtf
-        scat_spec_enable = cfg.srg.scat_spec_enable
-        scat_spec_mode = cfg.srg.scat_spec_mode
-        scat_bragg_enable = cfg.srg.scat_bragg_enable
-        scat_bragg_model = cfg.srg.scat_bragg_model
-        scat_bragg_d = cfg.srg.scat_bragg_d
-        scat_bragg_spec = cfg.srg.scat_bragg_spec
-        scat_bragg_spread = cfg.srg.scat_bragg_spread
+        use_hmtf = self.use_hmtf
+        scat_spec_enable = self.scat_spec_enable
+        scat_spec_mode = self.scat_spec_mode
+        scat_bragg_enable = self.scat_bragg_enable
+        scat_bragg_model = self.scat_bragg_model
+        scat_bragg_d = self.scat_bragg_d
+        scat_bragg_spec = self.scat_bragg_spec
+        scat_bragg_spread = self.scat_bragg_spread
 
         # SAR
-        alt = cfg.sar.alt
-        f0 = cfg.sar.f0
-        prf = cfg.sar.prf
+        try:
+            radcfg = cfg.sar
+        except AttributeError:
+            radcfg = cfg.radar
+        alt = radcfg.alt
+        f0 = radcfg.f0
+        prf = radcfg.prf
 
         pol = self.pol
         l0 = const.c / f0
@@ -556,16 +569,17 @@ def v_r_stats(rsurf, rel, ml=1):
 
 if __name__ == '__main__':
     cfg_file = '/Users/plopezdekker/DATA/OCEANSAR/PAR/SKIM_proxy.cfg'
+    cfg_file = '/Users/plopezdekker/DATA/OCEANSAR/PAR/S1_TOPS_emu1.cfg'
     #import oceansar.scatstats as ocs
     import drama.oceans.cmod5n as cm
     U = 8
     radsurf_U8 = RadarSurface(cfg_file, winddir=0, U10=U, t_step=1e-3)
-    gmf = radsurf_U8.gmf([6, 12], 18)
+    gmf = radsurf_U8.gmf([30], 18)
 
     plt.figure()
 
 
-    plt.plot(gmf.azimuth, 10 * np.log10(gmf.NRCS_vv[0]), label='6')
+    plt.plot(gmf.azimuth, 10 * np.log10(gmf.NRCS_vv[0]), label='30')
     plt.plot(gmf.azimuth, 10 * np.log10(gmf.NRCS_vv[1]), label='12')
     #plt.plot(gmf.azimuth, 10 * np.log10(gmf.NRCS_vv[2]), label='45')
     az = np.linspace(0, 360, 100)

@@ -131,9 +131,9 @@ class RCSKA():
 
         ### CACHE ###
         sin_theta_i = np.sin(theta_i).reshape((1, theta_i.size))
-        #sin_theta_i = np.repeat(sin_theta_i, self.shape[0], axis=0)
+        # sin_theta_i = np.repeat(sin_theta_i, self.shape[0], axis=0)
         cos_theta_i = np.cos(theta_i).reshape((1, theta_i.size))
-        #cos_theta_i = np.repeat(cos_theta_i, self.shape[0], axis=0)
+        # cos_theta_i = np.repeat(cos_theta_i, self.shape[0], axis=0)
         tan_theta_i = np.tan(theta_i) # This was sin, I guess this was a bug!
         sin_phi_i = np.sin(phi_i)
         cos_phi_i = np.cos(phi_i)
@@ -154,9 +154,9 @@ class RCSKA():
             v_s = v_i
         else:
             sin_theta_s = np.sin(theta_s).reshape((1, theta_i.size))
-            #sin_theta_s = np.repeat(sin_theta_s, self.shape[0], axis=0)
+            # sin_theta_s = np.repeat(sin_theta_s, self.shape[0], axis=0)
             cos_theta_s = np.cos(theta_s).reshape((1, theta_i.size))
-            #cos_theta_s = np.repeat(cos_theta_s, self.shape[0], axis=0)
+            # cos_theta_s = np.repeat(cos_theta_s, self.shape[0], axis=0)
             sin_phi_s = np.sin(phi_s)
             cos_phi_s = np.cos(phi_s)
             h_s = np.empty(self.shape)
@@ -185,14 +185,16 @@ class RCSKA():
 
         # Incidence direction (n_i)
         n_i = np.empty(self.shape)
-        n_i[:, :, 0] = sin_theta_i*cos_phi_i
-        n_i[:, :, 1] = sin_theta_i*sin_phi_i
+        n_i[:, :, 0] = sin_theta_i * cos_phi_i
+        n_i[:, :, 1] = sin_theta_i * sin_phi_i
         n_i[:, :, 2] = -cos_theta_i
 
         # Scattering direction (n_s)
         n_s = np.empty(self.shape)
-        n_s[:, :, 0] = sin_theta_s * cos_phi_s
-        n_s[:, :, 1] = sin_theta_s * sin_phi_s
+        # FIXME
+        # Changed the sign of the first two terms, since I think it was wrong!
+        n_s[:, :, 0] = - sin_theta_s * cos_phi_s
+        n_s[:, :, 1] = - sin_theta_s * sin_phi_s
         n_s[:, :, 2] = cos_theta_s
 
         # Scattering (q)
@@ -269,7 +271,7 @@ class RCSKA():
         # Facet Approach
         else:
             # Integral
-            I = (np.exp(-1j*np.sum(q*self.r, axis=-1))*n_norm*self.dx*self.dy*
+            I = (np.exp(-1j*np.sum(q*self.r, axis=-1))*n_norm* self.dx * self.dy *
                  np.sinc((q[..., 0] + q[..., 2]*Diffx)*self.dx/2.)*
                  np.sinc((q[..., 1] + q[..., 2]*Diffy)*self.dy/2.))
 

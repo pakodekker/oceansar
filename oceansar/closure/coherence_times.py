@@ -14,5 +14,5 @@ def grid_coherence(U, res, f0, model='Pierson-Moskowitz'):
                       the only one implemented)
     """
 
-    tau_c = 3 * const.c / f0 / U / np.sqrt(sp.special.erf(2.7 * res / U**2))
+    tau_c = 3.29 * const.c / f0 / U / np.sqrt(sp.special.erf(2.688 * res / U**2))
     return tau_c

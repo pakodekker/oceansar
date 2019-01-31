@@ -18,7 +18,7 @@ import os
 import time
 import subprocess
 import numpy as np
-from oceansar import io as osrio
+from oceansar import ocs_io as osrio
 from oceansar import utils
 from matplotlib import pyplot as plt
 import matplotlib as mpl
