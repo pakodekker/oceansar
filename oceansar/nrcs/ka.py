@@ -238,6 +238,9 @@ class RCSKA():
             J = Diffxx*Diffyy - Diffxy**2
             J = np.where(J == 0., np.nan, J)
             J_abs = np.abs(J)
+            # FIXME PLD 1.2.2019
+            # The following works only in the monostatic case, for the general case we would have to think a bit more,
+            # but maybe not much more
             delta_x = (1./J_abs)*(Diffxy*(Diffy - tan_theta_i*sin_phi_i) - Diffyy*(Diffx - tan_theta_i*cos_phi_i))
             delta_y = (1./J_abs)*(Diffxy*(Diffx - tan_theta_i*cos_phi_i) - Diffxx*(Diffy - tan_theta_i*sin_phi_i))
             delta_z = delta_x * Diffx + delta_y * Diffy

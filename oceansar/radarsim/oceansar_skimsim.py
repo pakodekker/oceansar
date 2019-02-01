@@ -64,8 +64,9 @@ def skimsim(cfg_file=None):
         returncode = subprocess.call([sys.executable,
                                       src_path + os.sep + 'skim_processor.py',
                                       '-c', cfg.cfg_file_name,
-                                      '-r', cfg.sim.path + os.sep + cfg.sim.raw_file,
-                                      '-o', cfg.sim.path + os.sep + cfg.sim.pp_file])
+                                      '-r', cfg.sim.path + os.sep + cfg.sim.raw_file])
+        #,
+        #                              '-o', cfg.sim.path + os.sep + cfg.sim.pp_file])
 
         if returncode != 0:
             raise Exception('Something went wrong with SAR RAW Processor (return code %d)...' % returncode)

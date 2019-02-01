@@ -60,7 +60,7 @@ def unfocused_sar(data, n_sar):
     return int_ufcs, data_ufcs
 
 
-def skim_process(cfg_file, raw_output_file, output_file):
+def skim_process(cfg_file, raw_output_file):
 
     ###################
     # INITIALIZATIONS #
@@ -83,6 +83,7 @@ def skim_process(cfg_file, raw_output_file, output_file):
     plot_rcmc_time = cfg.processing.plot_rcmc_time
     plot_image_valid = cfg.processing.plot_image_valid
     doppler_demod = cfg.processing.doppler_demod
+    pp_file = os.path.join(cfg.sim.path, cfg.sim.pp_file)
 
     # radar
     f0 = cfg.radar.f0
@@ -109,7 +110,7 @@ def skim_process(cfg_file, raw_output_file, output_file):
 
     # OTHER INITIALIZATIONS
     # Create plots directory
-    plot_path = os.path.dirname(output_file) + os.sep + plot_path
+    plot_path = os.path.dirname(pp_file) + os.sep + plot_path
     if plot_save:
         if not os.path.exists(plot_path):
             os.makedirs(plot_path)
@@ -182,7 +183,7 @@ def skim_process(cfg_file, raw_output_file, output_file):
     info.msg("Mean DCA (pulse-pair average): %f Hz" % (np.mean(dop_pp_avg)))
     info.msg("Mean DCA (pulse-pair phase average): %f Hz" % (np.mean(dop_pha_avg)))
     info.msg("Mean coherence: %f " % (np.mean(coh)))
-    info.msg("Saving output to %s" % (output_file))
+    info.msg("Saving output to %s" % (pp_file))
     # Unfocused SAR
     info.msg("Unfocused SAR")
     int_unfcs, data_ufcs = unfocused_sar(data[0:az_size_orig, 0:rg_size_orig], cfg.processing.n_sar)
@@ -196,7 +197,7 @@ def skim_process(cfg_file, raw_output_file, output_file):
     plt.savefig(plot_path + os.sep + 'ufcs_int.%s' % (plot_format), dpi=150)
     plt.close()
     plt.figure()
-    np.savez(output_file,
+    np.savez(pp_file,
              dop_pp_avg=dop_pp_avg,
              dop_pha_avg=dop_pha_avg,
              coh=coh,
@@ -204,12 +205,13 @@ def skim_process(cfg_file, raw_output_file, output_file):
 
     info.msg(time.strftime("All done [%Y-%m-%d %H:%M:%S]", time.localtime()))
 
+
 def raw_data_extraction(raw_output_file=None):
 
     ###################
     # INITIALIZATIONS #
     ###################
-     # RAW DATA
+    # RAW DATA
     raw_file = tpio.RawFile(raw_output_file, 'r')
     raw_data = raw_file.get('raw_data*')
     raw_file.close()
@@ -223,7 +225,8 @@ def delta_k_processing(raw_output_file, cfg_file):
     print('Delta-k processing begins...')
     # parameters
     cfg = tpio.ConfigFile(cfg_file)
-    n_sar_a = cfg.processing.n_sar_a 
+    pp_file = os.path.join(cfg.sim.path, cfg.sim.pp_file)
+    n_sar_a = cfg.processing.n_sar
     Azi_img = cfg.processing.Azi_img
     # radar
     f0 = cfg.radar.f0
@@ -241,7 +244,7 @@ def delta_k_processing(raw_output_file, cfg_file):
     
     if Azi_img:  # 2-D unfocusing
         path = cfg.sim.path
-        data = np.load(os.path.join(path, 'pp_data.nc.npz'))
+        data = np.load(pp_file)
         Doppler_av = np.mean(data['dop_pp_avg'])
         dp_axis = np.linspace(-prf / 2, prf / 2, n_sar_a)
         val_d = np.abs(dp_axis - Doppler_av)
@@ -549,11 +552,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--cfg_file')
     parser.add_argument('-r', '--raw_file')
-    parser.add_argument('-o', '--output_file')
+    # parser.add_argument('-o', '--output_file')
     args = parser.parse_args()
-    Proc = False
+    Proc = True
     if Proc:
-        skim_process(args.cfg_file, args.raw_file, args.output_file)
+        skim_process(args.cfg_file, args.raw_file)
         delta_k_processing(args.raw_file, args.cfg_file)
     else:
         delta_k_processing(args.raw_file, args.cfg_file)
