@@ -25,7 +25,7 @@ import matplotlib.pyplot as plt
 
 from oceansar.utils import geometry as geosar
 from oceansar import utils
-from oceansar import io as tpio
+from oceansar import ocs_io as tpio
 from oceansar import constants as const
 from oceansar.surfaces import OceanSurface
 

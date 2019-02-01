@@ -4,7 +4,7 @@ from scipy import linalg
 import types
 
 
-from oceansar import io as wsio
+from oceansar import ocs_io as wsio
 from oceansar import spec
 from oceansar import spread
 from oceansar import utils

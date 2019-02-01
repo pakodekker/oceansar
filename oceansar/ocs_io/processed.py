@@ -1,7 +1,7 @@
 
 import time
 from netCDF4 import Dataset
-from oceansar.io import NETCDFHandler
+from oceansar.ocs_io import NETCDFHandler
 
 
 class ProcFile(NETCDFHandler):

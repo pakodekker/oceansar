@@ -22,7 +22,7 @@ from matplotlib import pyplot as plt
 
 from oceansar.utils import geometry as geo
 from oceansar import utils
-from oceansar import io as tpio
+from oceansar import ocs_io as tpio
 from oceansar import constants as const
 
 
@@ -198,6 +198,7 @@ def skim_process(cfg_file, raw_output_file, output_file):
     plt.figure()
     np.savez(output_file,
              dop_pp_avg=dop_pp_avg,
+             dop_pha_avg=dop_pha_avg,
              coh=coh,
              ufcs_intensity=int_unfcs)
 

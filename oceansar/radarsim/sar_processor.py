@@ -22,7 +22,7 @@ from matplotlib import pyplot as plt
 
 from oceansar.utils import geometry as geo
 from oceansar import utils
-from oceansar import io as tpio
+from oceansar import ocs_io as tpio
 from oceansar import constants as const
 from oceansar.radarsim.antenna import sinc_1tx_nrx
 

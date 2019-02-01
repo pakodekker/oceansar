@@ -1,9 +1,9 @@
 """
 =================================
-I/O Utilities (:mod:`osiris.io`)
+I/O Utilities (:mod:`osiris.ocs_io`)
 =================================
 
-.. currentmodule:: osiris.io
+.. currentmodule:: osiris.ocs_io
 
 This module contains I/O Utilities
 
@@ -12,13 +12,13 @@ State Files
 .. toctree::
    :maxdepth: 2
 
-.. automodule:: osiris.io.netcdf
+.. automodule:: osiris.ocs_io.netcdf
    :members:
 
-.. automodule:: osiris.io.state
+.. automodule:: osiris.ocs_io.state
    :members:
 
-.. automodule:: osiris.io.cfg
+.. automodule:: osiris.ocs_io.cfg
    :members:
 """
 

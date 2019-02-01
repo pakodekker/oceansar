@@ -17,7 +17,7 @@ Basic modules
 .. automodule:: oceansar.constants
    :members:
 
-.. automodule:: oceansar.io
+.. automodule:: oceansar.ocs_io
    :members:
 
 .. automodule:: oceansar.nrcs
