@@ -134,7 +134,7 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
     alt = cfg.radar.alt
     v_ground = cfg.radar.v_ground
     rg_bw = cfg.radar.rg_bw
-    over_fs = cfg.radar.over_fs
+    over_fs = cfg.radar.Fs / cfg.radar.rg_bw
     sigma_n_tx = cfg.radar.sigma_n_tx
     phase_n_tx = np.deg2rad(cfg.radar.phase_n_tx)
     sigma_beta_tx = cfg.radar.sigma_beta_tx
@@ -146,9 +146,22 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
 
     # OCEAN / OTHERS
     ocean_dt = cfg.ocean.dt
+    if hasattr(cfg.sim, "cal_targets"):
+        if cfg.sim.cal_targets is False:
+            add_point_target = False  # This for debugging
+            point_target_floats = True  # Not really needed, but makes coding easier later
+        else:
+            print("Adding cal targets")
+            add_point_target = True
+            if cfg.sim.cal_targets.lower() == 'floating':
+                point_target_floats = True
+            else:
+                point_target_floats = False
+    else:
+        add_point_target = False  # This for debugging
+        point_target_floats = True
 
-    add_point_target = False  # This for debugging
-    n_sinc_samples = 8
+    n_sinc_samples = 10
     sinc_ovs = 20
     chan_sinc_vec = raw.calc_sinc_vec(n_sinc_samples, sinc_ovs, Fs=over_fs)
     # Set win direction with respect to beam
@@ -422,6 +435,11 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
         sin_az = az / sr
         az_proj_angle = np.arcsin(az / gr0)
         # Note: Projected displacements are added to slant range
+        if point_target_floats is False:  # This can only happen if point targets are enabled
+            surface.Dx[int(surface.Ny / 2), int(surface.Nx / 2)] = 0
+            surface.Dy[int(surface.Ny / 2), int(surface.Nx / 2)] = 0
+            surface.Dz[int(surface.Ny / 2), int(surface.Nx / 2)] = 0
+
         if cfg.srg.two_scale_Doppler:
             # slant-range for phase
             sr_surface = (sr - cos_inc * surface.Dz
@@ -442,16 +460,7 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
             scene_hh = np.zeros([int(surface.Ny), int(surface.Nx)], dtype=np.complex)
         if do_vv:
             scene_vv = np.zeros([int(surface.Ny), int(surface.Nx)], dtype=np.complex)
-        # Point target
-        if add_point_target and rank == 0:
-            sr_pt = (sr[0, surface.Nx/2] + az[surface.Ny/2, 0]/2 *
-                     sin_az[surface.Ny/2, surface.Nx/2])
-            pt_scat = (100. * np.exp(-1j * 2. * k0 * sr_pt))
-            if do_hh:
-                scene_hh[surface.Ny/2, surface.Nx/2] = pt_scat
-            if do_vv:
-                scene_vv[surface.Ny/2, surface.Nx/2] = pt_scat
-            sr_surface[surface.Ny/2, surface.Nx/2] = sr_pt
+
 
         # Specular
         if scat_spec_enable:
@@ -544,6 +553,14 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
             if do_vv:
                 scene_vv += ne.evaluate('sum(scat_bragg_vv * exp(1j*phase_bragg) * bragg_scats, axis=0)')
 
+        if add_point_target:
+            # Now we replace scattering at center by fixed value
+            pt_y = int(surface.Ny / 2)
+            pt_x = int(surface.Nx / 2)
+            if do_hh:
+                scene_hh[pt_y, pt_x] = 1000 * np.exp(-1j * 2 * k0 * sr_surface[pt_y, pt_x])
+            if do_vv:
+                scene_vv[pt_y, pt_x] = 1000 * np.exp(-1j * 2 * k0 * sr_surface[pt_y, pt_x])
         ## ANTENNA PATTERN
         ## FIXME: this assume co-located Tx and Tx, so it will not work for true bistatic configurations
         if cfg.radar.L_total:

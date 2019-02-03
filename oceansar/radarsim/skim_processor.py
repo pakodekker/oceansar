@@ -26,10 +26,30 @@ from oceansar import ocs_io as tpio
 from oceansar import constants as const
 
 
+def range_spectrum(data, Fs, pdir):
+    # Basically, to check range spectrum of data
+    spec = np.fft.fft(data, axis=1)
+    spec = np.mean(np.abs(spec)**2, axis=0)
+    freq = np.fft.fftfreq(spec.size, 1/Fs)
+    plt.figure()
+    plt.plot(np.fft.fftshift(freq)/1e6, np.fft.fftshift(spec))
+    plt.xlabel("f [MHz]")
+    plt.grid(True)
+    plt.savefig(os.path.join(pdir, 'fastfreq_spectrum'))
 
+
+def range_oversample(data):
+    data_f = np.fft.fft(data, axis=1)
+    data_ovs_f = np.zeros((data.shape[0], 2 * data.shape[1]), dtype=np.complex)
+    data_ovs_f[:, 0:data.shape[1]] = np.fft.fftshift(data_f, (1,))
+    data_ovs_f = np.roll(data_ovs_f, -int(data.shape[1] / 2), axis=1)
+    data_ovs = np.fft.ifft(data_ovs_f, axis=1)
+    return data_ovs
 
 
 def pulse_pair(data, prf):
+    # stricktly speaking, we should oversample, so let's do it
+
     pp = data[1:] * np.conj(data[0:-1])
     # Phase to dop
     p2d = 1 / (2 * np.pi) * prf
@@ -38,17 +58,47 @@ def pulse_pair(data, prf):
     pp_rg_avg_dop = p2d * np.angle(pp_rg_avg)
     # average phase to eliminate biases due to amplitude variations
     # FIXME
-    phase_rg_avg_dop = p2d * np.mean(np.angle(pp[:, 700:1300]), axis=-1)
+    phase_rg_avg_dop = p2d * np.mean(np.angle(pp[:, :]), axis=-1)
     # Coherence
     coh_rg_avg = pp_rg_avg / np.sqrt(np.mean(np.abs(data[1:])**2, axis=-1) *
                                      np.mean(np.abs(data[0:-1])**2, axis=-1))
+
+    return pp_rg_avg_dop, phase_rg_avg_dop, np.abs(coh_rg_avg)
+
+
+def rar_spectra(data, fs, rgsmth=4):
+    nrg = data.shape[1]
+    pp = data[1:] * np.conj(data[0:-1])
     # Intensity spectrum
-    data_int = np.abs(data) ** 2
-    mean_intensity_profile = np.mean(np.abs(data_int), axis=0)
-    intens_spectrum = np.mean(np.fft.fft(np.abs(data_int), axis=1), axis=0)
-    intens_spectrum_smth = utils.smooth(intens_spectrum, 20)
-    return (pp_rg_avg_dop, phase_rg_avg_dop, np.abs(coh_rg_avg),
-            mean_intensity_profile, intens_spectrum, intens_spectrum_smth)
+    data_int = utils.smooth(np.abs(data) ** 2, 10, axis=0)
+    mean_intensity_profile = np.mean(data_int, axis=0)
+    mask = mean_intensity_profile > (mean_intensity_profile.mean() / 10)
+    mask = mask.reshape((1, mask.size))
+    data_int_m = mask * data_int
+    mean_int = np.sum(data_int_m) / np.sum(mask) / data.shape[0]
+    mean_intensity_profile2 = mean_intensity_profile - mean_int * mask.flatten()
+    han = np.hanning(data.shape[1]).reshape((1, data.shape[1]))
+    data_ac = data_int_m - mask * mean_int
+    intens_spectrum = utils.smooth(np.mean(np.abs(np.fft.fft(han * data_ac, axis=1)) ** 2, axis=0), rgsmth)/nrg
+    phase_spectrum = np.mean(np.abs(np.fft.fft(mask * np.angle(utils.smooth(pp, 10, axis=0)), axis=1)) ** 2, axis=0)
+    phase_spectrum = utils.smooth(phase_spectrum, rgsmth)/nrg
+    kr = 2 * np.pi * np.fft.fftfreq(intens_spectrum.size, const.c / 2 / fs)
+    return kr, mean_intensity_profile2, intens_spectrum, phase_spectrum
+
+
+def sar_spectra(sardata, fs, rgsmth=4):
+    # azimuth int profile
+    nrg = sardata.shape[1]
+    az_prof = np.mean(sardata, axis=1)
+    mask = sardata > (az_prof.reshape((az_prof.size, 1)) / 10)
+    az_prof = np.sum(sardata, axis=1) / np.sum(mask, axis=1)
+    # Remove average
+    han = np.hanning(sardata.shape[1]).reshape((1, sardata.shape[1]))
+    sardata_ac = mask * (sardata - az_prof.reshape((az_prof.size, 1)))
+    sarint_spec = np.mean(np.abs(np.fft.fft(sardata_ac * han, axis=1))**2, axis=0)/nrg
+    sarint_spec = utils.smooth(sarint_spec, rgsmth)
+    kr = 2 * np.pi * np.fft.fftfreq(sarint_spec.size, const.c / 2 / fs)
+    return kr, sarint_spec
 
 
 def unfocused_sar(data, n_sar):
@@ -58,7 +108,7 @@ def unfocused_sar(data, n_sar):
     else:
         data_rshp = data.reshape((int(dimsin[0] / n_sar), int(n_sar), dimsin[1]))
     # DFT in azimuth
-    data_ufcs = np.fft.fft(data_rshp, axis=1)
+    data_ufcs = np.fft.fft(data_rshp, axis=1)/np.sqrt(n_sar)
     # focused average intensity
     int_ufcs = np.mean(np.abs(data_ufcs)**2, axis=0)
     return int_ufcs, data_ufcs
@@ -103,7 +153,7 @@ def skim_process(cfg_file, raw_output_file):
     rg_sampling = cfg.radar.Fs
     # Range freqency axis
     f_axis = np.linspace(0, rg_sampling, cfg.radar.n_rg)
-    wavenum_scale = f_axis * 2 * np.pi / const.c * np.sin(np.radians(cfg.radar.inc_angle))
+    wavenum_scale = f_axis * 4 * np.pi / const.c * np.sin(np.radians(cfg.radar.inc_angle))
 
     # RAW DATA
     raw_file = tpio.RawFile(raw_output_file, 'r')
@@ -136,7 +186,7 @@ def skim_process(cfg_file, raw_output_file):
         #plt.title()
         plt.xlabel("Range [samples]")
         plt.ylabel("Azimuth [samples")
-        plt.savefig(plot_path + os.sep  +'plot_raw_real.%s' % (plot_format), dpi=150)
+        plt.savefig(plot_path + os.sep +'plot_raw_real.%s' % (plot_format), dpi=150)
         plt.close()
         plt.figure()
         plt.imshow(np.abs(raw_data[0]), vmin=0, vmax=np.max(np.abs(raw_data[0])),
@@ -185,17 +235,22 @@ def skim_process(cfg_file, raw_output_file):
         data[:, 0:rg_size_orig] = (data[:, 0:rg_size_orig] *
                                    np.exp((-2j * np.pi) * t_vec * dop_ref.reshape((1, rg_size_orig))))
     # Pulse pair
+    info.msg("Range over-sampling")
+    data_ovs = range_oversample(data)
     info.msg("Pulse-pair processing")
-    (dop_pp_avg, dop_pha_avg, coh,
-     mean_int_profile, int_spe,
-     int_spe_smth) = pulse_pair(data[0:az_size_orig, 0:rg_size_orig], prf)
+    dop_pp_avg, dop_pha_avg, coh = pulse_pair(data_ovs[0:az_size_orig, 0:2 * rg_size_orig], prf)
+    krv, mean_int_profile, int_spe, phase_spec = rar_spectra(data_ovs[0:az_size_orig, 0:2 * rg_size_orig],
+                                                             2 * rg_sampling, rgsmth=8)
+    kxv = krv * np.sin(np.radians(cfg.radar.inc_angle))
+    range_spectrum(data[0:az_size_orig, 0:rg_size_orig], rg_sampling, plot_path)
     info.msg("Mean DCA (pulse-pair average): %f Hz" % (np.mean(dop_pp_avg)))
     info.msg("Mean DCA (pulse-pair phase average): %f Hz" % (np.mean(dop_pha_avg)))
     info.msg("Mean coherence: %f " % (np.mean(coh)))
-    info.msg("Saving output to %s" % (pp_file))
+
     # Unfocused SAR
     info.msg("Unfocused SAR")
-    int_unfcs, data_ufcs = unfocused_sar(data[0:az_size_orig, 0:rg_size_orig], cfg.processing.n_sar)
+    int_unfcs, data_ufcs = unfocused_sar(data_ovs[0:az_size_orig, 0:2*rg_size_orig], cfg.processing.n_sar)
+    krv2, sar_int_spec = sar_spectra(int_unfcs, 2 * rg_sampling, rgsmth=8)
     plt.figure()
     plt.imshow(np.fft.fftshift(int_unfcs, axes=(0,)),
                origin='lower', aspect='auto',
@@ -203,27 +258,54 @@ def skim_process(cfg_file, raw_output_file):
     # plt.title()
     plt.xlabel("Range [samples]")
     plt.ylabel("Doppler [samples")
-    plt.savefig(plot_path + os.sep + 'ufcs_int.%s' % (plot_format), dpi=150)
+    plt.savefig(plot_path + os.sep + 'ufcs_int.%s' % plot_format, dpi=150)
     plt.close()
+
     plt.figure()
     plt.plot(mean_int_profile)
     plt.xlabel("Range samples [Pixels]")
     plt.ylabel("Intensity")
-    plt.savefig(plot_path + os.sep + 'mean_int.%s' % (plot_format))
+    plt.savefig(plot_path + os.sep + 'mean_int.%s' % plot_format)
+    plt.close()
+
     plt.figure()
-    plt.plot(2 * wavenum_scale[1:np.int(cfg.radar.n_rg/2)], (np.abs(int_spe[1:np.int(cfg.radar.n_rg/2)])))
-    plt.plot(2 * wavenum_scale[1:np.int(cfg.radar.n_rg/2)], (np.abs(int_spe_smth[1:np.int(cfg.radar.n_rg/2)])))
-    plt.xlabel("Delta_k [rad/m]")
-    plt.ylabel("Power")
-    plt.savefig(plot_path + os.sep + 'int_spe.%s' % (plot_format))
+    plt.plot(np.fft.fftshift(kxv), np.fft.fftshift(int_spe))
+    plt.ylim((int_spe[20:np.int(cfg.radar.n_rg)-20].min()/2,
+              int_spe[20:np.int(cfg.radar.n_rg)-20].max()*1.5))
+    plt.xlim((0, kxv.max()))
+    plt.xlabel("$k_x$ [rad/m]")
+    plt.ylabel("$S_I$")
+    plt.savefig(plot_path + os.sep + 'int_spec.%s' % plot_format)
+    plt.close()
+
+    plt.figure()
+    plt.plot(np.fft.fftshift(kxv), np.fft.fftshift(sar_int_spec))
+    plt.ylim((sar_int_spec[20:np.int(cfg.radar.n_rg)-20].min()/2,
+              sar_int_spec[20:np.int(cfg.radar.n_rg)-20].max()*1.5))
+    plt.xlim((0, kxv.max()))
+    plt.xlabel("$k_x$ [rad/m]")
+    plt.ylabel("$S_I$")
+    plt.savefig(plot_path + os.sep + 'sar_int_spec.%s' % plot_format)
+    plt.close()
+
+    plt.figure()
+    plt.plot(np.fft.fftshift(kxv), np.fft.fftshift(phase_spec))
+    plt.ylim((phase_spec[20:np.int(cfg.radar.n_rg)-20].min()/2,
+              phase_spec[20:np.int(cfg.radar.n_rg)-20].max()*1.5))
+    plt.xlabel("$k_x$ [rad/m]")
+    plt.xlim((0, kxv.max()))
+    plt.ylabel("$S_{Doppler}$")
+    plt.savefig(plot_path + os.sep + 'pp_phase_spec.%s' % plot_format)
+
+    info.msg("Saving output to %s" % pp_file)
     np.savez(pp_file,
              dop_pp_avg=dop_pp_avg,
              dop_pha_avg=dop_pha_avg,
              coh=coh,
              ufcs_intensity=int_unfcs,
              mean_int_profile=mean_int_profile,
-             int_spe=int_spe,
-             int_spe_smth=int_spe_smth, wavenum_scale=wavenum_scale)
+             int_spec=int_spe, sar_int_spec=sar_int_spec,
+             ppphase_spec=phase_spec, kx=kxv)
 
     info.msg(time.strftime("All done [%Y-%m-%d %H:%M:%S]", time.localtime()))
 
@@ -315,7 +397,7 @@ def delta_k_processing(raw_output_file, cfg_file):
         k_w = 2 * np.pi / wave_scale
         # initialization parameters
         dk_higha = np.zeros((np.size(analyse_num),r_int_num), dtype=np.float)
-        RCS_power = np.zeros_like(analysis_deltan)
+        # RCS_power = np.zeros_like(analysis_deltan)
 
         # get raw data
         raw_data = raw_data_extraction(raw_output_file)
@@ -345,7 +427,7 @@ def delta_k_processing(raw_output_file, cfg_file):
 
         # Showing Delta-k spectrum for analysis
         delta_k_spectrum(Scene_scope, r_int_num, inc,
-                         raw_data, RCS_power, analysis_deltan, path_p)
+                         raw_data, analysis_deltan, path_p)
         # Calculating the required delta_f value
         delta_f = cal_delta_f(inc, wave_scale)
         delta_k = delta_f / const.c
@@ -355,7 +437,7 @@ def delta_k_processing(raw_output_file, cfg_file):
                     n_sar_r, r_int_num, Az_smaples, ind_N, az_int, n_sar_a, analyse_num, rang_img, Azi_img)
         # initialization parameters
         dk_higha = np.zeros((np.size(analyse_num), r_int_num), dtype = np.float)
-        RCS_power = np.zeros_like(analysis_deltan)
+        #  = np.zeros_like(analysis_deltan)
         Omiga_p = np.zeros((np.size(analyse_num), np.size(list) + 1), dtype=np.float)
         Omiga_p_z = np.zeros(np.size(analyse_num), dtype = np.float)
         Phase_p = np.zeros((np.size(analyse_num),np.size(list)+1), dtype=np.float)
@@ -449,7 +531,6 @@ def delta_k_processing(raw_output_file, cfg_file):
                                                analyse_num[ind], PRF, k_w,
                                                n_sar_a, m_ind, wei_dop, Azi_img)
 
-
         # processing results
         if Azi_img:
             analyse_num = np.array(analyse_num) * n_sar_a
@@ -495,28 +576,28 @@ def cal_delta_f(inc, wave_scale):
     return delta_ff
 
 
-def delta_k_spectrum(Scene_scope, r_int_num, inc,
-                     raw_data, RCS_power,
+def delta_k_spectrum(scene_scope, r_int_num, inc,
+                     raw_data,
                      analysis_deltan, path_p):
 
     spck_f = np.fft.fftshift(np.fft.fft(raw_data, axis=1), axes=(1,))
 
-    analysis_deltaf = analysis_deltan / 4 / Scene_scope * const.c
-
+    analysis_deltaf = analysis_deltan / 4 / scene_scope * const.c
+    nrg = raw_data.shape[1]
+    rcs_power = np.zeros(np.size(analysis_deltan))
     for ind in range(np.size(analysis_deltan)):
-        dk_ind = spck_f[:, 0:r_int_num] * np.conj(spck_f[:, ind:ind + r_int_num])
-        RCS_power[ind] = np.abs(np.mean(dk_ind))
+        dk_ind = spck_f[:, ind:] * np.conj(spck_f[:, 0:nrg-ind])
+        rcs_power[ind] = np.abs(np.mean(dk_ind))
 
     xx = analysis_deltaf[1:np.size(analysis_deltan)] / 1e6
     fig = plt.figure()
     ax1 = fig.add_subplot(111)
-    ax1.plot(xx, 10*(np.log10(RCS_power[1:np.size(analysis_deltan)])))
+    ax1.plot(xx, 10*(np.log10(rcs_power[1:np.size(analysis_deltan)])))
     ax1.set_xlabel("Delta_f [MHz]")
     ax1.set_ylabel("Power (dB)")
     plot_path = path_p + os.sep + 'delta_k_spectrum_plots'
     if not os.path.exists(plot_path):
         os.makedirs(plot_path)
-
 
     plt.savefig(os.path.join(plot_path, 'delta_k_spectrum.png'))
     plt.close()

@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 
 
 def calc_sinc_vec(n_sinc_samples=6, sinc_ovs=10, Fs=1.0):
-    n_sinc_bins = sinc_ovs * n_sinc_samples + 1
+    n_sinc_bins = int(sinc_ovs * n_sinc_samples + 1)
     sinc_bins = np.arange(n_sinc_bins) * 1. / sinc_ovs - n_sinc_samples/2
     sinc_vec = np.array(np.sinc(sinc_bins/Fs), dtype=np.float32)
     return sinc_vec
@@ -105,7 +105,7 @@ def chan_profile_numba(srg, scene, binsize, min_sr,
     #Fractional bin
     bin_f = (srg - min_sr) / binsize
     bin_d = np.int32(np.floor(bin_f))
-    bin_f = np.int32(np.floor(sinc_ovs * (1 - (bin_f - bin_d))))
+    bin_f = np.int32(np.round(sinc_ovs * (1 - (bin_f - bin_d))))
     #n_lobes = 2*n_sinc_lobes
     outtmp = np.zeros(output.size, dtype=np.complex64)
     if rg_only:
