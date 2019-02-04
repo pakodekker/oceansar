@@ -26,11 +26,11 @@ from oceansar import ocs_io as tpio
 from oceansar import constants as const
 
 
-def range_spectrum(data, Fs, pdir):
+def range_spectrum(data, fs, pdir):
     # Basically, to check range spectrum of data
     spec = np.fft.fft(data, axis=1)
     spec = np.mean(np.abs(spec)**2, axis=0)
-    freq = np.fft.fftfreq(spec.size, 1/Fs)
+    freq = np.fft.fftfreq(spec.size, 1/fs)
     plt.figure()
     plt.plot(np.fft.fftshift(freq)/1e6, np.fft.fftshift(spec))
     plt.xlabel("f [MHz]")
@@ -112,6 +112,23 @@ def unfocused_sar(data, n_sar):
     # focused average intensity
     int_ufcs = np.mean(np.abs(data_ufcs)**2, axis=0)
     return int_ufcs, data_ufcs
+
+
+def sar_delta_k(sar_data, fs, dksmoth=4):
+    # Number of range samples
+    nrg = sar_data.shape[2]
+    ndk = int(nrg/2)
+    # FFT in range and re-order
+    sar_data_f = np.fft.fftshift(np.fft.fft(sar_data, axis=2), axes=(2,))
+    dk_sig = np.zeros((sar_data.shape[0], sar_data.shape[1], ndk), dtype=np.complex)
+    for ind in range(0, ndk):
+        dk_ind = sar_data_f[:, :, ind:] * np.conj(sar_data_f[:, :, 0:nrg - ind])
+        dk_sig[:, :, ind] = np.mean(dk_ind, axis=2)
+    dk_avg = utils.smooth(np.mean(np.abs(np.mean(dk_sig, axis=0))**2, axis=0), dksmoth)
+    # dkr = np.fft.fftshift(2 * np.pi * np.fft.fftfreq(ndk, const.c / 2 / fs))
+    dkr = fs / nrg * 2 / const.c * 2 * np.pi * np.arange(ndk)
+    return dkr, dk_avg, dk_sig
+
 
 
 def skim_process(cfg_file, raw_output_file):
@@ -251,6 +268,11 @@ def skim_process(cfg_file, raw_output_file):
     info.msg("Unfocused SAR")
     int_unfcs, data_ufcs = unfocused_sar(data_ovs[0:az_size_orig, 0:2*rg_size_orig], cfg.processing.n_sar)
     krv2, sar_int_spec = sar_spectra(int_unfcs, 2 * rg_sampling, rgsmth=8)
+
+    # Some delta-k on focused sar data
+    info.msg("Unfocused SAR delta-k spectrum")
+    dkr, dk_avg, dk_signal = sar_delta_k(data_ufcs, 2 * rg_sampling, dksmoth=8)
+
     plt.figure()
     plt.imshow(np.fft.fftshift(int_unfcs, axes=(0,)),
                origin='lower', aspect='auto',
@@ -285,7 +307,7 @@ def skim_process(cfg_file, raw_output_file):
     plt.xlim((0, kxv.max()))
     plt.xlabel("$k_x$ [rad/m]")
     plt.ylabel("$S_I$")
-    plt.savefig(plot_path + os.sep + 'sar_int_spec.%s' % plot_format)
+    plt.savefig(plot_path + os.sep + 'sar_int_spec.%s' % plot_format)   
     plt.close()
 
     plt.figure()
@@ -296,6 +318,17 @@ def skim_process(cfg_file, raw_output_file):
     plt.xlim((0, kxv.max()))
     plt.ylabel("$S_{Doppler}$")
     plt.savefig(plot_path + os.sep + 'pp_phase_spec.%s' % plot_format)
+
+    plt.figure()
+    dkx = dkr * np.sin(np.radians(cfg.radar.inc_angle))
+    plt.plot(dkx, dk_avg)
+    plt.ylim((dk_avg[20:dkx.size-20].min()/2,
+              dk_avg[20:dkx.size-20].max()*1.5))
+    plt.xlim((0, dkx.max()))
+    plt.xlabel("$\Delta k_x$ [rad/m]")
+    plt.ylabel("$S_I$")
+    plt.savefig(plot_path + os.sep + 'sar_delta_k_spec.%s' % plot_format)
+    plt.close()
 
     info.msg("Saving output to %s" % pp_file)
     np.savez(pp_file,
