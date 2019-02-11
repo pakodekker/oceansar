@@ -51,6 +51,10 @@ def pulse_pair(data, prf):
     # stricktly speaking, we should oversample, so let's do it
 
     pp = data[1:] * np.conj(data[0:-1])
+    data_int = np.abs(data)
+    mean_intensity_profile = np.mean(data_int, axis=0)
+    mask = mean_intensity_profile > (mean_intensity_profile.mean() / 10)
+    mask = mask.reshape((1, mask.size))
     # Phase to dop
     p2d = 1 / (2 * np.pi) * prf
     # average complex phasors
@@ -58,7 +62,11 @@ def pulse_pair(data, prf):
     pp_rg_avg_dop = p2d * np.angle(pp_rg_avg)
     # average phase to eliminate biases due to amplitude variations
     # FIXME
-    phase_rg_avg_dop = p2d * np.mean(np.angle(pp[:, :]), axis=-1)
+    ppm = pp * mask
+    good = np.where(np.abs(ppm) > 0)
+    ppm[good] = ppm[good]/np.abs(ppm[good])
+    # phase_rg_avg_dop = p2d * np.mean(np.angle(pp[:, :]), axis=-1)
+    phase_rg_avg_dop = p2d * np.angle(np.mean(ppm[:, :], axis=-1))
     # Coherence
     coh_rg_avg = pp_rg_avg / np.sqrt(np.mean(np.abs(data[1:])**2, axis=-1) *
                                      np.mean(np.abs(data[0:-1])**2, axis=-1))
@@ -114,7 +122,7 @@ def unfocused_sar(data, n_sar):
     return int_ufcs, data_ufcs
 
 
-def sar_delta_k(sar_data, fs, dksmoth=4):
+def sar_delta_k_slow(sar_data, fs, dksmoth=4):
     # Number of range samples
     nrg = sar_data.shape[2]
     ndk = int(nrg/2)
@@ -130,12 +138,48 @@ def sar_delta_k(sar_data, fs, dksmoth=4):
     return dkr, dk_avg, dk_sig
 
 
+def sar_delta_k(csardata, fs, dksmoth=4):
+    # Number of range samples
+    nrg = csardata.shape[2]
+    sardata = np.abs(csardata)**2
+    az_prof = np.mean(np.mean(sardata, axis=2), axis=0)
+    burst_avg = np.mean(sardata, axis=0)
+    mask = burst_avg > (az_prof.reshape((az_prof.size, 1)) / 10)
+    mask = mask.reshape((1,) + mask.shape)
+    # Remove average
+    han = np.hanning(sardata.shape[2]).reshape((1, 1, sardata.shape[2]))
+    sardata_ac = mask * (sardata - az_prof.reshape((1, az_prof.size, 1)))
+    dk_sig = np.fft.fft(sardata_ac * han, axis=2) / nrg
+    # Keep only positive frequencies, since input signal was real
+    ndk = int(nrg/2)
+    dk_sig = dk_sig[:, :, 0:int(ndk)]
+    dk_avg = utils.smooth(np.mean(np.abs(np.mean(dk_sig, axis=0))**2, axis=0), dksmoth)
+    # After smoothing we would down-sample, but not needed  for simulator
+    dkr = fs / nrg * 2 / const.c * 2 * np.pi * np.arange(ndk)
+    return dkr, dk_avg, dk_sig
+
+
+def sar_delta_k_omega(dk_sig, inter_aperture_time, dksmoth=4):
+    n_block = dk_sig.shape[0]
+    dk_pps = np.zeros((n_block-1, dk_sig.shape[2]), dtype=np.complex)
+    dk_omega = np.zeros_like(dk_pps, dtype=np.float)
+    for ind_lag in range(1, n_block):
+        dk_pp = dk_sig[ind_lag:, :, :] * np.conj(dk_sig[0:n_block - ind_lag, :, :])
+        dk_pps[ind_lag-1] = np.mean(np.mean(dk_pp, axis=0), axis=0)
+        # Angular frequencies
+        dk_omega[ind_lag-1] = np.angle(utils.smooth(dk_pps[ind_lag-1], dksmoth)) / (inter_aperture_time * ind_lag)
+
+    #d k_omega = utils.smooth(dk_omega, dksmoth, axis=1)
+    return dk_pps, dk_omega
+
+
 
 def skim_process(cfg_file, raw_output_file):
 
     ###################
     # INITIALIZATIONS #
     ###################
+
 
     # CONFIGURATION FILE
     cfg = tpio.ConfigFile(cfg_file)
@@ -189,55 +233,9 @@ def skim_process(cfg_file, raw_output_file):
         if not os.path.exists(plot_path):
             os.makedirs(plot_path)
 
-    slc = []
-
     ########################
     # PROCESSING MAIN LOOP #
     ########################
-
-    if plot_raw:
-        plt.figure()
-        plt.imshow(np.real(raw_data[0]), vmin=-np.max(np.abs(raw_data[0])), vmax=np.max(np.abs(raw_data[0])),
-                   origin='lower', aspect=np.float(raw_data[0].shape[1]) / np.float(raw_data[0].shape[0]),
-                   cmap='viridis')
-        #plt.title()
-        plt.xlabel("Range [samples]")
-        plt.ylabel("Azimuth [samples")
-        plt.savefig(plot_path + os.sep +'plot_raw_real.%s' % (plot_format), dpi=150)
-        plt.close()
-        plt.figure()
-        plt.imshow(np.abs(raw_data[0]), vmin=0, vmax=np.max(np.abs(raw_data[0])),
-                   origin='lower', aspect=np.float(raw_data[0].shape[1]) / np.float(raw_data[0].shape[0]),
-                   cmap='viridis')
-        #plt.title()
-        plt.xlabel("Range [samples]")
-        plt.ylabel("Azimuth [samples")
-        plt.savefig(plot_path + os.sep  +'plot_raw_abs.%s' % (plot_format), dpi=150)
-        plt.close()
-        # utils.image(np.imag(raw_data[0]), min=-np.max(np.abs(raw_data[0])), max=np.max(np.abs(raw_data[0])), cmap='gray',
-        #             aspect=np.float(
-        #                 raw_data[0].shape[1]) / np.float(raw_data[0].shape[0]),
-        #             title='Raw Data', xlabel='Range samples', ylabel='Azimuth samples',
-        #             usetex=plot_tex,
-        #             save=plot_save, save_path=plot_path + os.sep +
-        #             'plot_raw_imag.%s' % (plot_format),
-        #             dpi=150)
-        # utils.image(np.abs(raw_data[0]), min=0, max=np.max(np.abs(raw_data[0])), cmap='gray',
-        #             aspect=np.float(
-        #                 raw_data[0].shape[1]) / np.float(raw_data[0].shape[0]),
-        #             title='Raw Data', xlabel='Range samples', ylabel='Azimuth samples',
-        #             usetex=plot_tex,
-        #             save=plot_save, save_path=plot_path + os.sep +
-        #             'plot_raw_amp.%s' % (plot_format),
-        #             dpi=150)
-        # utils.image(np.angle(raw_data[0]), min=-np.pi, max=np.pi, cmap='gray',
-        #             aspect=np.float(
-        #                 raw_data[0].shape[1]) / np.float(raw_data[0].shape[0]),
-        #             title='Raw Data', xlabel='Range samples', ylabel='Azimuth samples',
-        #             usetex=plot_tex, save=plot_save,
-        #             save_path=plot_path + os.sep +
-        #             'plot_raw_phase.%s' % (plot_format),
-        #             dpi=150)
 
     # Optimize matrix sizes
     az_size_orig, rg_size_orig = raw_data[0].shape
@@ -272,6 +270,31 @@ def skim_process(cfg_file, raw_output_file):
     # Some delta-k on focused sar data
     info.msg("Unfocused SAR delta-k spectrum")
     dkr, dk_avg, dk_signal = sar_delta_k(data_ufcs, 2 * rg_sampling, dksmoth=8)
+    dk_pulse_pairs, dk_omega = sar_delta_k_omega(dk_signal, cfg.processing.n_sar/prf, dksmoth=16)
+    # For verification, comment out
+    # dkr_sl, dk_avg_sl, dk_signal_sl = sar_delta_k_slow(data_ufcs, 2 * rg_sampling, dksmoth=8)
+    # dk_pulse_pairs_sl, dk_omega_sl = sar_delta_k_omega(dk_signal_sl, cfg.processing.n_sar/prf, dksmoth=32)
+    info.msg(time.strftime("Processing done [%Y-%m-%d %H:%M:%S]", time.localtime()))
+
+    if plot_raw:
+        plt.figure()
+        plt.imshow(np.real(raw_data[0]), vmin=-np.max(np.abs(raw_data[0])), vmax=np.max(np.abs(raw_data[0])),
+                   origin='lower', aspect=np.float(raw_data[0].shape[1]) / np.float(raw_data[0].shape[0]),
+                   cmap='viridis')
+        #plt.title()
+        plt.xlabel("Range [samples]")
+        plt.ylabel("Azimuth [samples")
+        plt.savefig(plot_path + os.sep + 'plot_raw_real.%s' % plot_format, dpi=150)
+        plt.close()
+        plt.figure()
+        plt.imshow(np.abs(raw_data[0]), vmin=0, vmax=np.max(np.abs(raw_data[0])),
+                   origin='lower', aspect=np.float(raw_data[0].shape[1]) / np.float(raw_data[0].shape[0]),
+                   cmap='viridis')
+        #plt.title()
+        plt.xlabel("Range [samples]")
+        plt.ylabel("Azimuth [samples")
+        plt.savefig(plot_path + os.sep + 'plot_raw_abs.%s' % plot_format, dpi=150)
+        plt.close()
 
     plt.figure()
     plt.imshow(np.fft.fftshift(int_unfcs, axes=(0,)),
@@ -307,7 +330,7 @@ def skim_process(cfg_file, raw_output_file):
     plt.xlim((0, kxv.max()))
     plt.xlabel("$k_x$ [rad/m]")
     plt.ylabel("$S_I$")
-    plt.savefig(plot_path + os.sep + 'sar_int_spec.%s' % plot_format)   
+    plt.savefig(plot_path + os.sep + 'sar_int_spec.%s' % plot_format)
     plt.close()
 
     plt.figure()
@@ -330,6 +353,34 @@ def skim_process(cfg_file, raw_output_file):
     plt.savefig(plot_path + os.sep + 'sar_delta_k_spec.%s' % plot_format)
     plt.close()
 
+    # plt.figure()
+    # dkx_sl = dkr_sl * np.sin(np.radians(cfg.radar.inc_angle))
+    # plt.plot(dkx_sl, dk_avg_sl)
+    # plt.ylim((dk_avg_sl[20:dkx.size-20].min()/2,
+    #           dk_avg_sl[20:dkx.size-20].max()*1.5))
+    # plt.xlim((0, dkx.max()))
+    # plt.xlabel("$\Delta k_x$ [rad/m]")
+    # plt.ylabel("$S_I$")
+    # plt.savefig(plot_path + os.sep + 'sar_delta_k_spec_slow.%s' % plot_format)
+    # plt.close()
+
+    plt.figure()
+    # plt.plot(dkx, dk_omega[0], label="lag=1")
+    plt.plot(dkx, dk_omega[1], label="lag=2")
+    # plt.plot(dkx, dk_omega_sl[0] + 1, label="slow-lag=1")
+    # plt.plot(dkx, dk_omega_sl[1] + 1, label="slow-lag=2")
+    plt.plot(dkx, dk_omega[3], label="lag=4")
+    # plt.plot(dkx, dk_omega[-1], label="lag=max")
+    plt.ylim((-20, 20))
+    #plt.ylim((dk_avg[20:dkx.size - 20].min() / 2,
+    #          dk_avg[20:dkx.size - 20].max() * 1.5))
+    plt.xlim((0.05, 0.8))
+    plt.xlabel("$\Delta k_x$ [rad/m]")
+    plt.ylabel("$\omega$ [rad/s]")
+    plt.legend(loc=0)
+    plt.savefig(plot_path + os.sep + 'sar_delta_k_omega.%s' % plot_format)
+    plt.close()
+
     info.msg("Saving output to %s" % pp_file)
     np.savez(pp_file,
              dop_pp_avg=dop_pp_avg,
@@ -338,7 +389,10 @@ def skim_process(cfg_file, raw_output_file):
              ufcs_intensity=int_unfcs,
              mean_int_profile=mean_int_profile,
              int_spec=int_spe, sar_int_spec=sar_int_spec,
-             ppphase_spec=phase_spec, kx=kxv)
+             ppphase_spec=phase_spec, kx=kxv,
+             dk_spec=dk_avg,
+             dk_omega=dk_omega,
+             dkx=dkx)
 
     info.msg(time.strftime("All done [%Y-%m-%d %H:%M:%S]", time.localtime()))
 
@@ -691,10 +745,10 @@ if __name__ == '__main__':
     parser.add_argument('-r', '--raw_file')
     # parser.add_argument('-o', '--output_file')
     args = parser.parse_args()
-    Proc = True
-    if Proc:
+    extra_dk_proc = False
+    if extra_dk_proc:
         skim_process(args.cfg_file, args.raw_file)
         delta_k_processing(args.raw_file, args.cfg_file)
     else:
-        delta_k_processing(args.raw_file, args.cfg_file)
-#    delta_k_processing(r'C:\Users\lyh\Documents\SKIM_12deg_rar_0\Time0_inc_s6_azimuth_s0\raw_data.nc', r'C:\Users\lyh\Documents\SKIM_12deg_rar_0\Time0_inc_s6_azimuth_s0\config.cfg')
+        skim_process(args.cfg_file, args.raw_file)
+        # delta_k_processing(args.raw_file, args.cfg_file)
