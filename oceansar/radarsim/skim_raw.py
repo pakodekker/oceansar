@@ -45,6 +45,7 @@ from oceansar import closure
 from oceansar.radarsim import range_profile as raw
 
 from oceansar.surfaces import OceanSurface, OceanSurfaceBalancer
+from oceansar.swell_spec import dir_swell_spec as s_spec
 
 
 def upsample_and_dopplerize(ssraw, dop, n_up, prf):
@@ -199,9 +200,17 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
                     wind_dir = 0
                 else:
                     dirspectrum_func = None
+                    if cfg.ocean.swell_dir_enable:
+                        dir_swell_spec = s_spec.ardhuin_swell_spec
+                    else:
+                        dir_swell_spec = None
 
                     wind_dir = np.deg2rad(wind_dir)
             else:
+                if cfg.ocean.swell_dir_enable:
+                    dir_swell_spec = s_spec.ardhuin_swell_spec
+                else:
+                    dir_swell_spec = None
                 dirspectrum_func = None
                 wind_dir = np.deg2rad(wind_dir)
 
@@ -212,6 +221,10 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
                               cfg.ocean.wind_fetch, cfg.ocean.wind_U,
                               cfg.ocean.current_mag,
                               np.deg2rad(cfg.radar.azimuth - cfg.ocean.current_dir),
+                              cfg.radar.azimuth - cfg.ocean.dir_swell_dir,
+                              cfg.ocean.freq_r, cfg.ocean.sigf,
+                              cfg.ocean.sigs, cfg.ocean.Hs,
+                              cfg.ocean.swell_dir_enable,
                               cfg.ocean.swell_enable, cfg.ocean.swell_ampl,
                               np.deg2rad(cfg.radar.azimuth - cfg.ocean.swell_dir),
                               cfg.ocean.swell_wl,
@@ -219,7 +232,8 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
                               cfg.ocean.fft_max_prime,
                               choppy_enable=cfg.ocean.choppy_enable,
                               depth=cfg.ocean.depth,
-                              dirspectrum_func=dirspectrum_func)
+                              dirspectrum_func=dirspectrum_func,
+                              dir_swell_spec=dir_swell_spec)
 
             surface_full.save(ocean_file)
             # Now we plot the directional spectrum
@@ -254,6 +268,36 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
 
             plt.close()
 
+            if cfg.ocean.swell_dir_enable:
+                plt.figure()
+                plt.imshow(np.fft.fftshift(np.abs(surface_full.swell_dirspec)),
+                           extent=[surface_full.kx.min(), surface_full.kx.max(),
+                                   surface_full.ky.min(), surface_full.ky.max()],
+                           origin='lower',
+                           cmap='inferno_r')
+
+                plt.grid(True)
+                pltax = plt.gca()
+                pltax.set_xlim((-0.1, 0.1))
+                pltax.set_ylim((-0.1, 0.1))
+                Narr_length = 0.08 # np.min([surface_full.kx.max(), surface_full.ky.max()])
+                pltax.arrow(0, 0,
+                            -Narr_length * np.sin(np.radians(cfg.radar.heading)),
+                            Narr_length * np.cos(np.radians(cfg.radar.heading)),
+                            fc="k", ec="k")
+                plt.xlabel('$k_x$ [rad/m]')
+                plt.ylabel('$k_y$ [rad/m]')
+                plt.colorbar()
+                #plt.show()
+                # Create plots directory
+                plot_path = os.path.dirname(output_file) + os.sep + 'raw_plots'
+                if plot_save:
+                    if not os.path.exists(plot_path):
+                        os.makedirs(plot_path)
+
+                plt.savefig(os.path.join(plot_path, 'input_dirspectrum_combined.png'))
+
+                plt.close()
 
     else:
         surface_full = None
@@ -421,6 +465,9 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
         # az = np.repeat((surface.y - az_now)[:, np.newaxis], surface.Nx, axis=1)
         az = (surface.y - az_now).reshape((surface.Ny, 1))
         surface.t = t_now
+        if az_step == 0:
+            # Check wave-height
+            info.msg("Standard deviation of wave-height (peak-to-peak; i.e. x2): %f" % (2 * np.std(surface.Dz)))
         #if az_step == 0:
         # print("Max Dx: %f" % (np.max(surface.Dx)))
         # print("Max Dy: %f" % (np.max(surface.Dy)))
@@ -728,15 +775,24 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
 if __name__ == '__main__':
 
     # INPUT ARGUMENTS
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-c', '--cfg_file')
-    parser.add_argument('-o', '--output_file')
-    parser.add_argument('-oc', '--ocean_file')
-    parser.add_argument('-ro', '--reuse_ocean_file', action='store_true')
-    parser.add_argument('-er', '--errors_file', type=str, default=None)
-    parser.add_argument('-re', '--reuse_errors_file', action='store_true')
-    args = parser.parse_args()
+#    parser = argparse.ArgumentParser()
+#    parser.add_argument('-c', '--cfg_file')
+#    parser.add_argument('-o', '--output_file')
+#    parser.add_argument('-oc', '--ocean_file')
+#    parser.add_argument('-ro', '--reuse_ocean_file', action='store_true')
+#    parser.add_argument('-er', '--errors_file', type=str, default=None)
+#    parser.add_argument('-re', '--reuse_errors_file', action='store_true')
+#    args = parser.parse_args()
+#
+#    skimraw(args.cfg_file, args.output_file,
+#           args.ocean_file, args.reuse_ocean_file,
+#           args.errors_file, args.reuse_errors_file)
+##
+    skimraw(r"D:\research\TU Delft\Data\OceanSAR\SKIM_proxy_new.cfg",
+            r"D:\research\TU Delft\Data\OceanSAR\out1.nc",
+           r"D:\research\TU Delft\Data\OceanSAR\out2.nc",
+           False,
+           False,
+           False)
 
-    skimraw(args.cfg_file, args.output_file,
-           args.ocean_file, args.reuse_ocean_file,
-           args.errors_file, args.reuse_errors_file)
+
