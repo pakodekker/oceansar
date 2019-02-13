@@ -29,10 +29,11 @@ class OceanSurface(object):
     def init(self, Lx, Ly, dx, dy, cutoff_wl,
              spec_model, spread_model,
              wind_dir, wind_fetch, wind_U,
-             current_mag, current_dir,
+             current_mag, current_dir, dir_swell_dir, freq_r, sigf, sigs, Hs,
+             swell_dir_enable=False,
              swell_enable=False, swell_ampl=0., swell_dir=0., swell_wl=0.,
              compute=[], opt_res=True, fft_max_prime=2, choppy_enable=False,
-             dirspectrum_func=None, depth=None):
+             dirspectrum_func=None, depth=None, dir_swell_spec=None):
 
         """ Initialize surface with parameters
 
@@ -82,6 +83,11 @@ class OceanSurface(object):
         self.swell_wl = swell_wl
         self.compute = compute
         self.choppy_enable = choppy_enable
+        self.dir_swell_dir = dir_swell_dir
+        self.freq_r = freq_r
+        self.sigf = sigf
+        self.sigs = sigs
+        self.Hs = Hs
 
         ## INITIALIZE MESHGRIDS, SPECTRUM, ETC.
         # Grid dimensions
@@ -135,6 +141,8 @@ class OceanSurface(object):
         #self.theta = np.arctan2(self.ky, self.kx) - self.wind_dir_eff
         self.theta = np.angle(np.exp(1j * (np.arctan2(self.ky, self.kx) -
                                            self.wind_dir_eff))).astype(np.float32)
+        # for directional swell
+        self.theta_swell = np.angle(np.exp(1j * (np.arctan2(self.ky, self.kx)))).astype(np.float32)
         # omega (Deep water: w(k)^2 = g*k)
         if depth is None:
             self.omega = np.sqrt(np.float32(const.g) * self.k)
@@ -182,6 +190,19 @@ class OceanSurface(object):
         random_cg = (1./np.sqrt(2) * (np.random.normal(0., 1., size=[self.Ny, self.Nx]) +
                                       1j * np.random.normal(0., 1., size=[self.Ny, self.Nx]))).astype(np.complex64)
 
+        # Swell spectrum
+        # Swell directional spectrum
+        if swell_dir_enable:
+            swell_dirspec = np.zeros(self.k.shape, dtype=np.float32)
+            swell_dirspec[good_k] = dir_swell_spec(self.k[good_k],
+                                                   self.theta_swell[good_k],
+                                                   self.dir_swell_dir,
+                                                   self.freq_r, self.sigf,
+                                                   self.sigs, self.Hs)
+            self.swell_dirspec = (self.kinv) * swell_dirspec
+            # Complex Gaussian to randomize spectrum coefficients
+            random_swell = (1./np.sqrt(2) * (np.random.normal(0., 1., size=[self.Ny, self.Nx]) +
+                                          1j * np.random.normal(0., 1., size=[self.Ny, self.Nx]))).astype(np.complex64)
         # Swell spectrum (monochromatic)
         if self.swell_enable:
             # Swell K, Kx, Ky, omega
@@ -202,7 +223,9 @@ class OceanSurface(object):
 
         # Initialize coefficients
         self.wave_coefs = (self.Nx*self.Ny*np.sqrt(2.*self.wave_dirspec*kx_res*ky_res)*random_cg).astype(np.complex64)
-
+        if swell_dir_enable:
+            self.swell_coefs = (self.Nx*self.Ny*np.sqrt(2.*self.swell_dirspec*kx_res*ky_res)*random_swell).astype(np.complex64)
+            self.wave_coefs = self.wave_coefs + self.swell_coefs
         # Allocate memory & mark as initialized
         self.__allocate()
         self.initialized = True
