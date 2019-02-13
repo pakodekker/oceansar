@@ -347,7 +347,7 @@ def skim_process(cfg_file, raw_output_file):
     plt.plot(dkx, dk_avg)
     plt.ylim((dk_avg[20:dkx.size-20].min()/2,
               dk_avg[20:dkx.size-20].max()*1.5))
-    plt.xlim((0, dkx.max()))
+    plt.xlim((0.1, dkx.max()))
     plt.xlabel("$\Delta k_x$ [rad/m]")
     plt.ylabel("$S_I$")
     plt.savefig(plot_path + os.sep + 'sar_delta_k_spec.%s' % plot_format)
