@@ -222,3 +222,51 @@ class PrInfo(object):
     def msg(self, message, importance=2):
         if importance > (2 - self.verbosity):
             print("%s -- %s" % (self.header, message))
+
+
+def linresample(data, samples_, axis=0, extrapolate=False, circular=False):
+    """ Resamples data to new samples
+        :param data: ndarray
+        :param samples: new samples (1D vector)
+        :param axis: axis to be resampled
+        :param extrapolate: extend if required repeating first or last sample
+    """
+    smp = np.array(samples_)  # Just to make sure
+    if circular:
+        ind_f = np.floor(smp).astype(int)
+        delta = smp - ind_f
+        # Now a hack to account for the case that the last sample is the last input
+        # index
+        ind_c = np.mod(ind_f + 1, data.shape[axis])
+        ind_f = np.mod(ind_f, data.shape[axis])
+
+    else:
+        if not extrapolate:
+            if (smp.min() < 0) or (smp.max() > (data.shape[axis] - 1)):
+                print("Output samples out of bound")
+                raise NameError("linresample failed")
+        else:
+            smp = np.where(smp > 0, smp, 0)
+            smp = np.where(smp <= data.shape[axis] - 1, smp, data.shape[axis] - 1)
+        ind_f = np.floor(smp).astype(int)
+        delta = smp - ind_f
+        # Now a hack to account for the case that the last sample is the last input
+        # index
+        ind_c = np.where(delta > 0, ind_f + 1, ind_f)
+    delta_nshp = np.ones(len(data.shape), dtype=np.int32)
+    delta_nshp[axis] = delta.size
+    delta = delta.reshape(delta_nshp.tolist())
+    if axis == 0:
+        out = data[ind_f] * (1-delta) + data[ind_c] * delta
+    elif axis == 1:
+        out = data[:, ind_f] * (1-delta) + data[:, ind_c] * delta
+    elif axis == 2:
+        out = data[:, :, ind_f] * (1-delta) + data[:, :, ind_c] * delta
+    elif axis == 3:
+        out = data[:, :, :, ind_f] * (1 - delta) + data[:, :, :, ind_c] * delta
+    elif axis == 4 :
+        out = data[:, :, :, :, ind_f] * (1 - delta) + data[:, :, :, :, ind_c] * delta
+    else:
+        print("Only resampling up fifth axis is supported")
+        raise NameError("linresample failed")
+    return out

@@ -38,9 +38,9 @@ def range_spectrum(data, fs, pdir):
     plt.savefig(os.path.join(pdir, 'fastfreq_spectrum'))
 
 
-def range_oversample(data):
+def range_oversample(data, n=2):
     data_f = np.fft.fft(data, axis=1)
-    data_ovs_f = np.zeros((data.shape[0], 2 * data.shape[1]), dtype=np.complex)
+    data_ovs_f = np.zeros((data.shape[0], n * data.shape[1]), dtype=np.complex)
     data_ovs_f[:, 0:data.shape[1]] = np.fft.fftshift(data_f, (1,))
     data_ovs_f = np.roll(data_ovs_f, -int(data.shape[1] / 2), axis=1)
     data_ovs = np.fft.ifft(data_ovs_f, axis=1)
@@ -159,6 +159,14 @@ def sar_delta_k(csardata, fs, dksmoth=4):
     return dkr, dk_avg, dk_sig
 
 
+def sar_delta_k_rcm(dkr, dk_sig, drcm_dt, inter_aperture_time):
+    dims = dk_sig.shape
+    tv = np.arange(dims[0]).reshape((dims[0], 1, 1)) * inter_aperture_time
+    dkr_rshp = dkr.reshape((1, 1, dims[2]))
+    dphase = tv * dkr_rshp * drcm_dt.reshape((1, dims[1], 1))
+    return dk_sig * np.exp(-1j * dphase)
+
+
 def sar_delta_k_omega(dk_sig, inter_aperture_time, dksmoth=4):
     n_block = dk_sig.shape[0]
     dk_pps = np.zeros((n_block-1, dk_sig.shape[2]), dtype=np.complex)
@@ -166,6 +174,7 @@ def sar_delta_k_omega(dk_sig, inter_aperture_time, dksmoth=4):
     for ind_lag in range(1, n_block):
         dk_pp = dk_sig[ind_lag:, :, :] * np.conj(dk_sig[0:n_block - ind_lag, :, :])
         dk_pps[ind_lag-1] = np.mean(np.mean(dk_pp, axis=0), axis=0)
+        # dk_pps[ind_lag - 1] = np.mean(dk_pp, axis=0)[0]
         # Angular frequencies
         dk_omega[ind_lag-1] = np.angle(utils.smooth(dk_pps[ind_lag-1], dksmoth)) / (inter_aperture_time * ind_lag)
 
@@ -262,14 +271,34 @@ def skim_process(cfg_file, raw_output_file):
     info.msg("Mean DCA (pulse-pair phase average): %f Hz" % (np.mean(dop_pha_avg)))
     info.msg("Mean coherence: %f " % (np.mean(coh)))
 
+    # Ground range projection
+    if cfg.processing.ground_project:
+        info.msg("Projecting to ground range")
+        # Slant range vector
+        sr = (np.arange(2 * rg_size_orig) - rg_size_orig) * const.c / rg_sampling / 2 + sr0
+        gr, theta_i_v, theta_l_v, b_v = geo.sr_to_geo(sr, alt)
+        gr_out = np.linspace(gr.min(), gr.max(), 2 * rg_size_orig)
+        sr_out, theta_i_v, theta_l_v = geo.gr_to_geo(gr_out, alt)
+        ind_sr_out = (sr_out - sr[0]) / (sr[1] - sr[0]) * 4
+        data_ovs = range_oversample(data, n=8)
+        data_ovs = utils.linresample(data_ovs, ind_sr_out, axis=1, extrapolate=True)
+
     # Unfocused SAR
     info.msg("Unfocused SAR")
     int_unfcs, data_ufcs = unfocused_sar(data_ovs[0:az_size_orig, 0:2*rg_size_orig], cfg.processing.n_sar)
+    # Doppler vector
+    dop_bins = np.fft.fftfreq(cfg.processing.n_sar, 1/prf)
+    # Range cell migration rate
+    dresrcm_dt = - dop_bins * l0 /2
     krv2, sar_int_spec = sar_spectra(int_unfcs, 2 * rg_sampling, rgsmth=8)
 
     # Some delta-k on focused sar data
     info.msg("Unfocused SAR delta-k spectrum")
     dkr, dk_avg, dk_signal = sar_delta_k(data_ufcs, 2 * rg_sampling, dksmoth=8)
+    if cfg.processing.rcm:
+        info.msg("Applying RCM to delta-k signal phase")
+        dk_signal = sar_delta_k_rcm(dkr, dk_signal, dresrcm_dt, cfg.processing.n_sar/prf)
+        
     dk_pulse_pairs, dk_omega = sar_delta_k_omega(dk_signal, cfg.processing.n_sar/prf, dksmoth=16)
     # For verification, comment out
     # dkr_sl, dk_avg_sl, dk_signal_sl = sar_delta_k_slow(data_ufcs, 2 * rg_sampling, dksmoth=8)
