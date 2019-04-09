@@ -88,10 +88,11 @@ def rar_spectra(data, fs, rgsmth=4):
     han = np.hanning(data.shape[1]).reshape((1, data.shape[1]))
     data_ac = data_int_m - mask * mean_int
     intens_spectrum = utils.smooth(np.mean(np.abs(np.fft.fft(han * data_ac, axis=1)) ** 2, axis=0), rgsmth)/nrg
+    intens_spectrum_noug = utils.smooth(np.abs(np.fft.fft(han * np.mean(data_ac, axis=0), axis=1)) ** 2, rgsmth)/nrg
     phase_spectrum = np.mean(np.abs(np.fft.fft(mask * np.angle(utils.smooth(pp, 10, axis=0)), axis=1)) ** 2, axis=0)
     phase_spectrum = utils.smooth(phase_spectrum, rgsmth)/nrg
     kr = 2 * np.pi * np.fft.fftfreq(intens_spectrum.size, const.c / 2 / fs)
-    return kr, mean_intensity_profile2, intens_spectrum, phase_spectrum
+    return kr, mean_intensity_profile2, intens_spectrum, phase_spectrum, intens_spectrum_noug.flatten()
 
 
 def sar_spectra(sardata, fs, rgsmth=4):
@@ -242,9 +243,7 @@ def skim_process(cfg_file, raw_output_file):
         if not os.path.exists(plot_path):
             os.makedirs(plot_path)
 
-    ########################
-    # PROCESSING MAIN LOOP #
-    ########################
+    # Actual processing comes here...
 
     # Optimize matrix sizes
     az_size_orig, rg_size_orig = raw_data[0].shape
@@ -263,8 +262,9 @@ def skim_process(cfg_file, raw_output_file):
     data_ovs = range_oversample(data)
     info.msg("Pulse-pair processing")
     dop_pp_avg, dop_pha_avg, coh = pulse_pair(data_ovs[0:az_size_orig, 0:2 * rg_size_orig], prf)
-    krv, mean_int_profile, int_spe, phase_spec = rar_spectra(data_ovs[0:az_size_orig, 0:2 * rg_size_orig],
-                                                             2 * rg_sampling, rgsmth=8)
+    (krv, mean_int_profile, int_spe, phase_spec,
+     int_spe_nouguier) = rar_spectra(data_ovs[0:az_size_orig, 0:2 * rg_size_orig],
+                                     2 * rg_sampling, rgsmth=8)
     kxv = krv * np.sin(np.radians(cfg.radar.inc_angle))
     range_spectrum(data[0:az_size_orig, 0:rg_size_orig], rg_sampling, plot_path)
     info.msg("Mean DCA (pulse-pair average): %f Hz" % (np.mean(dop_pp_avg)))
@@ -298,7 +298,7 @@ def skim_process(cfg_file, raw_output_file):
     if cfg.processing.rcm:
         info.msg("Applying RCM to delta-k signal phase")
         dk_signal = sar_delta_k_rcm(dkr, dk_signal, dresrcm_dt, cfg.processing.n_sar/prf)
-        
+
     dk_pulse_pairs, dk_omega = sar_delta_k_omega(dk_signal, cfg.processing.n_sar/prf, dksmoth=16)
     # For verification, comment out
     # dkr_sl, dk_avg_sl, dk_signal_sl = sar_delta_k_slow(data_ufcs, 2 * rg_sampling, dksmoth=8)
@@ -350,6 +350,16 @@ def skim_process(cfg_file, raw_output_file):
     plt.xlabel("$k_x$ [rad/m]")
     plt.ylabel("$S_I$")
     plt.savefig(plot_path + os.sep + 'int_spec.%s' % plot_format)
+    plt.close()
+
+    plt.figure()
+    plt.plot(np.fft.fftshift(kxv), np.fft.fftshift(int_spe_nouguier))
+    plt.ylim((int_spe_nouguier[20:np.int(cfg.radar.n_rg)-20].min()/2,
+              int_spe_nouguier[20:np.int(cfg.radar.n_rg)-20].max()*1.5))
+    plt.xlim((0, kxv.max()))
+    plt.xlabel("$k_x$ [rad/m]")
+    plt.ylabel("$S_I$")
+    plt.savefig(plot_path + os.sep + 'int_spec_nouguier.%s' % plot_format)
     plt.close()
 
     plt.figure()
@@ -418,6 +428,7 @@ def skim_process(cfg_file, raw_output_file):
              ufcs_intensity=int_unfcs,
              mean_int_profile=mean_int_profile,
              int_spec=int_spe, sar_int_spec=sar_int_spec,
+             int_spec_nouguier = int_spe_nouguier,
              ppphase_spec=phase_spec, kx=kxv,
              dk_spec=dk_avg,
              dk_omega=dk_omega,

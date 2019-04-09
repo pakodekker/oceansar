@@ -59,7 +59,8 @@ def upsample_and_dopplerize(ssraw, dop, n_up, prf):
     """
     # FIXME
     # We should add global (mean) range cell migration here
-    # The varying part is handled in the main loop of the code
+    # The azimuth dependent part is handled in the main loop of the code
+    # The range dependent part of the rcm is also not added.
     dims = ssraw.shape
     print(n_up)
     out = np.zeros((dims[0] * int(n_up), dims[2]), dtype=np.complex64)
@@ -387,6 +388,10 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
         da = az/gr_prof
         sin_az = np.sin(squint_r) + np.cos(squint_r) * da - 0.5 * np.sin(squint_r) * da**2
         dop0 = 2 * v_orb * np.sin(look_prof) * sin_az / l0
+        # az / 2 * sin_sr   _az
+        # az_now = (t_now - t_span / 2.) * v_ground * np.cos(squint_r)
+        # az = np.repeat((surface.y - az_now)[:, np.newaxis], surface.Nx, axis=1)
+        # az = (surface.y - az_now).reshape((surface.Ny, 1))
         # print("Max az: %f" % (np.max(az)))
         #dop0 = np.mean(np.reshape(dop0, (surface.Ny/ny_integ, ny_integ, rg_samp)), axis=1)
         s_int = np.int(surface.Ny / ny_integ)
