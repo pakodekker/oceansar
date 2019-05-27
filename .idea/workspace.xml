@@ -11,31 +11,10 @@
   <component name="FileEditorManager">
     <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/oceansar/surfaces/balancer.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="1155">
-              <caret line="80" selection-start-line="80" selection-end-line="80" />
-              <folding>
-                <element signature="e#1#23#0" expanded="true" />
-              </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/oceansar/surfaces/ocean.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="2580">
-              <caret line="181" column="17" selection-start-line="181" selection-start-column="8" selection-end-line="181" selection-end-column="17" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/oceansar/radarsim/skim_processor.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="2529">
-              <caret line="435" lean-forward="true" selection-start-line="435" selection-end-line="435" />
+            <state relative-caret-position="220">
+              <caret line="109" column="36" selection-start-line="109" selection-start-column="36" selection-end-line="109" selection-end-column="36" />
               <folding>
                 <element signature="e#353#362#0" expanded="true" />
               </folding>
@@ -44,19 +23,33 @@
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/oceansar/utils/misc.py">
+        <entry file="file://$PROJECT_DIR$/oceansar/radarsim/oceansar_skimsim.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="3435">
-              <caret line="230" column="24" selection-start-line="230" selection-start-column="24" selection-end-line="230" selection-end-column="24" />
+            <state relative-caret-position="49">
+              <caret line="66" column="78" selection-start-line="66" selection-start-column="78" selection-end-line="66" selection-end-column="78" />
+              <folding>
+                <element signature="e#292#302#0" expanded="true" />
+              </folding>
             </state>
           </provider>
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/oceansar/utils/__init__.py">
+        <entry file="file://$PROJECT_DIR$/oceansar/spec/elfouhaily.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="270">
-              <caret line="18" column="117" selection-start-line="18" selection-start-column="117" selection-end-line="18" selection-end-column="117" />
+            <state relative-caret-position="181">
+              <caret line="42" column="30" selection-start-line="42" selection-start-column="4" selection-end-line="42" selection-end-column="30" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/oceansar/spec/__init__.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="-302">
+              <folding>
+                <element signature="e#622#647#0" expanded="true" />
+              </folding>
             </state>
           </provider>
         </entry>
@@ -64,11 +57,20 @@
       <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/oceansar/radarsim/skim_raw.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="139">
-              <caret line="403" column="43" selection-start-line="403" selection-start-column="43" selection-end-line="403" selection-end-column="43" />
+            <state relative-caret-position="2951">
+              <caret line="313" column="36" selection-start-line="313" selection-start-column="27" selection-end-line="313" selection-end-column="36" />
               <folding>
                 <element signature="e#811#833#0" expanded="true" />
               </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/oceansar/radarsim/range_profile.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="1438">
+              <caret line="105" column="24" selection-start-line="105" selection-start-column="24" selection-end-line="105" selection-end-column="24" />
             </state>
           </provider>
         </entry>
@@ -85,8 +87,8 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/oceansar/nrcs/ka.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="2025">
-              <caret line="137" column="32" selection-start-line="137" selection-start-column="27" selection-end-line="137" selection-end-column="32" />
+            <state relative-caret-position="1515">
+              <caret line="103" selection-start-line="103" selection-end-line="103" />
             </state>
           </provider>
         </entry>
@@ -113,9 +115,6 @@
   </component>
   <component name="FindInProjectRecents">
     <findStrings>
-      <find>ny_integ</find>
-      <find>k0</find>
-      <find>min_sr</find>
       <find>sr_surface</find>
       <find>sar</find>
       <find>inc</find>
@@ -132,17 +131,20 @@
       <find>surface_c</find>
       <find>proc_raw_hh_</find>
       <find>proc_raw_hh_step</find>
-      <find>t_step</find>
       <find>has</find>
       <find>RCS_power</find>
       <find>sr_prof</find>
       <find>rg_sampling</find>
-      <find>sr</find>
       <find>range_oversample</find>
       <find>sr0</find>
       <find>sin_az</find>
       <find>rar_spectra</find>
       <find>int_spe</find>
+      <find>t_span</find>
+      <find>t_step</find>
+      <find>sr_surface4rcm</find>
+      <find>sr</find>
+      <find>l0</find>
     </findStrings>
     <replaceStrings>
       <replace>radar</replace>
@@ -171,13 +173,16 @@
         <option value="$PROJECT_DIR$/oceansar/utils/misc.py" />
         <option value="$PROJECT_DIR$/oceansar/utils/__init__.py" />
         <option value="$PROJECT_DIR$/oceansar/radarsim/skim_raw.py" />
+        <option value="$PROJECT_DIR$/oceansar/nrcs/ka.py" />
         <option value="$PROJECT_DIR$/oceansar/radarsim/skim_processor.py" />
+        <option value="$PROJECT_DIR$/oceansar/spec/elfouhaily.py" />
       </list>
     </option>
   </component>
-  <component name="ProjectFrameBounds">
+  <component name="ProjectFrameBounds" extendedState="6">
+    <option name="x" value="121" />
     <option name="y" value="23" />
-    <option name="width" value="1280" />
+    <option name="width" value="2011" />
     <option name="height" value="777" />
   </component>
   <component name="ProjectView">
@@ -185,7 +190,6 @@
       <foldersAlwaysOnTop value="true" />
     </navigator>
     <panes>
-      <pane id="Scope" />
       <pane id="ProjectPane">
         <subPane>
           <expand>
@@ -197,12 +201,6 @@
               <item name="OCEANSAR" type="b2602c69:ProjectViewProjectNode" />
               <item name="OCEANSAR" type="462c0819:PsiDirectoryNode" />
               <item name="oceansar" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="OCEANSAR" type="b2602c69:ProjectViewProjectNode" />
-              <item name="OCEANSAR" type="462c0819:PsiDirectoryNode" />
-              <item name="oceansar" type="462c0819:PsiDirectoryNode" />
-              <item name="nrcs" type="462c0819:PsiDirectoryNode" />
             </path>
             <path>
               <item name="OCEANSAR" type="b2602c69:ProjectViewProjectNode" />
@@ -231,6 +229,7 @@
           <select />
         </subPane>
       </pane>
+      <pane id="Scope" />
     </panes>
   </component>
   <component name="PropertiesComponent">
@@ -270,18 +269,19 @@
       <workItem from="1550220927954" duration="9907000" />
       <workItem from="1552553288462" duration="3295000" />
       <workItem from="1553530498806" duration="24036000" />
-      <workItem from="1554795886600" duration="2267000" />
+      <workItem from="1554795886600" duration="16526000" />
+      <workItem from="1556200757041" duration="1191000" />
+      <workItem from="1557390042235" duration="7524000" />
     </task>
     <servers />
   </component>
   <component name="TimeTrackingManager">
-    <option name="totallyTimeSpent" value="96059000" />
+    <option name="totallyTimeSpent" value="119033000" />
   </component>
   <component name="ToolWindowManager">
-    <frame x="0" y="23" width="1280" height="777" extended-state="0" />
-    <editor active="true" />
+    <frame x="0" y="23" width="1280" height="777" extended-state="6" />
     <layout>
-      <window_info content_ui="combo" id="Project" order="0" visible="true" weight="0.24555735" />
+      <window_info content_ui="combo" id="Project" order="0" visible="true" weight="0.2536349" />
       <window_info id="Structure" order="1" weight="0.25" />
       <window_info id="Favorites" order="2" side_tool="true" />
       <window_info anchor="bottom" id="Message" order="0" />
@@ -294,7 +294,7 @@
       <window_info anchor="bottom" id="Version Control" order="7" />
       <window_info anchor="bottom" id="Terminal" order="8" />
       <window_info anchor="bottom" id="Event Log" order="9" side_tool="true" />
-      <window_info active="true" anchor="bottom" id="Python Console" order="10" visible="true" weight="0.13722628" />
+      <window_info active="true" anchor="bottom" id="Python Console" order="10" visible="true" weight="0.43211678" />
       <window_info anchor="bottom" id="Docker" order="11" show_stripe_button="false" />
       <window_info anchor="bottom" id="Database Changes" order="12" />
       <window_info anchor="right" id="Commander" order="0" weight="0.4" />
@@ -368,11 +368,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/oceansar/spec/elfouhaily.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-332" />
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/oceansar/spread/romeiser97.py">
       <provider selected="true" editor-type-id="text-editor" />
     </entry>
@@ -392,13 +387,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/oceansar/radarsim/range_profile.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1530">
-          <caret line="105" column="24" selection-start-line="105" selection-start-column="24" selection-end-line="105" selection-end-column="24" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/oceansar/nrcs/romeiser97.py">
       <provider selected="true" editor-type-id="text-editor" />
     </entry>
@@ -409,12 +397,27 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/oceansar/radarsim/oceansar_skimsim.py">
+    <entry file="file://$PROJECT_DIR$/oceansar/surfaces/ocean.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="877">
-          <caret line="66" column="78" selection-start-line="66" selection-start-column="78" selection-end-line="66" selection-end-column="78" />
+        <state relative-caret-position="2580">
+          <caret line="181" column="17" selection-start-line="181" selection-start-column="8" selection-end-line="181" selection-end-column="17" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../SANDBOX/S1Triplets/run_burst_triplet.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="-2526">
           <folding>
-            <element signature="e#292#302#0" expanded="true" />
+            <element signature="e#0#18#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../SANDBOX/S1Triplets/burst_triplet.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="-1626">
+          <folding>
+            <element signature="e#0#9#0" expanded="true" />
           </folding>
         </state>
       </provider>
@@ -426,13 +429,6 @@
           <folding>
             <element signature="e#1#23#0" expanded="true" />
           </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/oceansar/surfaces/ocean.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="2580">
-          <caret line="181" column="17" selection-start-line="181" selection-start-column="8" selection-end-line="181" selection-end-column="17" />
         </state>
       </provider>
     </entry>
@@ -459,8 +455,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/oceansar/nrcs/ka.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="2025">
-          <caret line="137" column="32" selection-start-line="137" selection-start-column="27" selection-end-line="137" selection-end-column="32" />
+        <state relative-caret-position="1515">
+          <caret line="103" selection-start-line="103" selection-end-line="103" />
         </state>
       </provider>
     </entry>
@@ -478,10 +474,43 @@
         </state>
       </provider>
     </entry>
+    <entry file="file://$PROJECT_DIR$/oceansar/spec/__init__.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="-302">
+          <folding>
+            <element signature="e#622#647#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/oceansar/spec/elfouhaily.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="181">
+          <caret line="42" column="30" selection-start-line="42" selection-start-column="4" selection-end-line="42" selection-end-column="30" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/oceansar/radarsim/oceansar_skimsim.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="49">
+          <caret line="66" column="78" selection-start-line="66" selection-start-column="78" selection-end-line="66" selection-end-column="78" />
+          <folding>
+            <element signature="e#292#302#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/oceansar/radarsim/range_profile.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="1438">
+          <caret line="105" column="24" selection-start-line="105" selection-start-column="24" selection-end-line="105" selection-end-column="24" />
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/oceansar/radarsim/skim_processor.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="2529">
-          <caret line="435" lean-forward="true" selection-start-line="435" selection-end-line="435" />
+        <state relative-caret-position="220">
+          <caret line="109" column="36" selection-start-line="109" selection-start-column="36" selection-end-line="109" selection-end-column="36" />
           <folding>
             <element signature="e#353#362#0" expanded="true" />
           </folding>
@@ -490,8 +519,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/oceansar/radarsim/skim_raw.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="139">
-          <caret line="403" column="43" selection-start-line="403" selection-start-column="43" selection-end-line="403" selection-end-column="43" />
+        <state relative-caret-position="2951">
+          <caret line="313" column="36" selection-start-line="313" selection-start-column="27" selection-end-line="313" selection-end-column="36" />
           <folding>
             <element signature="e#811#833#0" expanded="true" />
           </folding>

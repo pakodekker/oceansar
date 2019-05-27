@@ -104,7 +104,11 @@ def sar_spectra(sardata, fs, rgsmth=4):
     # Remove average
     han = np.hanning(sardata.shape[1]).reshape((1, sardata.shape[1]))
     sardata_ac = mask * (sardata - az_prof.reshape((az_prof.size, 1)))
-    sarint_spec = np.mean(np.abs(np.fft.fft(sardata_ac * han, axis=1))**2, axis=0)/nrg
+    # Coherent averaging
+    sarint_spec_1 = np.fft.fft(sardata_ac * han, axis=1)/np.sqrt(nrg)
+    sarint_spec = np.mean(np.abs(sarint_spec_1)**2, axis=0)
+    int_dc = np.mean(sarint_spec_1[0])
+    # sarint_spec = np.abs(np.fft.fft(sardata_ac * han, axis=1))[0] ** 2 / nrg
     sarint_spec = utils.smooth(sarint_spec, rgsmth)
     kr = 2 * np.pi * np.fft.fftfreq(sarint_spec.size, const.c / 2 / fs)
     return kr, sarint_spec
@@ -137,6 +141,27 @@ def sar_delta_k_slow(sar_data, fs, dksmoth=4):
     # dkr = np.fft.fftshift(2 * np.pi * np.fft.fftfreq(ndk, const.c / 2 / fs))
     dkr = fs / nrg * 2 / const.c * 2 * np.pi * np.arange(ndk)
     return dkr, dk_avg, dk_sig
+
+
+def rar_delta_k(data, fs, dksmoth=4):
+    # Number of range samples
+    nrg = data.shape[1]
+    idata = np.abs(data)**2
+    az_prof = np.mean(idata, axis=1)
+    burst_avg = np.mean(idata, axis=0)
+    mask = burst_avg > burst_avg.max()/10
+    mask = mask.reshape((1, mask.size))
+    # Remove average
+    han = np.hanning(idata.shape[1]).reshape((1, idata.shape[1]))
+    idata_ac = mask * (idata - az_prof.reshape((az_prof.size, 1)))
+    rdk_sig = np.fft.fft(idata_ac * han, axis=1) / nrg
+    # Keep only positive frequencies, since input signal was real
+    ndk = int(nrg/2)
+    rdk_sig = rdk_sig[:, 0:int(ndk)]
+    rdk_avg = utils.smooth(np.abs(np.mean(rdk_sig, axis=0))**2, dksmoth)
+    # After smoothing we would down-sample, but not needed  for simulator
+    dkr = fs / nrg * 2 / const.c * 2 * np.pi * np.arange(ndk)
+    return dkr, rdk_avg, rdk_sig
 
 
 def sar_delta_k(csardata, fs, dksmoth=4):
@@ -182,6 +207,20 @@ def sar_delta_k_omega(dk_sig, inter_aperture_time, dksmoth=4):
     #d k_omega = utils.smooth(dk_omega, dksmoth, axis=1)
     return dk_pps, dk_omega
 
+
+def rar_delta_k_omega(rdk_sig, prt, lags=[1, 2, 4, 8, 16, 32, 64], dksmoth=4):
+    n_pulses = rdk_sig.shape[0]
+    lags = np.array(lags)
+    dk_pps = np.zeros((lags.size, rdk_sig.shape[1]), dtype=np.complex)
+    dk_omega = np.zeros_like(dk_pps, dtype=np.float)
+    for ind_lag in range(lags.size):
+        dk_pp = rdk_sig[lags[ind_lag]:, :] * np.conj(rdk_sig[0:n_pulses - lags[ind_lag], :])
+        dk_pps[ind_lag-1] = np.mean(dk_pp, axis=0)
+        # dk_pps[ind_lag - 1] = np.mean(dk_pp, axis=0)[0]
+        # Angular frequencies
+        dk_omega[ind_lag-1] = np.angle(utils.smooth(dk_pps[ind_lag-1], dksmoth)) / (prt * lags[ind_lag])
+
+    return dk_pps, dk_omega
 
 
 def skim_process(cfg_file, raw_output_file):
@@ -283,6 +322,11 @@ def skim_process(cfg_file, raw_output_file):
         data_ovs = range_oversample(data, n=8)
         data_ovs = utils.linresample(data_ovs, ind_sr_out, axis=1, extrapolate=True)
 
+    # RAR delta-k
+    info.msg("RAR delta-k")
+    dkr, rdk_avg, rdk_signal = rar_delta_k(data_ovs, 2 * rg_sampling, dksmoth=8)
+    rar_dk_lags = [1, 2, 4, 8, 16, 32, 64, 128]
+    rdk_pulse_pairs, rdk_omega = rar_delta_k_omega(rdk_signal, 1/prf, lags=rar_dk_lags, dksmoth=4)
     # Unfocused SAR
     info.msg("Unfocused SAR")
     int_unfcs, data_ufcs = unfocused_sar(data_ovs[0:az_size_orig, 0:2*rg_size_orig], cfg.processing.n_sar)
@@ -392,6 +436,17 @@ def skim_process(cfg_file, raw_output_file):
     plt.savefig(plot_path + os.sep + 'sar_delta_k_spec.%s' % plot_format)
     plt.close()
 
+    plt.figure()
+    dkx = dkr * np.sin(np.radians(cfg.radar.inc_angle))
+    plt.plot(dkx, rdk_avg)
+    plt.ylim((rdk_avg[20:dkx.size-20].min()/2,
+              rdk_avg[20:dkx.size-20].max()*1.5))
+    plt.xlim((0.1, dkx.max()))
+    plt.xlabel("$\Delta k_x$ [rad/m]")
+    plt.ylabel("$S_I$")
+    plt.savefig(plot_path + os.sep + 'rar_delta_k_spec.%s' % plot_format)
+    plt.close()
+
     # plt.figure()
     # dkx_sl = dkr_sl * np.sin(np.radians(cfg.radar.inc_angle))
     # plt.plot(dkx_sl, dk_avg_sl)
@@ -408,8 +463,8 @@ def skim_process(cfg_file, raw_output_file):
     plt.plot(dkx, dk_omega[1], label="lag=2")
     # plt.plot(dkx, dk_omega_sl[0] + 1, label="slow-lag=1")
     # plt.plot(dkx, dk_omega_sl[1] + 1, label="slow-lag=2")
-    plt.plot(dkx, dk_omega[3], label="lag=4")
-    # plt.plot(dkx, dk_omega[-1], label="lag=max")
+    plt.plot(dkx, dk_omega[5], label="lag=5")
+    plt.plot(dkx, dk_omega[6], label="lag=6")
     plt.ylim((-20, 20))
     #plt.ylim((dk_avg[20:dkx.size - 20].min() / 2,
     #          dk_avg[20:dkx.size - 20].max() * 1.5))
@@ -418,6 +473,23 @@ def skim_process(cfg_file, raw_output_file):
     plt.ylabel("$\omega$ [rad/s]")
     plt.legend(loc=0)
     plt.savefig(plot_path + os.sep + 'sar_delta_k_omega.%s' % plot_format)
+    plt.close()
+
+    plt.figure()
+    # plt.plot(dkx, dk_omega[0], label="lag=1")
+    plt.plot(dkx, rdk_omega[6], label=("lag=%i" % rar_dk_lags[6]))
+    # plt.plot(dkx, dk_omega_sl[0] + 1, label="slow-lag=1")
+    # plt.plot(dkx, dk_omega_sl[1] + 1, label="slow-lag=2")
+    plt.plot(dkx, rdk_omega[7], label=("lag=%i" % rar_dk_lags[7]))
+    # plt.plot(dkx, dk_omega[-1], label="lag=max")
+    plt.ylim((-50, 50))
+    #plt.ylim((dk_avg[20:dkx.size - 20].min() / 2,
+    #          dk_avg[20:dkx.size - 20].max() * 1.5))
+    plt.xlim((0.05, 0.8))
+    plt.xlabel("$\Delta k_x$ [rad/m]")
+    plt.ylabel("$\omega$ [rad/s]")
+    plt.legend(loc=0)
+    plt.savefig(plot_path + os.sep + 'rar_delta_k_omega.%s' % plot_format)
     plt.close()
 
     info.msg("Saving output to %s" % pp_file)

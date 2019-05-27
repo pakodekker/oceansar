@@ -102,7 +102,6 @@ class RCSKA():
 #                          2.*np.pi/q[..., 2][sps] * n_norm[sps] /
 #                          np.sqrt(J_abs[sps]))
 
-
     def field(self, R_i, R_s,
                     pol_i, pol_s,
                     theta_i, theta_s, phi_i, phi_s,
