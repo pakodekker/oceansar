@@ -102,6 +102,7 @@ class RadarSurface():
                           cfg.ocean.wind_fetch, self.wind_u,
                           cfg.ocean.current_mag,
                           np.deg2rad(cfg.ocean.current_dir),
+                          0, 0, 0, 0, 0, False,
                           cfg.ocean.swell_enable, cfg.ocean.swell_ampl,
                           np.deg2rad(cfg.ocean.swell_dir),
                           cfg.ocean.swell_wl,
