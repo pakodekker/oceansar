@@ -69,6 +69,7 @@ def surface_rel(cfg_file=None, inc_deg=None, ntimes=2, t_step=10e-3):
                  cfg.ocean.wind_fetch, cfg.ocean.wind_U,
                  cfg.ocean.current_mag,
                  np.deg2rad(cfg.ocean.current_dir),
+                 0, 0, 0, 0, 0, False,
                  cfg.ocean.swell_enable, cfg.ocean.swell_ampl,
                  np.deg2rad(cfg.ocean.swell_dir),
                  cfg.ocean.swell_wl,

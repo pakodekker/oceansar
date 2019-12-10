@@ -167,6 +167,10 @@ def sarraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, reu
                               cfg.ocean.wind_fetch, cfg.ocean.wind_U,
                               cfg.ocean.current_mag,
                               np.deg2rad(cfg.ocean.current_dir),
+                              cfg.ocean.dir_swell_dir,
+                              cfg.ocean.freq_r, cfg.ocean.sigf,
+                              cfg.ocean.sigs, cfg.ocean.Hs,
+                              cfg.ocean.swell_dir_enable,
                               cfg.ocean.swell_enable, cfg.ocean.swell_ampl,
                               np.deg2rad(cfg.ocean.swell_dir),
                               cfg.ocean.swell_wl,
@@ -451,8 +455,9 @@ def sarraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, reu
             if do_vv:
                 scene_vv += ne.evaluate('sum(scat_bragg_vv * exp(1j*phase_bragg) * bragg_scats, axis=0)')
 
-        ## ANTENNA PATTERN
-        ## FIXME: this assume co-located Tx and Tx, so it will not work for true bistatic configurations
+        # ANTENNA PATTERN
+        # FIXME: this assume co-located Tx and Rx, so it will not work for true bistatic configurations
+        # Yuanhao: use drama antenna and antenna definition as used for performance
         if cfg.sar.L_total:
             beam_pattern = sinc_1tx_nrx(sin_az, ant_L * num_ch, f0, num_ch, field=True)
         else:

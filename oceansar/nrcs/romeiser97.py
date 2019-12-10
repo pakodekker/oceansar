@@ -72,7 +72,7 @@ class RCSRomeiser97():
         # s_p = np.arctan(cos_az * diffx + sin_az * diffy)
         # s_t = np.arctan(-sin_az * diffx + cos_az * diffy)
         s_p = ne.evaluate("arctan(cos_az * diffx + sin_az * diffy)")
-        s_t =  ne.evaluate("arctan(-sin_az * diffx + cos_az * diffy)")
+        s_t = ne.evaluate("arctan(-sin_az * diffx + cos_az * diffy)")
 
         # Effective local incidence angle (6)
         cos_s_t = np.cos(s_t)
