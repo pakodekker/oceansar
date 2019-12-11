@@ -54,6 +54,13 @@ class OceanSurface(object):
             :param swell_ampl: Swell amplitude (m)
             :param swell_dir: Swell direction (rad)
             :param swell_wl: Swell peak wavelength (m)
+            :param wave_dir: the dirction of the swell
+            :param dir_swell_dir: the direction of the directional swell
+            :param sigf: spread in frequency for the directional swell
+            :param freq_r: related to the wavelength of swell for the directional swell
+            :param sigs: spread in direction for the directional swell
+            :param Hs: significant wave height for the directional swell
+            :param dir_swell_spec: it is the spectrum for the directional swell
             :param compute: List with values to compute
                             - 'D': EN/DIS Computation of Wavefield (Dx,Dy,Dz)
                             - 'Diff': EN/DIS Computation of space 1st derivatives (slopes)
