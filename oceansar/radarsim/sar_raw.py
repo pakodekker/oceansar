@@ -45,6 +45,7 @@ from oceansar import closure
 from oceansar.radarsim import range_profile as raw
 
 from oceansar.surfaces import OceanSurface, OceanSurfaceBalancer
+from oceansar.swell_spec import dir_swell_spec as s_spec
 
 
 def sarraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, reuse_errors_file,
@@ -139,7 +140,6 @@ def sarraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, reu
                 pass
 
         if (not reuse_ocean_file) or (not surface_full.initialized):
-
             if hasattr(cfg.ocean, 'use_buoy_data'):
                 if cfg.ocean.use_buoy_data:
                     bdataf = cfg.ocean.buoy_data_file
@@ -149,14 +149,24 @@ def sarraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, reu
                                              np.int(cfg.ocean.hour),
                                              np.int(cfg.ocean.minute), 0)
                     date, bdata = tpio.load_buoydata(bdataf, date)
-                    buoy_spec = tpio.BuoySpectra(bdata, heading=cfg.sar.heading, depth=cfg.ocean.depth)
+                    # FIX-ME: direction needs to consider also azimuth of beam
+                    buoy_spec = tpio.BuoySpectra(bdata, heading=cfg.radar.heading, depth=cfg.ocean.depth)
                     dirspectrum_func = buoy_spec.Sk2
                     # Since the wind direction is included in the buoy data
                     wind_dir = 0
                 else:
                     dirspectrum_func = None
+                    if cfg.ocean.swell_dir_enable:
+                        dir_swell_spec = s_spec.ardhuin_swell_spec
+                    else:
+                        dir_swell_spec = None
+
                     wind_dir = np.deg2rad(cfg.ocean.wind_dir)
             else:
+                if cfg.ocean.swell_dir_enable:
+                    dir_swell_spec = s_spec.ardhuin_swell_spec
+                else:
+                    dir_swell_spec = None
                 dirspectrum_func = None
                 wind_dir = np.deg2rad(cfg.ocean.wind_dir)
 
@@ -178,7 +188,8 @@ def sarraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, reu
                               cfg.ocean.fft_max_prime,
                               choppy_enable=cfg.ocean.choppy_enable,
                               depth=cfg.ocean.depth,
-                              dirspectrum_func=dirspectrum_func)
+                              dirspectrum_func=dirspectrum_func,
+                              dir_swell_spec=dir_swell_spec)
 
             surface_full.save(ocean_file)
             # Now we plot the directional spectrum
