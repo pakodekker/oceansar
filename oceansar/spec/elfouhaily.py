@@ -40,7 +40,7 @@ def __alpha_m_function(ustar, c_m):
     return alpha_m
 
 
-def elfouhaily(k, U_10, fetch):
+def elfouhaily(k, U_10, fetch, return_components='False'):
     # Calculated variables
     k_m = 2*np.pi/0.017
     # Eq. 3 (below)
@@ -93,5 +93,8 @@ def elfouhaily(k, U_10, fetch):
     B_h = 0.5*alpha_m*c_m/c*F_m
 
     # Eq. 30 (Final spectrum)
-    return (B_l + B_h)/k**3
+    if return_components == 'True':
+        return B_l, B_h, (B_l + B_h)/k**3
+    else:
+        return (B_l + B_h)/k**3
 
