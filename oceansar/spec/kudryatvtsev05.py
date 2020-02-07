@@ -40,7 +40,7 @@ def beta_v(k, U, phi=0, z_0=0.0002, v=0.0013):
     :return: 
     """
     gamma = 0.07275
-    omega = np.sqrt(const.g * k * gamma * k**3)
+    omega = np.sqrt(const.g * k + gamma * k**3)
     b_v = beta(k, U, phi, z_0) - 4 * v * k**2 / omega
     return np.where(b_v > 0, b_v, 0)
 
