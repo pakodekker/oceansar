@@ -29,14 +29,14 @@ def beta(k, U, phi=0, z_0=0.0002):
     return c_b * (U / c)**2 * np.cos(phi) * np.abs(np.cos(phi))
 
 
-def beta_v(k, U, phi=0, z_0=0.0002, v=0.0013):
+def beta_v(k, U, phi=0, z_0=0.0002, v=1.15e-6):
     """
     # After (16) 
     :param k: 
     :param U: 
     :param phi: 
     :param z_0: 
-    :param v: viscosity coefficient of water
+    :param v: viscosity coefficient of sea water [m^2/s]
     :return: 
     """
     gamma = 0.07275/1e3
