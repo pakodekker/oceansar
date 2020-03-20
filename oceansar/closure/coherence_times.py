@@ -1,6 +1,6 @@
 
 import numpy as np
-import scipy as sp
+from scipy import special
 import oceansar.constants as const
 
 
@@ -14,5 +14,5 @@ def grid_coherence(U, res, f0, model='Pierson-Moskowitz'):
                       the only one implemented)
     """
 
-    tau_c = 3.29 * const.c / f0 / U / np.sqrt(np.erf(2.688 * res / U**2))
+    tau_c = 3.29 * const.c / f0 / U / np.sqrt(special.erf(2.688 * res / U**2))
     return tau_c
