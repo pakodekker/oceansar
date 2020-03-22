@@ -268,7 +268,16 @@ class RCSRomeiser97():
             :param diffx: Surface X slope
             :param diffy: Surface Y slope
         """
-        k_b, theta_inp, T_hh, T_vv, bad_ones = self._rcs_numba(self.inc_angle, az_angle, diffx, diffy, self.k0, self.pol, self.wind_dir, self.d)
+        if type(az_angle) is np.ndarray:
+            az_angle_ = ne.evaluate("az_angle * ones_like(diffx)")
+        else:
+            az_angle_ = az_angle
+        if type(self.inc_angle) is np.ndarray:
+            inc_angle_ = self.inc_angle
+            inc_angle_ = ne.evaluate("inc_angle_ * ones_like(diffx)")
+        else:
+            inc_angle_ = self.inc_angle
+        k_b, theta_inp, T_hh, T_vv, bad_ones = self._rcs_numba(inc_angle_, az_angle_, diffx, diffy, self.k0, self.pol, self.wind_dir, self.d)
         # Calculate folded spectrum
         k_inp = np.array([k_b, k_b])
         spectrum_1D = self.spec_interpolator(k_b.flatten()).reshape((1,) +
@@ -333,7 +342,9 @@ if __name__ == '__main__':
     slopey = 0.05 * np.random.randn(2048,2048)
     sh, sv = rrcs.rcs(0,slopex, slopey)
     print(sv.mean())
-    shn, svn = rrcs.rcs_numba(0,slopex, slopey)
+    shn, svn = rrcs.rcs_classic(0,slopex, slopey)
     print(svn.mean())
-    %timeit sh, sv = rrcs.rcs(0,slopex, slopey)
-    %timeit sh, sv = rrcs.rcs_numba(0,slopex, slopey)
+    # %timeit sh, sv = rrcs.rcs(0,slopex, slopey)
+    # %timeit sh, sv = rrcs.rcs_classic(0,slopex, slopey)
+    # kk = np.arange(10)
+    # type(kk) is np.ndarray
