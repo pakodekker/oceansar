@@ -111,7 +111,7 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
     # OCEAN / OTHERS
     ocean_dt = cfg.ocean.dt
 
-    add_point_target = False
+    add_point_target = False  # only for debugging
     use_numba = True
     n_sinc_samples = 8
     sinc_ovs = 20
@@ -352,15 +352,15 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
         if do_vv:
             scene_vv = np.zeros([int(surface.Ny), int(surface.Nx)], dtype=np.complex)
         # Point target
-        if add_point_target and rank == 0:
-            sr_pt = (sr[0, surface.Nx/2] + az[surface.Ny/2, 0]/2 *
-                     sin_az[surface.Ny/2, surface.Nx/2])
+        if add_point_target:
+            sr_pt = (sr[0, int(surface.Nx/2)] + az[int(surface.Ny/2), 0]/2 *
+                     sin_az[int(surface.Ny/2), 0])
             pt_scat = (100. * np.exp(-1j * 2. * k0 * sr_pt))
             if do_hh:
-                scene_hh[surface.Ny/2, surface.Nx/2] = pt_scat
+                scene_hh[int(surface.Ny/2), int(surface.Nx/2)] = pt_scat
             if do_vv:
-                scene_vv[surface.Ny/2, surface.Nx/2] = pt_scat
-            sr_surface[surface.Ny/2, surface.Nx/2] = sr_pt
+                scene_vv[int(surface.Ny/2), int(surface.Nx/2)] = pt_scat
+            sr_surface[int(surface.Ny/2), int(surface.Nx/2)] = sr_pt
 
         # Specular
         if scat_spec_enable:
@@ -575,6 +575,28 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
         total_raw = proc_raw_vv.reshape(rshp)
         rshp = (1,) + NRCS_avg_vv.shape
         NRCS_avg = NRCS_avg_vv.reshape(rshp)
+
+    if do_vv:
+        plt.figure()
+        plt.imshow(np.abs(proc_raw_vv[0]),
+                   origin='lower',
+                   cmap='inferno_r')
+
+        #plt.grid(True)
+        #pltax = plt.gca()
+        #pltax.set_xlim((-0.1, 0.1))
+        #pltax.set_ylim((-0.1, 0.1))
+        #plt.xlabel('$k_x$ [rad/m]')
+        #plt.ylabel('$k_y$ [rad/m]')
+        #plt.colorbar()
+        #plt.show()
+        # Create plots directory
+        plot_path = os.path.dirname(output_file) + os.sep + 'raw_plots'
+        if plot_save:
+            if not os.path.exists(plot_path):
+                os.makedirs(plot_path)
+        plt.savefig(os.path.join(plot_path, "raw_vv.png"))
+        plt.close()
 
     raw_file = tpio.RawFile(output_file, 'w', total_raw.shape)
     raw_file.set('inc_angle', np.rad2deg(inc_angle))
