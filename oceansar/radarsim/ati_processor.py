@@ -56,7 +56,6 @@ def ati_process(cfg_file, proc_output_file, ocean_file, output_file):
     f0 = cfg.sar.f0
     prf = cfg.sar.prf
     num_ch = cfg.sar.num_ch
-    ant_L = cfg.sar.ant_L
     alt = cfg.sar.alt
     v_ground = cfg.sar.v_ground
     rg_bw = cfg.sar.rg_bw
@@ -163,20 +162,32 @@ def ati_process(cfg_file, proc_output_file, ocean_file, output_file):
         return
 
     # Adaptive coregistration
-    if cfg.sar.L_total:
-        ant_L = ant_L/np.float(num_ch)
-        dist_chan = ant_L/2
-    else:
-        if np.float(cfg.sar.Spacing) != 0:
-            dist_chan = np.float(cfg.sar.Spacing)/2
-        else:
+    if hasattr(cfg.sar, 'ant_L'):
+        ant_L = cfg.sar.ant_L
+        if cfg.sar.L_total:
+            ant_L = ant_L/np.float(num_ch)
             dist_chan = ant_L/2
+        else:
+            if np.float(cfg.sar.Spacing) != 0:
+                dist_chan = np.float(cfg.sar.Spacing)/2
+            else:
+                dist_chan = ant_L/2
+        b_ati = np.arange(num_ch) * dist_chan
+    else:
+        # ATI baselines
+        b_ati = cfg.sar.b_ati
+        if not type(b_ati) == np.ndarray:
+            b_ati = np.arange(num_ch) * b_ati / 2
+        # XTI baselines
+        b_xti = cfg.sar.b_xti
+        if not type(b_xti) == np.ndarray:
+            b_xti = np.arange(num_ch) * b_xti
     # dist_chan = ant_L/num_ch/2.
-    print('ATI Spacing: %f' % dist_chan)
-    inter_chan_shift_dist = dist_chan/(v_ground/prf)
+    # print('ATI Spacing: %f' % dist_chan)
+    inter_chan_shift_dist = b_ati / (v_ground/prf)
     # Subsample shift in azimuth
     for chind in range(proc_data.shape[0]):
-        shift_dist = - chind * inter_chan_shift_dist
+        shift_dist = - inter_chan_shift_dist[chind]
         shift_arr = np.exp(-2j * np.pi * shift_dist *
                            np.roll(np.arange(az_size) - az_size/2,
                                    int(-az_size / 2)) / az_size)
@@ -289,7 +300,7 @@ def ati_process(cfg_file, proc_output_file, ocean_file, output_file):
 
     # ATI PHASE
 
-    tau_ati = dist_chan/v_ground
+    tau_ati = b_ati/v_ground
 
     ati_phases = []
     # Hack to avoid interferogram computation if there are no interferometric channels
@@ -304,7 +315,7 @@ def ati_process(cfg_file, proc_output_file, ocean_file, output_file):
         coh_ind = coh_lut[(pind, pind + npol)]
         ati_phase = uwphase(cohs[coh_ind])
         ati_phases.append(ati_phase)
-        v_radial_est = -ati_phase / tau_ati / (k0 * 2.)
+        v_radial_est = -ati_phase / tau_ati[1] / (k0 * 2.)
         if plot_ati_phase:
             phase_mean = np.mean(ati_phase)
             phase_std = np.std(ati_phase)
@@ -437,10 +448,10 @@ def ati_process(cfg_file, proc_output_file, ocean_file, output_file):
         # Note: plot limits are taken from surface calculations to keep the same ranges
 
         # ESTIMATE RADIAL VELOCITY
-        v_radial_ests = -ati_phases/tau_ati/(k0*2.)
+        v_radial_ests = -ati_phases/tau_ati[1]/(k0*2.)
 
         # ESTIMATE HORIZONTAL VELOCITY
-        v_horizo_ests = -ati_phases/tau_ati/(k0*2.)/np.sin(inc_angle)
+        v_horizo_ests = -ati_phases/tau_ati[1]/(k0*2.)/np.sin(inc_angle)
 
         #Trim edges
         v_radial_ests = v_radial_ests[:, az_guard:-az_guard, 5:-5]

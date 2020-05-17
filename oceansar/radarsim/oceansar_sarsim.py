@@ -19,7 +19,9 @@ import time
 import subprocess
 from oceansar import ocs_io as osrio
 from oceansar import utils
-
+from oceansar.radarsim.sar_raw_nompi import sar_raw
+from oceansar.radarsim.sar_processor import sar_focus
+from oceansar.radarsim.ati_processor import ati_process
 
 def sarsim(cfg_file=None):
 
@@ -37,37 +39,19 @@ def sarsim(cfg_file=None):
     if cfg.sim.raw_run:
 
         print('Launching SAR RAW Generator...')
-
-        args = [cfg.sim.mpi_exec,
-                '-np', str(cfg.sim.mpi_num_proc),
-                sys.executable, src_path + os.sep + 'sar_raw.py',
-                '-c', cfg.cfg_file_name,
-                '-o', cfg.sim.path + os.sep + cfg.sim.raw_file,
-                '-oc', cfg.sim.path + os.sep + cfg.sim.ocean_file,
-                '-er', cfg.sim.path + os.sep + cfg.sim.errors_file]
-
-        if cfg.sim.ocean_reuse:
-            args.append('-ro')
-        if cfg.sim.errors_reuse:
-            args.append('-re')
-
-        returncode = subprocess.call(args)
-
-        if returncode != 0:
-            raise Exception('Something went wrong with SAR RAW Generator (return code %d)...' % returncode)
+        sar_raw(cfg.cfg_file_name,
+                os.path.join(cfg.sim.path, cfg.sim.raw_file),
+                os.path.join(cfg.sim.path, cfg.sim.ocean_file),
+                cfg.sim.ocean_reuse,
+                os.path.join(cfg.sim.path, cfg.sim.errors_file),
+                cfg.sim.errors_reuse, plot_save=True)
 
     # Processing
     if cfg.sim.proc_run:
         print('Launching SAR RAW Processor...')
+        sar_focus(cfg.cfg_file_name, os.path.join(cfg.sim.path, cfg.sim.raw_file),
+                  os.path.join(cfg.sim.path, cfg.sim.proc_file))
 
-        returncode = subprocess.call([sys.executable,
-                                      src_path + os.sep + 'sar_processor.py',
-                                      '-c', cfg.cfg_file_name,
-                                      '-r', cfg.sim.path + os.sep + cfg.sim.raw_file,
-                                      '-o', cfg.sim.path + os.sep + cfg.sim.proc_file])
-
-        if returncode != 0:
-            raise Exception('Something went wrong with SAR RAW Processor (return code %d)...' % returncode)
 
     # ATI
     if cfg.sim.corar_run:
@@ -75,29 +59,15 @@ def sarsim(cfg_file=None):
 
     if cfg.sim.ati_run:
         print('Launching SAR ATI Processor...')
-
-        returncode = subprocess.call([sys.executable,
-                                      src_path + os.sep + 'ati_processor.py',
-                                      '-c', cfg.cfg_file_name,
-                                      '-p', cfg.sim.path + os.sep + cfg.sim.proc_file,
-                                      '-s', cfg.sim.path + os.sep + cfg.sim.ocean_file,
-                                      '-o', cfg.sim.path + os.sep + cfg.sim.ati_file])
-
-        if returncode != 0:
-            raise Exception('Something went wrong with SAR ATI Processor (return code %d)...' % returncode)
+        ati_process(cfg.cfg_file_name,
+                    os.path.join(cfg.sim.path, cfg.sim.proc_file),
+                    os.path.join(cfg.sim.path, cfg.sim.ocean_file),
+                    os.path.join(cfg.sim.path, cfg.sim.ati_file))
 
     if cfg.sim.L2_wavespectrum_run:
         print('Launching L2 Wavespectrum Processor...')
 
-        returncode = subprocess.call([sys.executable,
-                                      src_path + os.sep + 'L2_wavespectrum.py',
-                                      '-c', cfg.cfg_file_name,
-                                      '-p', cfg.sim.path + os.sep + cfg.sim.proc_file,
-                                      '-s', cfg.sim.path + os.sep + cfg.sim.ocean_file,
-                                      '-o', cfg.sim.path + os.sep + cfg.sim.L2_wavespectrum_file])
 
-        if returncode != 0:
-            raise Exception('Something went wrong with wavesprectrum Processor (return code %d)...' % returncode)
 
     print('----------------------------------', flush=True)
     print(time.strftime("End of tasks [%Y-%m-%d %H:%M:%S]", time.localtime()), flush=True)
