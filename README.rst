@@ -31,6 +31,14 @@ Radar Institute (DLR) for the European Space Agency (ESA).
 Since then, Paco Lopez Dekker added support for polarimetric acquisitions, and separated OCEANSAR from the radar-specific
 code in order to be able to open-source the first part.
 
+Usage
+=====
+Right now probably the best way to run OCEANSAR is:
+
+python path-to-oceansar/oceansar/radarsim/oceansar_sarsim.py config_file.cfg
+
+This runs a single process oceansar simulation which uses heavily numba to speed thigs up.
+
 General Roadmap
 ===============
 
