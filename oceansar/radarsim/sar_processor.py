@@ -24,7 +24,7 @@ from oceansar.utils import geometry as geo
 from oceansar import utils
 from oceansar import ocs_io as tpio
 from oceansar import constants as const
-from oceansar.radarsim.antenna import sinc_1tx_nrx
+from oceansar.radarsim.antenna import sinc_1tx_nrx, sinc_bp
 
 
 def sar_focus(cfg_file, raw_output_file, output_file):
@@ -149,13 +149,18 @@ def sar_focus(cfg_file, raw_output_file, output_file):
         fa = np.fft.fftfreq(az_size, 1/prf)
         ## Compensation of ANTENNA PATTERN
         ## FIXME this will not work for a long separation betwen Tx and Rx!!!
-        ant_L = cfg.sar.ant_L
-        # fa = 2 * v_orb / l0 * sin_az
         sin_az = fa * l0 / (2 * v_ground)
-        if cfg.sar.L_total:
-            beam_pattern = sinc_1tx_nrx(sin_az, ant_L * num_ch, f0, num_ch, field=True)
+        if hasattr(cfg.sar, 'ant_L'):
+            ant_L = cfg.sar.ant_L
+            if cfg.sar.L_total:
+                beam_pattern = sinc_1tx_nrx(sin_az, ant_L * num_ch, f0, num_ch, field=True)
+            else:
+                beam_pattern = sinc_1tx_nrx(sin_az, ant_L, f0, 1, field=True)
         else:
-            beam_pattern = sinc_1tx_nrx(sin_az, ant_L, f0, 1, field=True)
+            ant_l_tx = cfg.sar.ant_L_tx
+            ant_l_rx = cfg.sar.ant_L_rx
+            beam_pattern = (sinc_bp(sin_az, ant_l_tx, f0, field=True)
+                            * sinc_bp(sin_az, ant_l_rx, f0, field=True))
         #fa[az_size/2:] = fa[az_size/2:] - prf
         rcmc_fa = sr0 / np.sqrt(1 - (fa * (l0 / 2.) / v_ground)**2.) - sr0
 

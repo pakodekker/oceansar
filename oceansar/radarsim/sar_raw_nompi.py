@@ -16,7 +16,7 @@ import datetime
 from oceansar import utils
 from oceansar import ocs_io as tpio
 from oceansar.utils import geometry as geosar
-from oceansar.radarsim.antenna import sinc_1tx_nrx
+from oceansar.radarsim.antenna import sinc_bp
 from oceansar import constants as const
 
 from oceansar import nrcs as rcs
@@ -94,7 +94,7 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
 
     prf = cfg.sar.prf
     num_ch = int(cfg.sar.num_ch)
-    ant_L = cfg.sar.ant_L
+    #ant_L = cfg.sar.ant_L
     alt = cfg.sar.alt
     v_ground = cfg.sar.v_ground
     rg_bw = cfg.sar.rg_bw
@@ -243,19 +243,22 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
     l0 = const.c/f0
     k0 = 2.*np.pi*f0/const.c
     sr_res = const.c/(2.*rg_bw)
-    if cfg.sar.L_total:
-        ant_L = ant_L/np.float(num_ch)
-        d_chan = ant_L
-    else:
-        if np.float(cfg.sar.Spacing) != 0:
-            d_chan = np.float(cfg.sar.Spacing)
-        else:
-            d_chan = ant_L
+    ant_l_tx = cfg.sar.ant_L_tx
+    ant_l_rx = cfg.sar.ant_L_rx
+
+    # ATI baselines
+    b_ati = cfg.sar.b_ati
+    if not type(b_ati) == np.ndarray:
+        b_ati = np.arange(num_ch) * b_ati
+    # XTI baselines
+    b_xti = cfg.sar.b_xti
+    if not type(b_xti) == np.ndarray:
+        b_xti = np.arange(num_ch) * b_xti
 
     if v_ground == 'auto':
         v_ground = geosar.orbit_to_vel(alt, ground=True)
     t_step = 1./prf
-    t_span = (1.5*(sr0*l0/ant_L) + surface.Ly)/v_ground
+    t_span = (1.5*(sr0*l0/ant_l_tx) + surface.Ly)/v_ground
     az_steps = np.int(np.floor(t_span/t_step))
 
     # Number of RG samples
@@ -455,19 +458,16 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
 
         # ANTENNA PATTERN
         # FIXME: this assume co-located Tx and Rx, so it will not work for true bistatic configurations
-        # Yuanhao: use drama antenna and antenna definition as used for performance
-        if cfg.sar.L_total:
-            beam_pattern = sinc_1tx_nrx(sin_az, ant_L * num_ch, f0, num_ch, field=True)
-        else:
-            beam_pattern = sinc_1tx_nrx(sin_az, ant_L, f0, 1, field=True)
 
-        ## GENERATE CHANEL PROFILES
+        beam_pattern = (sinc_bp(sin_az, ant_l_tx, f0, field=True)
+                        * sinc_bp(sin_az, ant_l_rx, f0, field=True))
+        # GENERATE CHANEL PROFILES
         for ch in np.arange(num_ch, dtype=np.int):
 
             if do_hh:
                 scene_bp = scene_hh * beam_pattern
                 # Add channel phase & compute profile
-                scene_bp *= np.exp(-1j*k0*d_chan*ch*sin_az)
+                scene_bp *= np.exp(-1j * k0 * b_ati[ch] * sin_az)
                 if use_numba:
                     raw.chan_profile_numba(sr_surface.flatten(),
                                            scene_bp.flatten(),
@@ -488,7 +488,7 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
             if do_vv:
                 scene_bp = scene_vv * beam_pattern
                 # Add channel phase & compute profile
-                scene_bp *= np.exp(-1j*k0*d_chan*ch*sin_az)
+                scene_bp *= np.exp(-1j * k0 * b_ati[ch] * sin_az)
                 if use_numba:
                     raw.chan_profile_numba(sr_surface.flatten(),
                                            scene_bp.flatten(),
@@ -513,7 +513,7 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
             last_progress = current_progress
             print('SP, %d' % current_progress)
 
-    ## PROCESS REDUCED RAW DATA & SAVE (ROOT)
+    # PROCESS REDUCED RAW DATA & SAVE (ROOT)
 
     print('Processing and saving results...')
 
@@ -528,16 +528,12 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
         proc_raw_vv = proc_raw_vv[:, :, :rg_samp_orig]
 
     # Calibration factor (projected antenna pattern integrated in azimuth)
-    az_axis = np.arange(-t_span/2.*v_ground, t_span/2.*v_ground, sr0*const.c/(np.pi*f0*ant_L*10.))
+    az_axis = np.arange(-t_span/2.*v_ground, t_span/2.*v_ground, sr0*const.c/(np.pi*f0*ant_l_tx*10.))
 
-    if cfg.sar.L_total:
-        pattern = sinc_1tx_nrx(az_axis/sr0, ant_L * num_ch, f0,
-                               num_ch, field=True)
-    else:
-        pattern = sinc_1tx_nrx(az_axis/sr0, ant_L, f0, 1,
-                               field=True)
-    cal_factor = (1. / np.sqrt(np.trapz(np.abs(pattern)**2., az_axis) *
-                  sr_res/np.sin(inc_angle)))
+    pattern = (sinc_bp(az_axis/sr0, ant_l_tx, f0, field=True)
+               * sinc_bp(az_axis/sr0, ant_l_rx, f0, field=True))
+    cal_factor = (1. / np.sqrt(np.trapz(np.abs(pattern)**2., az_axis)
+                  * sr_res/np.sin(inc_angle)))
 
     if do_hh:
         noise = (utils.db2lin(nesz, amplitude=True) / np.sqrt(2.) *
@@ -602,7 +598,7 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
     raw_file.set('inc_angle', np.rad2deg(inc_angle))
     raw_file.set('f0', f0)
     raw_file.set('num_ch', num_ch)
-    raw_file.set('ant_L', ant_L)
+    raw_file.set('ant_L', ant_l_tx)
     raw_file.set('prf', prf)
     raw_file.set('v_ground', v_ground)
     raw_file.set('orbit_alt', alt)
@@ -611,6 +607,8 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
     raw_file.set('rg_bw', rg_bw)
     raw_file.set('raw_data*', total_raw)
     raw_file.set('NRCS_avg', NRCS_avg)
+    raw_file.set('b_ati', b_ati)
+    raw_file.set('b_xti', b_xti)
     raw_file.close()
 
     print(time.strftime("Finished [%Y-%m-%d %H:%M:%S]", time.localtime()))

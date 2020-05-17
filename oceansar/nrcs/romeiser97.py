@@ -280,8 +280,10 @@ class RCSRomeiser97():
         k_b, theta_inp, T_hh, T_vv, bad_ones = self._rcs_numba(inc_angle_, az_angle_, diffx, diffy, self.k0, self.pol, self.wind_dir, self.d)
         # Calculate folded spectrum
         k_inp = np.array([k_b, k_b])
+        # TODO: thw interpolation is taking about 20% of the time of the function, this can go faster
         spectrum_1D = self.spec_interpolator(k_b.flatten()).reshape((1,) +
                                                                     k_b.shape)
+        # spectrum_1D = 1
         #else:
         #    spectrum = spec.models[self.sw_spec_func](k_inp, self.U_10, self.fetch)
 
