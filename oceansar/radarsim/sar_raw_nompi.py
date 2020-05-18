@@ -349,7 +349,8 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
         # Note: Projected displacements are added to slant range
         sr_surface = (sr - cos_inc*surface.Dz + az/2*sin_az
                          + surface.Dx*sin_inc + surface.Dy*sin_az)
-
+        # Elevation displacements
+        wave_dinc = (surface.Dz * sin_inc + surface.Dx * sin_inc) / sr0
         if do_hh:
             scene_hh = np.zeros([int(surface.Ny), int(surface.Nx)], dtype=np.complex)
         if do_vv:
@@ -463,11 +464,13 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
                         * sinc_bp(sin_az, ant_l_rx, f0, field=True))
         # GENERATE CHANEL PROFILES
         for ch in np.arange(num_ch, dtype=np.int):
-
+            tot_dinc = (inc - inc_angle) + wave_dinc
             if do_hh:
                 scene_bp = scene_hh * beam_pattern
                 # Add channel phase & compute profile
                 scene_bp *= np.exp(-1j * k0 * b_ati[ch] * sin_az)
+                # Add cross-track phase
+                scene_bp *= np.exp(-1j * k0 * b_xti[ch] * tot_dinc)
                 if use_numba:
                     raw.chan_profile_numba(sr_surface.flatten(),
                                            scene_bp.flatten(),
@@ -489,6 +492,8 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
                 scene_bp = scene_vv * beam_pattern
                 # Add channel phase & compute profile
                 scene_bp *= np.exp(-1j * k0 * b_ati[ch] * sin_az)
+                # Add cross-track phase
+                scene_bp *= np.exp(-1j * k0 * b_xti[ch] * tot_dinc)
                 if use_numba:
                     raw.chan_profile_numba(sr_surface.flatten(),
                                            scene_bp.flatten(),
