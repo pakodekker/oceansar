@@ -22,9 +22,9 @@ class SkimRawFile(NETCDFHandler):
         # If writing, define file
         if mode == 'w':
             # Set file attributes
-            self.__file__.description = 'OASIS SAR Raw Data File'
+            self.__file__.description = 'OCEANSAR SAR Raw Data File'
             self.__file__.history = 'Created ' + time.ctime(time.time())
-            self.__file__.source = 'OASIS Simulator'
+            self.__file__.source = 'OCEANSAR Simulator'
 
             # Dimensions
             if not raw_dim:
