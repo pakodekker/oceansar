@@ -403,8 +403,8 @@ def ati_process(cfg_file, proc_output_file, ocean_file, output_file):
             # PLOT RADIAL VELOCITY
             plt.figure()
 
-            plt.hist(v_radial_surf.flatten(), 200, normed=True, histtype='step')
-            #plt.hist(v_radial_surf_ml.flatten(), 500, normed=True, histtype='step')
+            plt.hist(v_radial_surf.flatten(), 200, density=True, histtype='step')
+            #plt.hist(v_radial_surf_ml.flatten(), 500, density=True, histtype='step')
             plt.grid(True)
             plt.xlim([-np.abs(v_radial_surf_mean) - 4.*v_radial_surf_std, np.abs(v_radial_surf_mean) + 4.* v_radial_surf_std])
             plt.xlabel('Radial velocity [m/s]')
@@ -418,8 +418,8 @@ def ati_process(cfg_file, proc_output_file, ocean_file, output_file):
                 plt.show()
 
             plt.figure()
-            plt.hist(v_radial_surf_ml.flatten(), 200, normed=True, histtype='step')
-            #plt.hist(v_radial_surf_ml.flatten(), 500, normed=True, histtype='step')
+            plt.hist(v_radial_surf_ml.flatten(), 200, density=True, histtype='step')
+            #plt.hist(v_radial_surf_ml.flatten(), 500, density=True, histtype='step')
             plt.grid(True)
             plt.xlim([-np.abs(v_radial_surf_mean) - 4.*v_radial_surf_std, np.abs(v_radial_surf_mean) + 4.* v_radial_surf_std])
             plt.xlabel('Radial velocity [m/s]')
@@ -504,10 +504,10 @@ def ati_process(cfg_file, proc_output_file, ocean_file, output_file):
     if plot_vel_hist and num_ch > 1:
         # PLOT RADIAL VELOCITY
         plt.figure()
-        plt.hist(v_radial_surf.flatten(), 200, normed=True, histtype='step',
+        plt.hist(v_radial_surf.flatten(), 200, density=True, histtype='step',
                  label='True')
         for pind in range(npol):
-            plt.hist(v_radial_ests[pind].flatten(), 200, normed=True,
+            plt.hist(v_radial_ests[pind].flatten(), 200, density=True,
                      histtype='step', label=polt[pind])
         plt.grid(True)
         plt.xlim([-np.abs(v_radial_surf_mean) - 4.*v_radial_surf_std,
@@ -533,9 +533,9 @@ def ati_process(cfg_file, proc_output_file, ocean_file, output_file):
         np.savez(filenpz,
                  nrcs=NRCS_est_avg,
                  v_r_dop=np.mean(np.mean(v_radial_ests, axis=-1), axis=-1),
-                 v_r_surf = v_radial_surf_mean,
-                 v_r_surf_std = v_radial_surf_std,
-                 coh_mean= np.mean(np.mean(cohs, axis=-1), axis=-1),
+                 v_r_surf=v_radial_surf_mean,
+                 v_r_surf_std=v_radial_surf_std,
+                 coh_mean=np.mean(np.mean(cohs, axis=-1), axis=-1),
                  abscoh_mean=np.mean(np.mean(np.abs(cohs), axis=-1), axis=-1),
                  coh_lut=coh_lut,
                  pols=polt)
