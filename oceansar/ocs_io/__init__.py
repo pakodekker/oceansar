@@ -27,4 +27,5 @@ from .cfg import ConfigFile
 from .raw import RawFile, SkimRawFile
 from .netcdf import NETCDFHandler
 from .processed import ProcFile
+from .insar_l1b import L1bFile
 from .buoy import load_buoydata, BuoySpectra

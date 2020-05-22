@@ -23,9 +23,9 @@ class ProcFile(NETCDFHandler):
         # If writing, define file
         if mode == 'w':
             # Set file attributes
-            self.__file__.description = 'OASIS Processed Raw Data File'
+            self.__file__.description = 'OCEANSAR Processed SLC Data File'
             self.__file__.history = 'Created ' + time.ctime(time.time())
-            self.__file__.source = 'OASIS Simulator'
+            self.__file__.source = 'OCEANSAR Simulator'
 
             # Dimensions
             if not proc_dim:
@@ -35,7 +35,7 @@ class ProcFile(NETCDFHandler):
             self.__file__.createDimension('pol_dim', proc_dim[1])
             self.__file__.createDimension('az_dim', proc_dim[2])
             self.__file__.createDimension('rg_dim', proc_dim[3])
-
+            num_ch = self.__file__.createVariable('num_ch', 'i4')
             # Variables
             slc_r = self.__file__.createVariable('slc_r',
                                                  'f8',
@@ -52,3 +52,26 @@ class ProcFile(NETCDFHandler):
             slc_r.units = '[]'
             slc_i.units = '[]'
 
+            inc_angle = self.__file__.createVariable('inc_angle', 'f8')
+            inc_angle.units = '[deg]'
+            f0 = self.__file__.createVariable('f0', 'f8')
+            f0.units = '[Hz]'
+
+            ant_L = self.__file__.createVariable('ant_L', 'f8')
+            ant_L.units = '[m]'
+            prf = self.__file__.createVariable('prf', 'f8')
+            prf.units = '[Hz]'
+            v_ground = self.__file__.createVariable('v_ground', 'f8')
+            v_ground.units = '[m/s]'
+            orbit_alt = self.__file__.createVariable('orbit_alt', 'f8')
+            orbit_alt.units = '[m]'
+            sr0 = self.__file__.createVariable('sr0', 'f8')
+            sr0.units = '[m]'
+            rg_sampling = self.__file__.createVariable('rg_sampling', 'f8')
+            rg_sampling.units = '[Hz]'
+            rg_bw = self.__file__.createVariable('rg_bw', 'f8')
+            rg_bw.units = '[Hz]'
+            b_ati = self.__file__.createVariable('b_ati', 'f8', 'ch_dim')
+            b_ati.units = '[m]'
+            b_xti = self.__file__.createVariable('b_xti', 'f8', 'ch_dim')
+            b_xti.units = '[m]'

@@ -228,11 +228,13 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
     gr0 = geosar.inc_to_gr(inc_angle, alt)
     gr = surface.x + gr0
     sr, inc, _ = geosar.gr_to_geo(gr, alt)
+    # Slant range of first range gate
+    # We have to correct one sample delay introduced in the range profile creator
+    rg_sampling = rg_bw * over_fs
+    sr_near = sr[0] - wh_tol + const.c / 2 / (rg_sampling)
     sr -= np.min(sr)
-    #inc = np.repeat(inc[np.newaxis, :], surface.Ny, axis=0)
-    #sr = np.repeat(sr[np.newaxis, :], surface.Ny, axis=0)
-    #gr = np.repeat(gr[np.newaxis, :], surface.Ny, axis=0)
-    #Let's try to safe some memory and some operations
+
+    # Let's try to safe some memory and some operations
     inc = inc.reshape(1, inc.size)
     sr = sr.reshape(1, sr.size)
     gr = gr.reshape(1, gr.size)
@@ -349,7 +351,8 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
         # Note: Projected displacements are added to slant range
         sr_surface = (sr - cos_inc*surface.Dz + az/2*sin_az
                          + surface.Dx*sin_inc + surface.Dy*sin_az)
-
+        # Elevation displacements
+        wave_dinc = (surface.Dz * sin_inc + surface.Dx * sin_inc) / sr0
         if do_hh:
             scene_hh = np.zeros([int(surface.Ny), int(surface.Nx)], dtype=np.complex)
         if do_vv:
@@ -463,11 +466,13 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
                         * sinc_bp(sin_az, ant_l_rx, f0, field=True))
         # GENERATE CHANEL PROFILES
         for ch in np.arange(num_ch, dtype=np.int):
-
+            tot_dinc = (inc - inc_angle) + wave_dinc
             if do_hh:
                 scene_bp = scene_hh * beam_pattern
                 # Add channel phase & compute profile
                 scene_bp *= np.exp(-1j * k0 * b_ati[ch] * sin_az)
+                # Add cross-track phase
+                scene_bp *= np.exp(-1j * k0 * b_xti[ch] * tot_dinc)
                 if use_numba:
                     raw.chan_profile_numba(sr_surface.flatten(),
                                            scene_bp.flatten(),
@@ -489,6 +494,8 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
                 scene_bp = scene_vv * beam_pattern
                 # Add channel phase & compute profile
                 scene_bp *= np.exp(-1j * k0 * b_ati[ch] * sin_az)
+                # Add cross-track phase
+                scene_bp *= np.exp(-1j * k0 * b_xti[ch] * tot_dinc)
                 if use_numba:
                     raw.chan_profile_numba(sr_surface.flatten(),
                                            scene_bp.flatten(),
@@ -602,7 +609,7 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
     raw_file.set('prf', prf)
     raw_file.set('v_ground', v_ground)
     raw_file.set('orbit_alt', alt)
-    raw_file.set('sr0', sr0)
+    raw_file.set('sr0', sr_near)
     raw_file.set('rg_sampling', rg_bw*over_fs)
     raw_file.set('rg_bw', rg_bw)
     raw_file.set('raw_data*', total_raw)
