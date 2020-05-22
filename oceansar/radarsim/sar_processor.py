@@ -71,6 +71,9 @@ def sar_focus(cfg_file, raw_output_file, output_file):
     raw_file = tpio.RawFile(raw_output_file, 'r')
     raw_data = raw_file.get('raw_data*')
     sr0 = raw_file.get('sr0')
+    inc_angle = raw_file.get('inc_angle')
+    b_ati = raw_file.get('b_ati')
+    b_xti = raw_file.get('b_xti')
     raw_file.close()
 
     # OTHER INITIALIZATIONS
@@ -239,6 +242,18 @@ def sar_focus(cfg_file, raw_output_file, output_file):
     print("Shape of SLC: " + str(slc.shape), flush=True)
     proc_file = tpio.ProcFile(output_file, 'w', slc.shape)
     proc_file.set('slc*', slc)
+    proc_file.set('inc_angle', inc_angle)
+    proc_file.set('f0', f0)
+    proc_file.set('num_ch', num_ch)
+    proc_file.set('ant_L', ant_l_tx)
+    proc_file.set('prf', prf)
+    proc_file.set('v_ground', v_ground)
+    proc_file.set('orbit_alt', alt)
+    proc_file.set('sr0', sr0)
+    proc_file.set('rg_sampling', rg_bw*over_fs)
+    proc_file.set('rg_bw', rg_bw)
+    proc_file.set('b_ati', b_ati)
+    proc_file.set('b_xti', b_xti)
     proc_file.close()
 
     print('-----------------------------------------')
