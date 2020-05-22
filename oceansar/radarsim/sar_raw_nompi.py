@@ -228,11 +228,13 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
     gr0 = geosar.inc_to_gr(inc_angle, alt)
     gr = surface.x + gr0
     sr, inc, _ = geosar.gr_to_geo(gr, alt)
+    # Slant range of first range gate
+    # We have to correct one sample delay introduced in the range profile creator
+    rg_sampling = rg_bw * over_fs
+    sr_near = sr[0] - wh_tol + const.c / 2 / (rg_sampling)
     sr -= np.min(sr)
-    #inc = np.repeat(inc[np.newaxis, :], surface.Ny, axis=0)
-    #sr = np.repeat(sr[np.newaxis, :], surface.Ny, axis=0)
-    #gr = np.repeat(gr[np.newaxis, :], surface.Ny, axis=0)
-    #Let's try to safe some memory and some operations
+
+    # Let's try to safe some memory and some operations
     inc = inc.reshape(1, inc.size)
     sr = sr.reshape(1, sr.size)
     gr = gr.reshape(1, gr.size)
@@ -607,7 +609,7 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
     raw_file.set('prf', prf)
     raw_file.set('v_ground', v_ground)
     raw_file.set('orbit_alt', alt)
-    raw_file.set('sr0', sr0)
+    raw_file.set('sr0', sr_near)
     raw_file.set('rg_sampling', rg_bw*over_fs)
     raw_file.set('rg_bw', rg_bw)
     raw_file.set('raw_data*', total_raw)
