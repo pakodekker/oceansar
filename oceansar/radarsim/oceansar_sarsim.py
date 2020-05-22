@@ -22,6 +22,7 @@ from oceansar import utils
 from oceansar.radarsim.sar_raw_nompi import sar_raw
 from oceansar.radarsim.sar_processor import sar_focus
 from oceansar.radarsim.ati_processor import ati_process
+from oceansar.radarsim.insar_processor import insar_process
 
 def sarsim(cfg_file=None):
 
@@ -52,10 +53,12 @@ def sarsim(cfg_file=None):
         sar_focus(cfg.cfg_file_name, os.path.join(cfg.sim.path, cfg.sim.raw_file),
                   os.path.join(cfg.sim.path, cfg.sim.proc_file))
 
-
-    # ATI
-    if cfg.sim.corar_run:
-        print('CoRAR Processing')
+    if cfg.sim.insar_run:
+        print('Launching InSAR L1b Processor...')
+        insar_process(cfg.cfg_file_name,
+                      os.path.join(cfg.sim.path, cfg.sim.proc_file),
+                      os.path.join(cfg.sim.path, cfg.sim.ocean_file),
+                      os.path.join(cfg.sim.path, cfg.sim.insar_file))
 
     if cfg.sim.ati_run:
         print('Launching SAR ATI Processor...')
