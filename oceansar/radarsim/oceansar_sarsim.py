@@ -63,7 +63,7 @@ def sarsim(cfg_file=None):
     if cfg.sim.ati_run:
         print('Launching SAR ATI Processor...')
         ati_process(cfg.cfg_file_name,
-                    os.path.join(cfg.sim.path, cfg.sim.proc_file),
+                    os.path.join(cfg.sim.path, cfg.sim.insar_file),
                     os.path.join(cfg.sim.path, cfg.sim.ocean_file),
                     os.path.join(cfg.sim.path, cfg.sim.ati_file))
 

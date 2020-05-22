@@ -86,3 +86,5 @@ class L1bFile(NETCDFHandler):
             b_ati.units = '[m]'
             b_xti = self.__file__.createVariable('b_xti', 'f8', 'ch_dim')
             b_xti.units = '[m]'
+            rg_ml = self.__file__.createVariable('rg_ml', 'i4')
+            az_ml = self.__file__.createVariable('az_ml', 'i4')

@@ -231,6 +231,8 @@ def insar_process(cfg_file, proc_output_file, ocean_file, output_file):
     # l1b_file.set('rg_bw', rg_bw)
     l1b_file.set('b_ati', b_ati)
     l1b_file.set('b_xti', b_xti)
+    l1b_file.set('rg_ml', rg_ml)
+    l1b_file.set('az_ml', az_ml)
     l1b_file.close()
 
     print('Generating plots and estimating values...')

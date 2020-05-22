@@ -40,7 +40,7 @@ def uwphase(phasor):
     return pha
 
 
-def ati_process(cfg_file, proc_output_file, ocean_file, output_file):
+def ati_process(cfg_file, insar_output_file, ocean_file, output_file):
 
     print('-------------------------------------------------------------------')
     print(time.strftime("- OCEANSAR ATI Processor: [%Y-%m-%d %H:%M:%S]", time.localtime()))
@@ -52,14 +52,6 @@ def ati_process(cfg_file, proc_output_file, ocean_file, output_file):
     cfg = tpio.ConfigFile(cfg_file)
 
     # SAR
-    inc_angle = np.deg2rad(cfg.sar.inc_angle)
-    f0 = cfg.sar.f0
-    prf = cfg.sar.prf
-    num_ch = cfg.sar.num_ch
-    alt = cfg.sar.alt
-    v_ground = cfg.sar.v_ground
-    rg_bw = cfg.sar.rg_bw
-    over_fs = cfg.sar.over_fs
     pol = cfg.sar.pol
     if pol == 'DP':
         polt = ['hh', 'vv']
@@ -68,8 +60,7 @@ def ati_process(cfg_file, proc_output_file, ocean_file, output_file):
     else:
         polt = ['vv']
     # ATI
-    rg_ml = cfg.ati.rg_ml
-    az_ml = cfg.ati.az_ml
+
     ml_win = cfg.ati.ml_win
     plot_save = cfg.ati.plot_save
     plot_path = cfg.ati.plot_path
@@ -84,15 +75,28 @@ def ati_process(cfg_file, proc_output_file, ocean_file, output_file):
     plot_vel_hist = cfg.ati.plot_vel_hist
     plot_vel = cfg.ati.plot_vel
 
-    ## CALCULATE PARAMETERS
-    if v_ground == 'auto': v_ground = geosar.orbit_to_vel(alt, ground=True)
-    k0 = 2.*np.pi*f0/const.c
-    rg_sampling = rg_bw*over_fs
+    # PROCESSED InSAR L1b DATA
+    insar_data = tpio.L1bFile(insar_output_file, 'r')
+    i_all = insar_data.get('ml_intensity')
+    cohs = insar_data.get('ml_coherence') * np.exp(1j * insar_data.get('ml_phase'))
+    coh_lut = insar_data.get('coh_lut')
+    sr0 = insar_data.get('sr0')
+    inc_angle = insar_data.get('inc_angle')
+    b_ati = insar_data.get('b_ati')
+    b_xti = insar_data.get('b_xti')
+    f0 = insar_data.get('f0')
+    az_sampling = insar_data.get('az_sampling')
+    num_ch = insar_data.get('num_ch')
+    rg_sampling = insar_data.get('rg_sampling')
+    v_ground = insar_data.get('v_ground')
+    alt = insar_data.get('orbit_alt')
+    inc_angle = np.deg2rad(insar_data.get('inc_angle'))
+    rg_ml = insar_data.get('rg_ml')
+    az_ml = insar_data.get('az_ml')
+    insar_data.close()
 
-    # PROCESSED RAW DATA
-    proc_content = tpio.ProcFile(proc_output_file, 'r')
-    proc_data = proc_content.get('slc*')
-    proc_content.close()
+    # CALCULATE PARAMETERS
+    k0 = 2.*np.pi*f0/const.c
 
     # OCEAN SURFACE
     surface = OceanSurface()
@@ -117,7 +121,7 @@ def ati_process(cfg_file, proc_output_file, ocean_file, output_file):
     # SURFACE VELOCITIES
     grg_grid_spacing = (const.c/2./rg_sampling/np.sin(inc_angle))
     rg_res_fact = grg_grid_spacing / surface.dx
-    az_grid_spacing = (v_ground/prf)
+    az_grid_spacing = (v_ground/az_sampling)
     az_res_fact = az_grid_spacing / surface.dy
     res_fact = np.ceil(np.sqrt(rg_res_fact*az_res_fact))
 
@@ -139,6 +143,8 @@ def ati_process(cfg_file, proc_output_file, ocean_file, output_file):
     sr0 = geosar.inc_to_sr(inc_angle, alt)
     avg_az_shift = - v_radial_surf_mean / v_ground * sr0
     std_az_shift = v_radial_surf_std / v_ground * sr0
+
+    az_guard = np.int(std_az_shift / (v_ground / az_sampling))
     ##################
     # ATI PROCESSING #
     ##################
@@ -148,82 +154,10 @@ def ati_process(cfg_file, proc_output_file, ocean_file, output_file):
     # Get dimensions & calculate region of interest
     rg_span = surface.Lx
     az_span = surface.Ly
-    rg_size = proc_data[0].shape[2]
-    az_size = proc_data[0].shape[1]
-
-    # Note: RG is projected, so plots are Ground Range
-    rg_min = 0
-    rg_max = np.int(rg_span/(const.c/2./rg_sampling/np.sin(inc_angle)))
-    az_min = np.int(az_size/2. + (-az_span/2. + avg_az_shift)/(v_ground/prf))
-    az_max = np.int(az_size/2. + (az_span/2. + avg_az_shift)/(v_ground/prf))
-    az_guard = np.int(std_az_shift / (v_ground / prf))
-    if (az_max - az_min) < (2 * az_guard - 10):
-        print('Not enough edge-effect free image')
-        return
-
-    # Adaptive coregistration
-    if hasattr(cfg.sar, 'ant_L'):
-        ant_L = cfg.sar.ant_L
-        if cfg.sar.L_total:
-            ant_L = ant_L/np.float(num_ch)
-            dist_chan = ant_L/2
-        else:
-            if np.float(cfg.sar.Spacing) != 0:
-                dist_chan = np.float(cfg.sar.Spacing)/2
-            else:
-                dist_chan = ant_L/2
-        b_ati = np.arange(num_ch) * dist_chan
-    else:
-        # ATI baselines
-        b_ati = cfg.sar.b_ati
-        if not type(b_ati) == np.ndarray:
-            b_ati = np.arange(num_ch) * b_ati / 2
-        # XTI baselines
-        b_xti = cfg.sar.b_xti
-        if not type(b_xti) == np.ndarray:
-            b_xti = np.arange(num_ch) * b_xti
-    # dist_chan = ant_L/num_ch/2.
-    # print('ATI Spacing: %f' % dist_chan)
-    inter_chan_shift_dist = b_ati / (v_ground/prf)
-    # Subsample shift in azimuth
-    for chind in range(proc_data.shape[0]):
-        shift_dist = - inter_chan_shift_dist[chind]
-        shift_arr = np.exp(-2j * np.pi * shift_dist *
-                           np.roll(np.arange(az_size) - az_size/2,
-                                   int(-az_size / 2)) / az_size)
-        shift_arr = shift_arr.reshape((1, az_size, 1))
-        proc_data[chind] = np.fft.ifft(np.fft.fft(proc_data[chind], axis=1) *
-                                       shift_arr, axis=1)
 
     # First dimension is number of channels, second is number of pols
-    ch_dim = proc_data.shape[0:2]
+    ch_dim = i_all.shape[0:2]
     npol = ch_dim[1]
-    proc_data_rshp = [np.prod(ch_dim), proc_data.shape[2], proc_data.shape[3]]
-    # Compute extended covariance matrices...
-    proc_data = proc_data.reshape(proc_data_rshp)
-    # Intensities
-    i_all = []
-    for chind in range(proc_data.shape[0]):
-        this_i = utils.smooth(utils.smooth(np.abs(proc_data[chind])**2., rg_ml, axis=1, window=ml_win),
-                              az_ml, axis=0, window=ml_win)
-        i_all.append(this_i[az_min:az_max, rg_min:rg_max])
-    i_all = np.array(i_all)
-    # .reshape((ch_dim) + (az_max - az_min, rg_max - rg_min))
-    interfs = []
-    cohs = []
-    tind = 0
-    coh_lut = np.zeros((proc_data.shape[0], proc_data.shape[0]), dtype=int)
-    for chind1 in range(proc_data.shape[0]):
-        for chind2 in range(chind1 + 1, proc_data.shape[0]):
-            coh_lut[chind1, chind2] = tind
-            tind = tind + 1
-            t_interf = utils.smooth(utils.smooth(proc_data[chind2] *
-                                                 np.conj(proc_data[chind1]),
-                                                 rg_ml, axis=1, window=ml_win),
-                                    az_ml, axis=0, window=ml_win)
-            interfs.append(t_interf[az_min:az_max, rg_min:rg_max])
-            cohs.append(t_interf[az_min:az_max, rg_min:rg_max] /
-                        np.sqrt(i_all[chind1] * i_all[chind2]))
 
     print('Generating plots and estimating values...')
 
@@ -252,7 +186,7 @@ def ati_process(cfg_file, proc_output_file, ocean_file, output_file):
             save_path = (plot_path + os.sep + 'amp_dB_' + polt[pind]+
                          '.' + plot_format)
             plt.figure()
-            plt.imshow(utils.db(i_all[pind]), aspect='equal',
+            plt.imshow(utils.db(i_all[0, pind]), aspect='equal',
                        origin='lower',
                        vmin=utils.db(np.max(i_all[pind]))-20,
                        extent=[0., rg_span, 0., az_span], interpolation='nearest',
@@ -262,10 +196,10 @@ def ati_process(cfg_file, proc_output_file, ocean_file, output_file):
             plt.title("Amplitude")
             plt.colorbar()
             plt.savefig(save_path)
-
-            save_path = (plot_path + os.sep + 'amp_' + polt[pind]+
-                         '.' + plot_format)
-            int_img = (i_all[pind])**0.5
+            plt.close()
+            save_path = (plot_path + os.sep + 'amp_' + polt[pind]
+                         + '.' + plot_format)
+            int_img = (i_all[0, pind])**0.5
             vmin = np.mean(int_img) - 3 * np.std(int_img)
             vmax = np.mean(int_img) + 3 * np.std(int_img)
             plt.figure()
@@ -279,13 +213,14 @@ def ati_process(cfg_file, proc_output_file, ocean_file, output_file):
             plt.title("Amplitude")
             plt.colorbar()
             plt.savefig(save_path)
+            plt.close()
 
     if plot_coh and ch_dim[0] > 1:
         for pind in range(npol):
-            save_path = (plot_path + os.sep + 'ATI_coh_' +
-                         polt[pind] + polt[pind] +
-                         '.' + plot_format)
-            coh_ind = coh_lut[(pind, pind + npol)]
+            save_path = (plot_path + os.sep + 'ATI_coh_'
+                         + polt[pind] + polt[pind]
+                         + '.' + plot_format)
+            coh_ind = coh_lut[0, pind, 1, pind]
             plt.figure()
             plt.imshow(np.abs(cohs[coh_ind]), aspect='equal',
                        origin='lower',
@@ -312,7 +247,7 @@ def ati_process(cfg_file, proc_output_file, ocean_file, output_file):
         save_path = (plot_path + os.sep + 'ATI_pha_' +
                      polt[pind] + polt[pind] +
                      '.' + plot_format)
-        coh_ind = coh_lut[(pind, pind + npol)]
+        coh_ind = coh_lut[(0, pind, 1, pind)]
         ati_phase = uwphase(cohs[coh_ind])
         ati_phases.append(ati_phase)
         v_radial_est = -ati_phase / tau_ati[1] / (k0 * 2.)
@@ -486,11 +421,11 @@ def ati_process(cfg_file, proc_output_file, ocean_file, output_file):
 
     # Processed NRCS
 
-    NRCS_est_avg = 10*np.log10(np.mean(np.mean(i_all[:, az_guard:-az_guard, 5:-5], axis=-1), axis=-1))
+    NRCS_est_avg = 10*np.log10(np.mean(np.mean(i_all[:, :, az_guard:-az_guard, 5:-5], axis=-1), axis=-1))
     output.write('--------------------------------------------\n')
     for pind in range(npol):
         output.write("%s Polarization\n" % polt[pind])
-        output.write('Estimated mean NRCS = %5.2f\n' % NRCS_est_avg[pind])
+        output.write('Estimated mean NRCS = %5.2f\n' % NRCS_est_avg[0, pind])
     output.write('--------------------------------------------\n\n')
 
     # Some bookkeeping information
