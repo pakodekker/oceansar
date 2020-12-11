@@ -24,7 +24,7 @@ from oceansar.utils import geometry as geo
 from oceansar import utils
 from oceansar import ocs_io as tpio
 from oceansar import constants as const
-from oceansar.radarsim.antenna import sinc_1tx_nrx
+from oceansar.radarsim.antenna import sinc_1tx_nrx, sinc_bp
 
 
 def sar_focus(cfg_file, raw_output_file, output_file):
@@ -71,6 +71,9 @@ def sar_focus(cfg_file, raw_output_file, output_file):
     raw_file = tpio.RawFile(raw_output_file, 'r')
     raw_data = raw_file.get('raw_data*')
     sr0 = raw_file.get('sr0')
+    inc_angle = raw_file.get('inc_angle')
+    b_ati = raw_file.get('b_ati')
+    b_xti = raw_file.get('b_xti')
     raw_file.close()
 
     # OTHER INITIALIZATIONS
@@ -88,38 +91,44 @@ def sar_focus(cfg_file, raw_output_file, output_file):
     for ch in np.arange(num_ch):
 
         if plot_raw:
-            utils.image(np.real(raw_data[0, ch]), min=-np.max(np.abs(raw_data[0, ch])), max=np.max(np.abs(raw_data[0, ch])), cmap='gray',
-                        aspect=np.float(
-                            raw_data[0, ch].shape[1]) / np.float(raw_data[0, ch].shape[0]),
-                        title='Raw Data', xlabel='Range samples', ylabel='Azimuth samples',
-                        usetex=plot_tex,
-                        save=plot_save, save_path=plot_path + os.sep +
-                        'plot_raw_real_%d.%s' % (ch, plot_format),
-                        dpi=150)
-            utils.image(np.imag(raw_data[0, ch]), min=-np.max(np.abs(raw_data[0, ch])), max=np.max(np.abs(raw_data[0, ch])), cmap='gray',
-                        aspect=np.float(
-                            raw_data[0, ch].shape[1]) / np.float(raw_data[0, ch].shape[0]),
-                        title='Raw Data', xlabel='Range samples', ylabel='Azimuth samples',
-                        usetex=plot_tex,
-                        save=plot_save, save_path=plot_path + os.sep +
-                        'plot_raw_imag_%d.%s' % (ch, plot_format),
-                        dpi=150)
-            utils.image(np.abs(raw_data[0, ch]), min=0, max=np.max(np.abs(raw_data[0, ch])), cmap='gray',
-                        aspect=np.float(
-                            raw_data[0, ch].shape[1]) / np.float(raw_data[0, ch].shape[0]),
-                        title='Raw Data', xlabel='Range samples', ylabel='Azimuth samples',
-                        usetex=plot_tex,
-                        save=plot_save, save_path=plot_path + os.sep +
-                        'plot_raw_amp_%d.%s' % (ch, plot_format),
-                        dpi=150)
-            utils.image(np.angle(raw_data[0, ch]), min=-np.pi, max=np.pi, cmap='gray',
-                        aspect=np.float(
-                            raw_data[0, ch].shape[1]) / np.float(raw_data[0, ch].shape[0]),
-                        title='Raw Data', xlabel='Range samples', ylabel='Azimuth samples',
-                        usetex=plot_tex, save=plot_save,
-                        save_path=plot_path + os.sep +
-                        'plot_raw_phase_%d.%s' % (ch, plot_format),
-                        dpi=150)
+            plt.figure()
+            plt.imshow(np.real(raw_data[0, ch]),
+                       vmin=-np.max(np.abs(raw_data[0, ch])),
+                       vmax=np.max(np.abs(raw_data[0, ch])), cmap='gray')
+            plt.savefig(plot_path + os.sep + ('plot_raw_real_%d.%s' % (ch, plot_format)))
+            plt.close()
+            # utils.image(np.real(raw_data[0, ch]), min=-np.max(np.abs(raw_data[0, ch])), max=np.max(np.abs(raw_data[0, ch])), cmap='gray',
+            #             aspect=np.float(
+            #                 raw_data[0, ch].shape[1]) / np.float(raw_data[0, ch].shape[0]),
+            #             title='Raw Data', xlabel='Range samples', ylabel='Azimuth samples',
+            #             usetex=plot_tex,
+            #             save=plot_save, save_path=plot_path + os.sep +
+            #             'plot_raw_real_%d.%s' % (ch, plot_format),
+            #             dpi=150)
+            # utils.image(np.imag(raw_data[0, ch]), min=-np.max(np.abs(raw_data[0, ch])), max=np.max(np.abs(raw_data[0, ch])), cmap='gray',
+            #             aspect=np.float(
+            #                 raw_data[0, ch].shape[1]) / np.float(raw_data[0, ch].shape[0]),
+            #             title='Raw Data', xlabel='Range samples', ylabel='Azimuth samples',
+            #             usetex=plot_tex,
+            #             save=plot_save, save_path=plot_path + os.sep +
+            #             'plot_raw_imag_%d.%s' % (ch, plot_format),
+            #             dpi=150)
+            # utils.image(np.abs(raw_data[0, ch]), min=0, max=np.max(np.abs(raw_data[0, ch])), cmap='gray',
+            #             aspect=np.float(
+            #                 raw_data[0, ch].shape[1]) / np.float(raw_data[0, ch].shape[0]),
+            #             title='Raw Data', xlabel='Range samples', ylabel='Azimuth samples',
+            #             usetex=plot_tex,
+            #             save=plot_save, save_path=plot_path + os.sep +
+            #             'plot_raw_amp_%d.%s' % (ch, plot_format),
+            #             dpi=150)
+            # utils.image(np.angle(raw_data[0, ch]), min=-np.pi, max=np.pi, cmap='gray',
+            #             aspect=np.float(
+            #                 raw_data[0, ch].shape[1]) / np.float(raw_data[0, ch].shape[0]),
+            #             title='Raw Data', xlabel='Range samples', ylabel='Azimuth samples',
+            #             usetex=plot_tex, save=plot_save,
+            #             save_path=plot_path + os.sep +
+            #             'plot_raw_phase_%d.%s' % (ch, plot_format),
+            #             dpi=150)
 
         # Optimize matrix sizes
         az_size_orig, rg_size_orig = raw_data[0, ch].shape
@@ -134,26 +143,31 @@ def sar_focus(cfg_file, raw_output_file, output_file):
         # RCMC Correction
         print('Applying RCMC correction... [Channel %d/%d]' % (ch + 1, num_ch))
 
-        #fr = np.linspace(-rg_sampling/2., rg_sampling/2., rg_size)
-        fr = (np.arange(rg_size) - rg_size / 2) * rg_sampling / rg_size
-        fr = np.roll(fr, int(-rg_size / 2))
-
-        fa = (np.arange(az_size) - az_size / 2) * prf / az_size
-        fa = np.roll(fa, int(-az_size / 2))
-
+        # fr = np.linspace(-rg_sampling/2., rg_sampling/2., rg_size)
+        # fr = (np.arange(rg_size) - rg_size / 2) * rg_sampling / rg_size
+        # fr = np.roll(fr, int(-rg_size / 2))
+        fr = np.fft.fftfreq(rg_size, 1/rg_sampling)
+        # fa = (np.arange(az_size) - az_size / 2) * prf / az_size
+        # fa = np.roll(fa, int(-az_size / 2))
+        fa = np.fft.fftfreq(az_size, 1/prf)
         ## Compensation of ANTENNA PATTERN
         ## FIXME this will not work for a long separation betwen Tx and Rx!!!
-        ant_L = cfg.sar.ant_L
-        # fa = 2 * v_orb / l0 * sin_az
         sin_az = fa * l0 / (2 * v_ground)
-        if cfg.sar.L_total:
-            beam_pattern = sinc_1tx_nrx(sin_az, ant_L * num_ch, f0, num_ch, field=True)
+        if hasattr(cfg.sar, 'ant_L'):
+            ant_L = cfg.sar.ant_L
+            if cfg.sar.L_total:
+                beam_pattern = sinc_1tx_nrx(sin_az, ant_L * num_ch, f0, num_ch, field=True)
+            else:
+                beam_pattern = sinc_1tx_nrx(sin_az, ant_L, f0, 1, field=True)
         else:
-            beam_pattern = sinc_1tx_nrx(sin_az, ant_L, f0, 1, field=True)
+            ant_l_tx = cfg.sar.ant_L_tx
+            ant_l_rx = cfg.sar.ant_L_rx
+            beam_pattern = (sinc_bp(sin_az, ant_l_tx, f0, field=True)
+                            * sinc_bp(sin_az, ant_l_rx, f0, field=True))
         #fa[az_size/2:] = fa[az_size/2:] - prf
         rcmc_fa = sr0 / np.sqrt(1 - (fa * (l0 / 2.) / v_ground)**2.) - sr0
 
-        data = np.fft.fft2(data)
+        data = np.fft.fft(np.fft.fft(data, axis=-1), axis=-2)
 
 #        for i in np.arange(az_size):
 #            data[i,:] *= np.exp(1j*2*np.pi*2*rcmc_fa[i]/const.c*fr)
@@ -162,20 +176,19 @@ def sar_focus(cfg_file, raw_output_file, output_file):
         data = np.fft.ifft(data, axis=2)
 
         if plot_rcmc_dopp:
-            utils.image(np.abs(data[0]), min=0., max=3. * np.mean(np.abs(data)), cmap='gray',
-                        aspect=np.float(rg_size) / np.float(az_size), title='RCMC Data (Range Dopler Domain)',
-                        usetex=plot_tex, save=plot_save, save_path=plot_path + os.sep + 'plot_rcmc_dopp_%d.%s' % (ch, plot_format))
+            plt.figure()
+            plt.imshow(np.fft.fftshift(np.abs(data[0]), axes=0), vmax=np.max(np.abs(data)), cmap='gray',
+                       origin='lower')
+            plt.savefig(plot_path + os.sep + ('plot_rcmc_dopp_%d.%s' % (ch, plot_format)))
 
         if plot_rcmc_time:
             rcmc_time = np.fft.ifft(data[0], axis=0)[
                 :az_size_orig, :rg_size_orig]
             rcmc_time_max = np.max(np.abs(rcmc_time))
-            utils.image(np.real(rcmc_time), min=-rcmc_time_max, max=rcmc_time_max, cmap='gray',
-                        aspect=np.float(rg_size) / np.float(az_size), title='RCMC Data (Time Domain)',
-                        usetex=plot_tex, save=plot_save, save_path=plot_path + os.sep + 'plot_rcmc_time_real_%d.%s' % (ch, plot_format))
-            utils.image(np.imag(rcmc_time), min=-rcmc_time_max, max=rcmc_time_max, cmap='gray',
-                        aspect=np.float(rg_size) / np.float(az_size), title='RCMC Data (Time Domain)',
-                        usetex=plot_tex, save=plot_save, save_path=plot_path + os.sep + 'plot_rcmc_time_imag_%d.%s' % (ch, plot_format))
+            plt.figure()
+            plt.imshow(np.real(rcmc_time), vmin=-rcmc_time_max, vmax=rcmc_time_max, cmap='gray',
+                       origin='lower')
+            plt.savefig(plot_path + os.sep + ('plot_rcmc_time_real_%d.%s' % (ch, plot_format)))
 
         # Azimuth compression
         print(
@@ -229,6 +242,18 @@ def sar_focus(cfg_file, raw_output_file, output_file):
     print("Shape of SLC: " + str(slc.shape), flush=True)
     proc_file = tpio.ProcFile(output_file, 'w', slc.shape)
     proc_file.set('slc*', slc)
+    proc_file.set('inc_angle', inc_angle)
+    proc_file.set('f0', f0)
+    proc_file.set('num_ch', num_ch)
+    proc_file.set('ant_L', ant_l_tx)
+    proc_file.set('prf', prf)
+    proc_file.set('v_ground', v_ground)
+    proc_file.set('orbit_alt', alt)
+    proc_file.set('sr0', sr0)
+    proc_file.set('rg_sampling', rg_bw*over_fs)
+    proc_file.set('rg_bw', rg_bw)
+    proc_file.set('b_ati', b_ati)
+    proc_file.set('b_xti', b_xti)
     proc_file.close()
 
     print('-----------------------------------------')

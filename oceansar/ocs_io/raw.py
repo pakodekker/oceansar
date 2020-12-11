@@ -22,9 +22,9 @@ class SkimRawFile(NETCDFHandler):
         # If writing, define file
         if mode == 'w':
             # Set file attributes
-            self.__file__.description = 'OASIS SAR Raw Data File'
+            self.__file__.description = 'OCEANSAR SAR Raw Data File'
             self.__file__.history = 'Created ' + time.ctime(time.time())
-            self.__file__.source = 'OASIS Simulator'
+            self.__file__.source = 'OCEANSAR Simulator'
 
             # Dimensions
             if not raw_dim:
@@ -97,9 +97,9 @@ class RawFile(NETCDFHandler):
         # If writing, define file
         if mode == 'w':
             # Set file attributes
-            self.__file__.description = 'OASIS SAR Raw Data File'
+            self.__file__.description = 'OCEANSAR SAR Raw Data File'
             self.__file__.history = 'Created ' + time.ctime(time.time())
-            self.__file__.source = 'OASIS Simulator'
+            self.__file__.source = 'OCEANSAR Simulator'
 
             # Dimensions
             if not raw_dim:
@@ -158,7 +158,10 @@ class RawFile(NETCDFHandler):
             rg_sampling.units = '[Hz]'
             rg_bw = self.__file__.createVariable('rg_bw', 'f8')
             rg_bw.units = '[Hz]'
-
+            b_ati = self.__file__.createVariable('b_ati', 'f8', 'ch_dim')
+            b_ati.units = '[m]'
+            b_xti = self.__file__.createVariable('b_xti', 'f8', 'ch_dim')
+            b_xti.units = '[m]'
 
             raw_data_r.units = '[]'
             raw_data_i.units = '[]'
@@ -166,4 +169,3 @@ class RawFile(NETCDFHandler):
                                                     'f8',
                                                     ('pol_dim', 'az_dim'))
             NRCS_avg.units = '[]'
-

@@ -113,7 +113,7 @@ def sr_to_geo(slant_range, orbit_alt,
     """
     # Calculate look/incident angles
     theta_l = np.linspace(0, max_look_angle(orbit_alt, r_planet=r_planet),
-                          500)
+                          2500)
     theta_i = look_to_inc(theta_l, orbit_alt, r_planet=r_planet)
     delta_theta = theta_i - theta_l
     r_track = np.cos(delta_theta) * r_planet
@@ -171,6 +171,3 @@ def max_look_angle(orbit_alt, r_planet=const.r_earth):
         :returns: Maximum look angle
     """
     return np.arcsin(r_planet / (r_planet + orbit_alt))
-
-
-
