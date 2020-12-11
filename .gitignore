@@ -1,0 +1,13 @@
+.DS_Store
+oceansar/nrcs/__pycache__
+oceansar/ocs_io/__pycache__
+oceansar/radarsim/__pycache__
+oceansar/spec/__pycache__
+oceansar/spread/__pycache__
+oceansar/surfaces/__pycache__
+oceansar/swell_spec/__pycache__
+oceansar/utils/__pycache__
+oceansar/closure/__pycache__
+oceansar/constants/__pycache__
+oceansar/.ropeproject
+oceansar/__pycache__

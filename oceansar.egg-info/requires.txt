@@ -1,0 +1,6 @@
+numpy
+scipy
+numexpr
+numba
+matplotlib
+NetCDF4
