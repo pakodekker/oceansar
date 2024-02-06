@@ -238,7 +238,7 @@ def sar_focus(cfg_file, raw_output_file, output_file):
         slc.append(data)
 
     # Save processed data
-    slc = np.array(slc, dtype=np.complex)
+    slc = np.array(slc, dtype=complex)
     print("Shape of SLC: " + str(slc.shape), flush=True)
     proc_file = tpio.ProcFile(output_file, 'w', slc.shape)
     proc_file.set('slc*', slc)
