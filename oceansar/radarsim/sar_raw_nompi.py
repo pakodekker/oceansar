@@ -276,8 +276,8 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
         proc_raw_vv = np.zeros([num_ch, az_steps, rg_samp], dtype=complex)
     t_last_rcs_bragg = -1.
     last_progress = -1
-    NRCS_avg_vv = np.zeros(az_steps, dtype=np.float)
-    NRCS_avg_hh = np.zeros(az_steps, dtype=np.float)
+    NRCS_avg_vv = np.zeros(az_steps, dtype=float)
+    NRCS_avg_hh = np.zeros(az_steps, dtype=float)
 
 
     ## RCS MODELS
