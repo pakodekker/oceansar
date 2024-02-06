@@ -144,7 +144,7 @@ def ati_process(cfg_file, insar_output_file, ocean_file, output_file):
     avg_az_shift = - v_radial_surf_mean / v_ground * sr0
     std_az_shift = v_radial_surf_std / v_ground * sr0
 
-    az_guard = np.int(std_az_shift / (v_ground / az_sampling))
+    az_guard = int(std_az_shift / (v_ground / az_sampling))
     ##################
     # ATI PROCESSING #
     ##################
