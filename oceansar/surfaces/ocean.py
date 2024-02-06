@@ -99,12 +99,12 @@ class OceanSurface(object):
 
         ## INITIALIZE MESHGRIDS, SPECTRUM, ETC.
         # Grid dimensions
-        self.Nx = np.int(self.Lx/self.dx)
-        self.Ny = np.int(self.Ly/self.dy)
+        self.Nx = int(self.Lx/self.dx)
+        self.Ny = int(self.Ly/self.dy)
 
         if opt_res:
-            self.Nx = np.int(utils.optimize_fftsize(self.Nx, fft_max_prime))
-            self.Ny = np.int(utils.optimize_fftsize(self.Ny, fft_max_prime))
+            self.Nx = int(utils.optimize_fftsize(self.Nx, fft_max_prime))
+            self.Ny = int(utils.optimize_fftsize(self.Ny, fft_max_prime))
 
             self.dx = np.float32(self.Lx/np.float(self.Nx))
             self.dy = np.float32(self.Ly/np.float(self.Ny))
