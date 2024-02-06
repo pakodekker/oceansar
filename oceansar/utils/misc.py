@@ -67,13 +67,13 @@ def optimize_fftsize(values, max_prime=2):
     """
     # Force array type (if scalar was given)
     if np.isscalar(values):
-        values = np.array([values], dtype=np.int)
+        values = np.array([values], dtype=int)
 
     if max_prime == 2:
         good_values = nearest_power2(values)
         return good_values if len(good_values) > 1 else good_values[0]
 
-    good_values = np.array([], dtype=np.int)
+    good_values = np.array([], dtype=int)
     for value in values:
         best_value = value
         while (np.max(factorize(best_value)) > max_prime):
@@ -95,7 +95,7 @@ def balance_elements(N, size):
     """
     # Counts
     count = np.round(N / size)
-    counts = count * np.ones(size, dtype=np.int)
+    counts = count * np.ones(size, dtype=int)
     diff = N - count * size
     counts[:int(diff)] += 1
 
@@ -107,7 +107,7 @@ def balance_elements(N, size):
 
 def smooth1d(data, window_len=11, window='flat', axis=0):
     if window == 'flat':
-        shp = np.array(data.shape).astype(np.int)
+        shp = np.array(data.shape).astype(int)
         # shp[axis] += int(window_len)
         out = np.zeros(shp, dtype=data.dtype)
         wlh1 = int(window_len / 2)
