@@ -138,11 +138,11 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
         if hasattr(cfg.ocean, 'use_buoy_data'):
             if cfg.ocean.use_buoy_data:
                 bdataf = cfg.ocean.buoy_data_file
-                date = datetime.datetime(np.int(cfg.ocean.year),
-                                         np.int(cfg.ocean.month),
-                                         np.int(cfg.ocean.day),
-                                         np.int(cfg.ocean.hour),
-                                         np.int(cfg.ocean.minute), 0)
+                date = datetime.datetime(int(cfg.ocean.year),
+                                         int(cfg.ocean.month),
+                                         int(cfg.ocean.day),
+                                         int(cfg.ocean.hour),
+                                         int(cfg.ocean.minute), 0)
                 date, bdata = tpio.load_buoydata(bdataf, date)
                 # FIX-ME: direction needs to consider also azimuth of beam
                 buoy_spec = tpio.BuoySpectra(bdata, heading=cfg.radar.heading, depth=cfg.ocean.depth)
@@ -261,13 +261,13 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
         v_ground = geosar.orbit_to_vel(alt, ground=True)
     t_step = 1./prf
     t_span = (1.5*(sr0*l0/ant_l_tx) + surface.Ly)/v_ground
-    az_steps = np.int(np.floor(t_span/t_step))
+    az_steps = int(np.floor(t_span/t_step))
 
     # Number of RG samples
     max_sr = np.max(sr) + wh_tol + (np.max(surface.y) + (t_span/2.)*v_ground)**2./(2.*sr0)
     min_sr = np.min(sr) - wh_tol
-    rg_samp_orig = np.int(np.ceil(((max_sr - min_sr)/sr_res)*over_fs))
-    rg_samp = np.int(utils.optimize_fftsize(rg_samp_orig))
+    rg_samp_orig = int(np.ceil(((max_sr - min_sr)/sr_res)*over_fs))
+    rg_samp = int(utils.optimize_fftsize(rg_samp_orig))
 
     # Other initializations
     if do_hh:
@@ -334,7 +334,7 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
 
     print('Computing profiles...')
 
-    for az_step in np.arange(az_steps, dtype=np.int):
+    for az_step in np.arange(az_steps, dtype=int):
 
         ## AZIMUTH & SURFACE UPDATE
         t_now = az_step*t_step
@@ -465,7 +465,7 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
         beam_pattern = (sinc_bp(sin_az, ant_l_tx, f0, field=True)
                         * sinc_bp(sin_az, ant_l_rx, f0, field=True))
         # GENERATE CHANEL PROFILES
-        for ch in np.arange(num_ch, dtype=np.int):
+        for ch in np.arange(num_ch, dtype=int):
             tot_dinc = (inc - inc_angle) + wave_dinc
             if do_hh:
                 scene_bp = scene_hh * beam_pattern
@@ -515,7 +515,7 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
                                            proc_raw_vv[ch][az_step])
 
         # SHOW PROGRESS (%)
-        current_progress = np.int((100*az_step)/az_steps)
+        current_progress = int((100*az_step)/az_steps)
         if current_progress != last_progress:
             last_progress = current_progress
             print('SP, %d' % current_progress)
