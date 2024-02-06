@@ -154,10 +154,10 @@ def insar_process(cfg_file, proc_output_file, ocean_file, output_file):
 
     # Note: RG is projected, so plots are Ground Range
     rg_min = 0
-    rg_max = np.int(rg_span/(const.c/2./rg_sampling/np.sin(inc_angle)))
-    az_min = np.int(az_size/2. + (-az_span/2. + avg_az_shift)/(v_ground/prf))
-    az_max = np.int(az_size/2. + (az_span/2. + avg_az_shift)/(v_ground/prf))
-    az_guard = np.int(std_az_shift / (v_ground / prf))
+    rg_max = int(rg_span/(const.c/2./rg_sampling/np.sin(inc_angle)))
+    az_min = int(az_size/2. + (-az_span/2. + avg_az_shift)/(v_ground/prf))
+    az_max = int(az_size/2. + (az_span/2. + avg_az_shift)/(v_ground/prf))
+    az_guard = int(std_az_shift / (v_ground / prf))
     if (az_max - az_min) < (2 * az_guard - 10):
         print('Not enough edge-effect free image')
         return
@@ -179,7 +179,7 @@ def insar_process(cfg_file, proc_output_file, ocean_file, output_file):
         flatearth_dinc = (inc - inc_angle)
         # print(flatearth_dinc[0:4])
         # Add cross-track phase
-        flattening_phasor = np.zeros((num_ch, 1, 1, rg_size), dtype=np.complex)
+        flattening_phasor = np.zeros((num_ch, 1, 1, rg_size), dtype=complex)
         for ch in range(num_ch):
             flattening_phasor[ch, 0, 0, :] = np.exp(1j * k0 * b_xti[ch] * flatearth_dinc)
         proc_data = proc_data * flattening_phasor
