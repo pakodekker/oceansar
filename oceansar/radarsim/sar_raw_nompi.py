@@ -271,9 +271,9 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
 
     # Other initializations
     if do_hh:
-        proc_raw_hh = np.zeros([num_ch, az_steps, rg_samp], dtype=np.complex)
+        proc_raw_hh = np.zeros([num_ch, az_steps, rg_samp], dtype=complex)
     if do_vv:
-        proc_raw_vv = np.zeros([num_ch, az_steps, rg_samp], dtype=np.complex)
+        proc_raw_vv = np.zeros([num_ch, az_steps, rg_samp], dtype=complex)
     t_last_rcs_bragg = -1.
     last_progress = -1
     NRCS_avg_vv = np.zeros(az_steps, dtype=np.float)
@@ -296,7 +296,7 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
     # Bragg
     if scat_bragg_enable:
         phase_bragg = np.zeros([2, surface.Ny, surface.Nx])
-        bragg_scats = np.zeros([2, surface.Ny, surface.Nx], dtype=np.complex)
+        bragg_scats = np.zeros([2, surface.Ny, surface.Nx], dtype=complex)
         # dop_phase_p = np.random.uniform(0., 2.*np.pi, size=[surface.Ny, surface.Nx])
         # dop_phase_m = np.random.uniform(0., 2.*np.pi, size=[surface.Ny, surface.Nx])
         tau_c = closure.grid_coherence(cfg.ocean.wind_U,surface.dx, f0)
@@ -354,9 +354,9 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
         # Elevation displacements
         wave_dinc = (surface.Dz * sin_inc + surface.Dx * sin_inc) / sr0
         if do_hh:
-            scene_hh = np.zeros([int(surface.Ny), int(surface.Nx)], dtype=np.complex)
+            scene_hh = np.zeros([int(surface.Ny), int(surface.Nx)], dtype=complex)
         if do_vv:
-            scene_vv = np.zeros([int(surface.Ny), int(surface.Nx)], dtype=np.complex)
+            scene_vv = np.zeros([int(surface.Ny), int(surface.Nx)], dtype=complex)
         # Point target
         if add_point_target:
             sr_pt = (sr[0, int(surface.Nx/2)] + az[int(surface.Ny/2), 0]/2 *
