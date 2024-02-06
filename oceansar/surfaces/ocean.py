@@ -106,8 +106,8 @@ class OceanSurface(object):
             self.Nx = int(utils.optimize_fftsize(self.Nx, fft_max_prime))
             self.Ny = int(utils.optimize_fftsize(self.Ny, fft_max_prime))
 
-            self.dx = np.float32(self.Lx/np.float(self.Nx))
-            self.dy = np.float32(self.Ly/np.float(self.Ny))
+            self.dx = np.float32(self.Lx/float(self.Nx))
+            self.dy = np.float32(self.Ly/float(self.Ny))
 
         # X-Y vector
         self.x = np.linspace(-self.Lx/2., self.Lx/2., self.Nx, dtype=np.float32)
