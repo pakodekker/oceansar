@@ -194,7 +194,7 @@ def sar_focus(cfg_file, raw_output_file, output_file):
         print(
             'Applying azimuth compression... [Channel %d/%d]' % (ch + 1, num_ch))
 
-        n_samp = 2 * (np.int(doppler_bw / (fa[1] - fa[0])) / 2)
+        n_samp = 2 * (int(doppler_bw / (fa[1] - fa[0])) / 2)
         weighting = (az_weighting -
                      (1. - az_weighting) * np.cos(2 * np.pi * np.linspace(0, 1., int(n_samp))))
         # Compensate amplitude loss
@@ -228,7 +228,7 @@ def sar_focus(cfg_file, raw_output_file, output_file):
         if plot_image_valid:
             plt.figure()
             plt.imshow(np.abs(data[0]), origin='lower', vmin=0, vmax=np.max(np.abs(data)),
-                       aspect=np.float(rg_size_orig) / np.float(az_size_orig),
+                       aspect=float(rg_size_orig) / float(az_size_orig),
                        cmap='gray')
             plt.xlabel("Range")
             plt.ylabel("Azimuth")
