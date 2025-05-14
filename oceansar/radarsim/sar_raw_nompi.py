@@ -187,6 +187,7 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
                      dir_swell_spec=dir_swell_spec)
 
         surface.save(ocean_file)
+ 
         # Now we plot the directional spectrum
         # self.wave_dirspec[good_k] = dirspectrum_func(self.kx[good_k], self.ky[good_k])
         plt.figure()
