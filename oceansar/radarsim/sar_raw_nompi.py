@@ -76,6 +76,7 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
     scat_bragg_d = cfg.srg.scat_bragg_d
     scat_bragg_spec = cfg.srg.scat_bragg_spec
     scat_bragg_spread = cfg.srg.scat_bragg_spread
+    use_lut = cfg.srg.use_lut 
 
     # SAR
     inc_angle = np.deg2rad(cfg.sar.inc_angle)
@@ -263,6 +264,10 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
     t_step = 1./prf
     t_span = (1.5*(sr0*l0/ant_l_tx) + surface.Ly)/v_ground
     az_steps = int(np.floor(t_span/t_step))
+    # Get range of azimut angles to intialize Bragg model..
+    # TODO 
+    # angular range
+    az_span = (t_span * v_ground + surface.Ly) /gr0
 
     # Number of RG samples
     max_sr = np.max(sr) + wh_tol + (np.max(surface.y) + (t_span/2.)*v_ground)**2./(2.*sr0)
@@ -324,7 +329,11 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
                                                      U_eff_vec[0]),
                                           surface.wind_fetch,
                                           scat_bragg_spec, scat_bragg_spread,
-                                          scat_bragg_d)
+                                          scat_bragg_d,
+                                          rmss_x=surface.rmss_x,
+                                          rmss_y=surface.rmss_y, 
+                                          az_span=az_span,
+                                          use_lut=use_lut)
         else:
             raise NotImplementedError('RCS model %s for Bragg scattering not implemented' % scat_bragg_model)
 
