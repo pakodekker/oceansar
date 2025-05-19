@@ -67,6 +67,7 @@ class RCSRomeiser97():
 
         if (self.sw_dir_func == 'none') and (self.sw_spec_func == 'elfouhaily'):
             raise Exception('Elfouhaily spectrum requires a direction function')
+        self.use_lut = False
         if use_lut:
             lut_slope_step = 0.0025 # hard coded for now
             lut_Nsigma = 5
@@ -76,18 +77,19 @@ class RCSRomeiser97():
             self.lut_Diffy = (-lut_Nsigma * np.max([rmss_y,0.01]) + np.arange(lut_N_Diffy) * lut_slope_step)[np.newaxis,:, np.newaxis]
             # Now get range of values of az_angle
             lut_az_step = np.radians(0.05)
-            self.lut_az = (-az_span/2 + np.arange(int(az_span/lut_az_step)) * lut_az_step)[:,np.newaxis,np.newaxis]
+            self.lut_az = (-az_span/2 + np.arange(-1,int(az_span/lut_az_step)+2) * lut_az_step)[:,np.newaxis,np.newaxis]
             print("LUT size: %i "% (int(az_span/lut_az_step) * lut_N_Diffx * lut_N_Diffy))
             # I need to trick the angle of incidence here
             # This forces the geometry to a constant angle of incidence, which is fine for small scenes
             inc_tmp = self.inc_angle
             self.inc_angle = inc_tmp.mean() + np.zeros_like(self.lut_Diffx)
 
-            self.lut_rcs = self.rcs_numba(self.lut_az + np.zeros((int(az_span/lut_az_step), lut_N_Diffy, lut_N_Diffx)), 
-                                          self.lut_Diffx + np.zeros((int(az_span/lut_az_step), lut_N_Diffy, lut_N_Diffx)),
-                                          self.lut_Diffy + np.zeros((int(az_span/lut_az_step), lut_N_Diffy, lut_N_Diffx)))
+            self.lut_rcs = self.rcs_numba(self.lut_az + np.zeros((int(az_span/lut_az_step)+3, lut_N_Diffy, lut_N_Diffx)), 
+                                          self.lut_Diffx + np.zeros((int(az_span/lut_az_step)+3, lut_N_Diffy, lut_N_Diffx)),
+                                          self.lut_Diffy + np.zeros((int(az_span/lut_az_step)+3, lut_N_Diffy, lut_N_Diffx)))
             self.inc_angle = inc_tmp 
             print("RCS LUT computed")
+            self.use_lut = True
 
 
     def rcs(self, az_angle, diffx, diffy):
@@ -97,10 +99,39 @@ class RCSRomeiser97():
             :param diffx: Surface X slope
             :param diffy: Surface Y slope
         """
-        if self.numba:
+        if self.use_lut:
+            return self.rcs_lut(az_angle, diffx, diffy)
+        elif self.numba:
             return self.rcs_numba(az_angle, diffx, diffy)
         else:
             return self.rcs_classic(az_angle, diffx, diffy)
+
+    def rcs_lut(self, az_angle, diffx, diffy):
+        """ Returns RCS map of a surface given its geometry
+
+            :param az_angle: Azimuth angle
+            :param diffx: Surface X slope
+            :param diffy: Surface Y slope
+        """
+        az_ind = (np.round((az_angle - self.lut_az.min()) / (self.lut_az[1,0,0] - self.lut_az[0,0,0]))).astype(int)
+        diffy_ind = (np.round((diffy - self.lut_Diffy[0,0,0])/(self.lut_Diffy[0,1,0]- self.lut_Diffy[0,0,0]))).astype(int)
+        diffx_ind = (np.round((diffx - self.lut_Diffx[0,0,0])/(self.lut_Diffx[0,0,1]- self.lut_Diffx[0,0,0]))).astype(int)
+        diffy_ind = np.where(diffy_ind > 0, diffy_ind, 0)
+        diffx_ind = np.where(diffx_ind > 0, diffx_ind, 0)
+        diffy_ind = np.where(diffy_ind < self.lut_Diffy.shape[1], diffy_ind, self.lut_Diffy.shape[1]-1)
+        diffx_ind = np.where(diffx_ind < self.lut_Diffx.shape[2], diffx_ind, self.lut_Diffx.shape[2]-1)
+        if self.pol == 'DP':
+            # print(self.lut_rcs[0].shape)
+            # print(az_ind.shape)
+            # print(az_ind.min())
+            # print(az_ind.max())
+            # print(az_ind.dtype)
+            # print(diffy_ind.dtype)
+            # print(diffx_ind.dtype)
+            return (np.stack([self.lut_rcs[0][0][az_ind, diffy_ind, diffx_ind], self.lut_rcs[0][1][az_ind, diffy_ind, diffx_ind]]), 
+                    np.stack([self.lut_rcs[1][0][az_ind, diffy_ind, diffx_ind], self.lut_rcs[1][1][az_ind, diffy_ind, diffx_ind]]))
+        else:
+            return self.lut_rcs[:,az_ind, diffy_ind, diffx_ind]
 
     def rcs_classic(self, az_angle, diffx, diffy):
         """ Returns RCS map of a surface given its geometry

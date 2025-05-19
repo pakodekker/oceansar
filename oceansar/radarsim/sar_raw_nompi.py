@@ -351,7 +351,8 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
         az_now = (t_now - t_span/2.)*v_ground
         # az = np.repeat((surface.y - az_now)[:, np.newaxis], surface.Nx, axis=1)
         az = (surface.y - az_now).reshape((surface.Ny, 1))
-        surface.t = t_now
+        if az_step == 0:
+            surface.t = t_now
 
         ## COMPUTE RCS FOR EACH MODEL
         # Note: SAR processing is range independent as slant range is fixed
@@ -363,10 +364,16 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
                          + surface.Dx*sin_inc + surface.Dy*sin_az)
         # Elevation displacements
         wave_dinc = (surface.Dz * sin_inc + surface.Dx * sin_inc) / sr0
-        if do_hh:
-            scene_hh = np.zeros([int(surface.Ny), int(surface.Nx)], dtype=complex)
-        if do_vv:
-            scene_vv = np.zeros([int(surface.Ny), int(surface.Nx)], dtype=complex)
+        if az_step == 0:
+            if do_hh:
+                scene_hh = np.zeros([int(surface.Ny), int(surface.Nx)], dtype=complex)
+            if do_vv:
+                scene_vv = np.zeros([int(surface.Ny), int(surface.Nx)], dtype=complex)
+        else:
+            if do_hh:
+                scene_hh[:,:] = 0 
+            if do_vv:
+                scene_vv[:,:] = 0 
         # Point target
         if add_point_target:
             sr_pt = (sr[0, int(surface.Nx/2)] + az[int(surface.Ny/2), 0]/2 *
