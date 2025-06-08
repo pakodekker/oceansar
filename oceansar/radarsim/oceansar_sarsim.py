@@ -23,6 +23,7 @@ from oceansar.radarsim.sar_raw_nompi import sar_raw
 from oceansar.radarsim.sar_processor import sar_focus
 from oceansar.radarsim.ati_processor import ati_process
 from oceansar.radarsim.insar_processor import insar_process
+from oceansar.radarsim.L2_wavespectrum import l2_wavespectrum
 
 def sarsim(cfg_file=None):
 
@@ -69,6 +70,10 @@ def sarsim(cfg_file=None):
 
     if cfg.sim.L2_wavespectrum_run:
         print('Launching L2 Wavespectrum Processor...')
+        l2_wavespectrum(cfg.cfg_file_name,
+                        os.path.join(cfg.sim.path, cfg.sim.proc_file),
+                        os.path.join(cfg.sim.path, cfg.sim.ocean_file),
+                        os.path.join(cfg.sim.path, cfg.sim.xspectra_file))
 
 
 
