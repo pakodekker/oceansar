@@ -76,6 +76,7 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
     scat_bragg_d = cfg.srg.scat_bragg_d
     scat_bragg_spec = cfg.srg.scat_bragg_spec
     scat_bragg_spread = cfg.srg.scat_bragg_spread
+    use_lut = cfg.srg.use_lut 
 
     # SAR
     inc_angle = np.deg2rad(cfg.sar.inc_angle)
@@ -187,6 +188,7 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
                      dir_swell_spec=dir_swell_spec)
 
         surface.save(ocean_file)
+ 
         # Now we plot the directional spectrum
         # self.wave_dirspec[good_k] = dirspectrum_func(self.kx[good_k], self.ky[good_k])
         plt.figure()
@@ -262,6 +264,10 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
     t_step = 1./prf
     t_span = (1.5*(sr0*l0/ant_l_tx) + surface.Ly)/v_ground
     az_steps = int(np.floor(t_span/t_step))
+    # Get range of azimut angles to intialize Bragg model..
+    # TODO 
+    # angular range
+    az_span = (t_span * v_ground + surface.Ly) /gr0
 
     # Number of RG samples
     max_sr = np.max(sr) + wh_tol + (np.max(surface.y) + (t_span/2.)*v_ground)**2./(2.*sr0)
@@ -323,7 +329,11 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
                                                      U_eff_vec[0]),
                                           surface.wind_fetch,
                                           scat_bragg_spec, scat_bragg_spread,
-                                          scat_bragg_d)
+                                          scat_bragg_d,
+                                          rmss_x=surface.rmss_x,
+                                          rmss_y=surface.rmss_y, 
+                                          az_span=az_span,
+                                          use_lut=use_lut)
         else:
             raise NotImplementedError('RCS model %s for Bragg scattering not implemented' % scat_bragg_model)
 
@@ -341,7 +351,8 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
         az_now = (t_now - t_span/2.)*v_ground
         # az = np.repeat((surface.y - az_now)[:, np.newaxis], surface.Nx, axis=1)
         az = (surface.y - az_now).reshape((surface.Ny, 1))
-        surface.t = t_now
+        if az_step == 0:
+            surface.t = t_now
 
         ## COMPUTE RCS FOR EACH MODEL
         # Note: SAR processing is range independent as slant range is fixed
@@ -353,10 +364,16 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
                          + surface.Dx*sin_inc + surface.Dy*sin_az)
         # Elevation displacements
         wave_dinc = (surface.Dz * sin_inc + surface.Dx * sin_inc) / sr0
-        if do_hh:
-            scene_hh = np.zeros([int(surface.Ny), int(surface.Nx)], dtype=complex)
-        if do_vv:
-            scene_vv = np.zeros([int(surface.Ny), int(surface.Nx)], dtype=complex)
+        if az_step == 0:
+            if do_hh:
+                scene_hh = np.zeros([int(surface.Ny), int(surface.Nx)], dtype=complex)
+            if do_vv:
+                scene_vv = np.zeros([int(surface.Ny), int(surface.Nx)], dtype=complex)
+        else:
+            if do_hh:
+                scene_hh[:,:] = 0 
+            if do_vv:
+                scene_vv[:,:] = 0 
         # Point target
         if add_point_target:
             sr_pt = (sr[0, int(surface.Nx/2)] + az[int(surface.Ny/2), 0]/2 *

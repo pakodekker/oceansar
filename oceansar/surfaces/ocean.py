@@ -134,8 +134,8 @@ class OceanSurface(object):
         self.kx, self.ky = np.meshgrid(kx_s, ky_s)
 
         # Kx-Ky resolution
-        kx_res = self.kx[0, 1] - self.kx[0, 0]
-        ky_res = self.ky[1, 0] - self.ky[0, 0]
+        self.kx_res = kx_res = self.kx[0, 1] - self.kx[0, 0]
+        self.ky_res = ky_res = self.ky[1, 0] - self.ky[0, 0]
 
         # K-theta meshgrid (Polar, wind direction shifted)
         self.k = np.sqrt(self.kx**2 + self.ky**2)
@@ -177,7 +177,10 @@ class OceanSurface(object):
                                                               self.wind_fetch)
 
             self.wave_dirspec = (self.kinv) * wave_spec * wave_spread
-
+        # PLD May 2025
+        self.rmss_x = np.sqrt(np.sum(self.wave_dirspec * self.kx**2 * self.kx_res*ky_res))
+        self.rmss_y = np.sqrt(np.sum(self.wave_dirspec * self.ky**2 * self.kx_res*ky_res))
+        print("rmssx: %f; rmssy %f" % (self.rmss_x,  self.rmss_y))
         # Filter if cutoff is imposed
         if cutoff_wl and (cutoff_wl != 'auto'):
             kco_x = 2.*np.pi/cutoff_wl
