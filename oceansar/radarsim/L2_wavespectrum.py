@@ -300,7 +300,7 @@ def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file):
 
     ## FIXME: I am plotting the cross spectrum for the first polarization and the first channel only, which is not
     ## very nice. To be fixed, in particular por multiple polarizations
-
+    plot_klim = (-0.2,0.2)
     for ind1 in range(len(sublooks)):
         for ind2 in range(ind1 + 1, len(sublooks)):
             save_path_abs = os.path.join(plot_path, ('xspec_abs_%i%i.%s' % (ind1+1, ind2+1, plot_format)))
@@ -309,13 +309,13 @@ def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file):
             ml_xspec = utils.smooth(utils.smooth(np.fft.fftshift(xspecs[xspec_lut[ind1, ind2]][0]), krg_ml, axis=1),
                                     kaz_ml, axis=0)
             plt.figure()
-            plt.imshow(np.abs(ml_xspec), origin='lower', cmap='inferno_r',
+            plt.imshow(np.log10(np.abs(ml_xspec)), origin='lower', cmap='CMRmap_r',
                        extent=[kgrg.min(), kgrg.max(), kaz.min(), kaz.max()],
-                       interpolation='nearest')
+                       interpolation='nearest',vmin=np.log10(np.abs(ml_xspec)).max()-2.5)
             plt.grid(True)
             pltax = plt.gca()
-            pltax.set_xlim((-0.1, 0.1))
-            pltax.set_ylim((-0.1, 0.1))
+            pltax.set_xlim(plot_klim)
+            pltax.set_ylim(plot_klim)
             northarr_length = 0.075  # np.min([surface_full.kx.max(), surface_full.ky.max()])
             pltax.arrow(0, 0,
                         -northarr_length * np.sin(np.radians(cfg.sar.heading)),
@@ -337,8 +337,8 @@ def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file):
                        interpolation='nearest', vmin=-2*phmax, vmax=2*phmax)
             plt.grid(True)
             pltax = plt.gca()
-            pltax.set_xlim((-0.1, 0.1))
-            pltax.set_ylim((-0.1, 0.1))
+            pltax.set_xlim(plot_klim)
+            pltax.set_ylim(plot_klim)
             northarr_length = 0.075  # np.min([surface_full.kx.max(), surface_full.ky.max()])
             pltax.arrow(0, 0,
                         -northarr_length * np.sin(np.radians(cfg.sar.heading)),
@@ -355,8 +355,8 @@ def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file):
                        interpolation='nearest', vmin=-2 * immax, vmax=2 * immax)
             plt.grid(True)
             pltax = plt.gca()
-            pltax.set_xlim((-0.1, 0.1))
-            pltax.set_ylim((-0.1, 0.1))
+            pltax.set_xlim(plot_klim)
+            pltax.set_ylim(plot_klim)
             northarr_length = 0.075  # np.min([surface_full.kx.max(), surface_full.ky.max()])
             pltax.arrow(0, 0,
                         -northarr_length * np.sin(np.radians(cfg.sar.heading)),
