@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "oceansar"
+version = "25.12"
+description = "Similator of SAR and other radar images of the ocean"
+readme = { file = "README.md", content-type = "text/markdown" }
+requires-python = ">=3.9"
+authors = [
+    { name = "Paco López-Dekker" }
+]
+license = { text = "GPL-3.0-or-later" }
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering"
+]
+urls = { "Bug Tracker" = "https://gitlab.tudelft.nl/swarmsar/-/issues" }
+dependencies = [
+    "numba",
+    "numpy",
+    "scipy",
+    "numexpr>=2.7",
+    "xarray",
+    "NetCDF4",
+    "matplotlib",
+    "drama>=0.7"
+]
+
+[tool.setuptools.packages]
+find = {}
+
+# [tool.setuptools.packages.find]
+# where = ["oceansar"]
+# include =["*"]

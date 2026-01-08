@@ -15,6 +15,8 @@ import datetime
 
 from tqdm import tqdm
 
+from drama.io import cfg as drcfg
+
 from oceansar import utils
 from oceansar import ocs_io as tpio
 from oceansar.utils import geometry as geosar
@@ -29,7 +31,7 @@ from oceansar.surfaces import OceanSurface #, OceanSurfaceBalancer
 from oceansar.swell_spec import dir_swell_spec as s_spec
 
 
-def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
+def dopsca_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
             reuse_errors_file, plot_save=True):
     """Short summary.
 
@@ -59,13 +61,12 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
 
 
     print('-------------------------------------------------------------------')
-    print(time.strftime("- OCEANSAR SAR RAW GENERATOR: %Y-%m-%d %H:%M:%S", time.localtime()))
-    print('- Copyright (c) Gerard Marull Paretas, Paco Lopez Dekker')
+    print(time.strftime("- OCEANSAR DOPSCA RAW GENERATOR: %Y-%m-%d %H:%M:%S", time.localtime()))
     print('-------------------------------------------------------------------')
 
     ## CONFIGURATION FILE
     # Note: variables are 'copied' to reduce code verbosity
-    cfg = tpio.ConfigFile(cfg_file)
+    cfg = drcfg.ConfigFile(cfg_file)
 
     # RAW
     wh_tol = cfg.srg.wh_tol
@@ -80,11 +81,12 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
     scat_bragg_spread = cfg.srg.scat_bragg_spread
     use_lut = cfg.srg.use_lut 
 
-    # SAR
-    inc_angle = np.deg2rad(cfg.sar.inc_angle)
-    f0 = cfg.sar.f0
-    pol = cfg.sar.pol
-    squint_r = np.degrees(cfg.sar.squint)
+    # Scatterometer
+    # This needs to be improved to support spherical Earth, etc
+    inc_angle = np.deg2rad(cfg.sca.inc_angle)
+    f0 = cfg.sca.f0
+    pol = cfg.sca.pol
+    squint_r = np.degrees(cfg.sca.squint)
     if pol == 'DP':
         do_hh = True
         do_vv = True
@@ -95,21 +97,21 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
         do_hh = False
         do_vv = True
 
-    prf = cfg.sar.prf
-    num_ch = int(cfg.sar.num_ch)
-    #ant_L = cfg.sar.ant_L
-    alt = cfg.sar.alt
-    v_ground = cfg.sar.v_ground
-    rg_bw = cfg.sar.rg_bw
-    over_fs = cfg.sar.over_fs
-    sigma_n_tx = cfg.sar.sigma_n_tx
-    phase_n_tx = np.deg2rad(cfg.sar.phase_n_tx)
-    sigma_beta_tx = cfg.sar.sigma_beta_tx
-    phase_beta_tx = np.deg2rad(cfg.sar.phase_beta_tx)
-    sigma_n_rx = cfg.sar.sigma_n_rx
-    phase_n_rx = np.deg2rad(cfg.sar.phase_n_rx)
-    sigma_beta_rx = cfg.sar.sigma_beta_rx
-    phase_beta_rx = np.deg2rad(cfg.sar.phase_beta_rx)
+    prf = cfg.sca.prf
+    num_ch = int(cfg.sca.num_ch)
+    #ant_L = cfg.sca.ant_L
+    alt = cfg.sca.alt
+    v_ground = cfg.sca.v_ground
+    rg_bw = cfg.sca.rg_bw
+    over_fs = cfg.sca.over_fs
+    sigma_n_tx = cfg.sca.sigma_n_tx
+    phase_n_tx = np.deg2rad(cfg.sca.phase_n_tx)
+    sigma_beta_tx = cfg.sca.sigma_beta_tx
+    phase_beta_tx = np.deg2rad(cfg.sca.phase_beta_tx)
+    sigma_n_rx = cfg.sca.sigma_n_rx
+    phase_n_rx = np.deg2rad(cfg.sca.phase_n_rx)
+    sigma_beta_rx = cfg.sca.sigma_beta_rx
+    phase_beta_rx = np.deg2rad(cfg.sca.phase_beta_rx)
 
     # OCEAN / OTHERS
     ocean_dt = cfg.ocean.dt
@@ -206,8 +208,8 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
         pltax.set_ylim((-0.1, 0.1))
         Narr_length = 0.08 # np.min([surface.kx.max(), surface.ky.max()])
         pltax.arrow(0, 0,
-                    -Narr_length * np.sin(np.radians(cfg.sar.heading)),
-                    Narr_length * np.cos(np.radians(cfg.sar.heading)),
+                    -Narr_length * np.sin(np.radians(cfg.sca.heading)),
+                    Narr_length * np.cos(np.radians(cfg.sca.heading)),
                     fc="k", ec="k")
         plt.xlabel('$k_x$ [rad/m]')
         plt.ylabel('$k_y$ [rad/m]')
@@ -249,39 +251,43 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
     l0 = const.c/f0
     k0 = 2.*np.pi*f0/const.c
     sr_res = const.c/(2.*rg_bw)
-    ant_l_tx = cfg.sar.ant_L_tx
-    ant_l_rx = cfg.sar.ant_L_rx
+    ant_l_tx = cfg.sca.ant_L_tx
+    ant_l_rx = cfg.sca.ant_L_rx
 
+    # No baselines...
     # ATI baselines
-    b_ati = cfg.sar.b_ati
-    if not type(b_ati) == np.ndarray:
-        b_ati = np.arange(num_ch) * b_ati
-    # XTI baselines
-    b_xti = cfg.sar.b_xti
-    if not type(b_xti) == np.ndarray:
-        b_xti = np.arange(num_ch) * b_xti
+    # b_ati = cfg.sca.b_ati
+    # if not type(b_ati) == np.ndarray:
+    #     b_ati = np.arange(num_ch) * b_ati
+    # # XTI baselines
+    # b_xti = cfg.sca.b_xti
+    # if not type(b_xti) == np.ndarray:
+    #     b_xti = np.arange(num_ch) * b_xti
 
     if v_ground == 'auto':
         v_ground = geosar.orbit_to_vel(alt, ground=True)
     t_step = 1./prf
-    t_span = (1.5*(sr0*l0/ant_l_tx) + surface.Ly)/v_ground
-    az_steps = int(np.floor(t_span/t_step))
+    # length of acquistion
+    acq_length = cfg.acquisition.length
+    t_span = acq_length/v_ground
+    az_steps = int(np.ceil(t_span * prf))
+    print('Number of azimuth cycles: %d' % az_steps)
     # Get range of azimut angles to intialize Bragg model..
     # TODO 
     # angular range
     az_span = (t_span * v_ground + surface.Ly) /gr0
 
     # Number of RG samples
-    max_sr = np.max(sr) + wh_tol + (np.max(surface.y) + (t_span/2.)*v_ground)**2./(2.*sr0)
+    max_sr = np.max(sr) + wh_tol + (np.max(surface.y) + (t_span/2.)*v_ground)**2./(2.*sr0) + cfg.sca.sub_pulse_length * const.c / 2 * (cfg.sca.n_subpulses - 1)
     min_sr = np.min(sr) - wh_tol
     rg_samp_orig = int(np.ceil(((max_sr - min_sr)/sr_res)*over_fs))
     rg_samp = int(utils.optimize_fftsize(rg_samp_orig))
 
     # Other initializations
     if do_hh:
-        proc_raw_hh = np.zeros([num_ch, az_steps, rg_samp], dtype=complex)
+        proc_raw_hh = np.zeros([az_steps, rg_samp], dtype=complex)
     if do_vv:
-        proc_raw_vv = np.zeros([num_ch, az_steps, rg_samp], dtype=complex)
+        proc_raw_vv = np.zeros([az_steps, rg_samp], dtype=complex)
     t_last_rcs_bragg = -1.
     last_progress = -1
     NRCS_avg_vv = np.zeros(az_steps, dtype=float)
@@ -347,198 +353,194 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
     print('Computing profiles...')
 
     for az_step in tqdm(range(az_steps)):
+        for sub_pulse in range(int(cfg.sca.n_subpulses)):
+            # Update time for sub-pulse
+            t_now = az_step*t_step + sub_pulse*cfg.sca.sub_pulse_length 
+            ## AZIMUTH & SURFACE UPDATE
+            az_now = (t_now - t_span/2.)*v_ground
+            # Now we will displace the surface instead of moving the satellite, but only the whole number of samples
+            az_now_int_smp = int(np.floor(az_now / surface.dy))
+            az_now_res = az_now - az_now_int_smp * surface.dy
 
-        ## AZIMUTH & SURFACE UPDATE
-        t_now = az_step*t_step
-        az_now = (t_now - t_span/2.)*v_ground
-        # az = np.repeat((surface.y - az_now)[:, np.newaxis], surface.Nx, axis=1)
-        az = (surface.y - az_now).reshape((surface.Ny, 1))
-        #if az_step == 0 or (t_now - t_last_rcs_bragg) > ocean_dt:
-        if not cfg.ocean.frozen_ocean or t_step == 0:
-            surface.t = t_now
+            # az = np.repeat((surface.y - az_now)[:, np.newaxis], surface.Nx, axis=1)
+            az = (surface.y - az_now_res).reshape((surface.Ny, 1))
+            if cfg.ocean.frozen_ocean is False or az_step == 0:
+                surface.t = t_now
+            # Get the surface variables
+            Dz = np.roll(surface.Dz.copy(), -az_now_int_smp, axis=0)
+            Dx = np.roll(surface.Dx.copy(), -az_now_int_smp, axis=0)
+            Dy = np.roll(surface.Dy.copy(), -az_now_int_smp, axis=0)
+            Diffx = np.roll(surface.Diffx.copy(), -az_now_int_smp, axis=0)
+            Diffy = np.roll(surface.Diffy.copy(), -az_now_int_smp, axis=0)
+            Diffxx = np.roll(surface.Diffxx.copy(), -az_now_int_smp, axis=0)
+            Diffyy = np.roll(surface.Diffyy.copy(), -az_now_int_smp, axis=0)
+            Diffxy = np.roll(surface.Diffxy.copy(), -az_now_int_smp, axis=0)
+            ## COMPUTE RCS FOR EACH MODEL
+            # Note: SAR processing is range independent as slant range is fixed
+            sin_az = az / sr0
+            az_proj_angle = np.arcsin(az / gr0)
 
-        ## COMPUTE RCS FOR EACH MODEL
-        # Note: SAR processing is range independent as slant range is fixed
-        sin_az = az / sr0
-        az_proj_angle = np.arcsin(az / gr0)
-
-        # Note: Projected displacements are added to slant range
-        sr_surface = (sr - cos_inc*surface.Dz + az/2*sin_az
-                         + surface.Dx*sin_inc + surface.Dy*sin_az)
-        # Elevation displacements
-        wave_dinc = (surface.Dz * sin_inc + surface.Dx * sin_inc) / sr0
-        if az_step == 0:
-            if do_hh:
-                scene_hh = np.zeros([int(surface.Ny), int(surface.Nx)], dtype=complex)
-            if do_vv:
-                scene_vv = np.zeros([int(surface.Ny), int(surface.Nx)], dtype=complex)
-        else:
-            if do_hh:
-                scene_hh[:,:] = 0 
-            if do_vv:
-                scene_vv[:,:] = 0 
-        # Point target
-        if add_point_target:
-            sr_pt = (sr[0, int(surface.Nx/2)] + az[int(surface.Ny/2), 0]/2 *
-                     sin_az[int(surface.Ny/2), 0])
-            pt_scat = (100. * np.exp(-1j * 2. * k0 * sr_pt))
-            if do_hh:
-                scene_hh[int(surface.Ny/2), int(surface.Nx/2)] = pt_scat
-            if do_vv:
-                scene_vv[int(surface.Ny/2), int(surface.Nx/2)] = pt_scat
-            sr_surface[int(surface.Ny/2), int(surface.Nx/2)] = sr_pt
-
-        # Specular
-        if scat_spec_enable:
-            if scat_spec_mode == 'kodis':
-                Esn_sp = np.sqrt(4.*np.pi)*rcs_spec.field(az_proj_angle, sr_surface,
-                                                          surface.Diffx, surface.Diffy,
-                                                          surface.Diffxx, surface.Diffyy, surface.Diffxy)
+            # Note: Projected displacements are added to slant range
+            sr_surface = (sr - cos_inc*Dz + az/2*sin_az
+                            + Dx*sin_inc + Dy*sin_az)
+            # Elevation displacements
+            wave_dinc = (Dz * sin_inc + Dx * sin_inc) / sr0
+            if az_step == 0:
                 if do_hh:
-                    scene_hh += Esn_sp
+                    scene_hh = np.zeros([int(surface.Ny), int(surface.Nx)], dtype=complex)
                 if do_vv:
-                    scene_vv += Esn_sp
+                    scene_vv = np.zeros([int(surface.Ny), int(surface.Nx)], dtype=complex)
             else:
-                # FIXME
                 if do_hh:
-                    pol_tmp = 'hh'
-                    Esn_sp = (np.exp(-1j*(2.*k0*sr_surface)) * (4.*np.pi)**1.5 *
-                              rcs_spec.field(1, 1, pol_tmp[0], pol_tmp[1],
-                                             inc, inc,
-                                             az_proj_angle, az_proj_angle + np.pi,
-                                             surface.Dz,
-                                             surface.Diffx, surface.Diffy,
-                                             surface.Diffxx,
-                                             surface.Diffyy,
-                                             surface.Diffxy))
-                    scene_hh += Esn_sp
+                    scene_hh[:,:] = 0 
                 if do_vv:
-                    pol_tmp = 'vv'
-                    Esn_sp = (np.exp(-1j*(2.*k0*sr_surface)) * (4.*np.pi)**1.5 *
-                              rcs_spec.field(1, 1, pol_tmp[0], pol_tmp[1],
-                                             inc, inc,
-                                             az_proj_angle, az_proj_angle + np.pi,
-                                             surface.Dz,
-                                             surface.Diffx, surface.Diffy,
-                                             surface.Diffxx,
-                                             surface.Diffyy,
-                                             surface.Diffxy))
-                    scene_vv += Esn_sp
-            NRCS_avg_hh[az_step] += (np.sum(np.abs(Esn_sp)**2) / surface_area)
-            NRCS_avg_vv[az_step] += NRCS_avg_hh[az_step]
+                    scene_vv[:,:] = 0 
+            # Point target
+            if add_point_target:
+                sr_pt = (sr[0, int(surface.Nx/2)] + az[int(surface.Ny/2), 0]/2 *
+                        sin_az[int(surface.Ny/2), 0])
+                pt_scat = (100. * np.exp(-1j * 2. * k0 * sr_pt))
+                if do_hh:
+                    scene_hh[int(surface.Ny/2), int(surface.Nx/2)] = pt_scat
+                if do_vv:
+                    scene_vv[int(surface.Ny/2), int(surface.Nx/2)] = pt_scat
+                sr_surface[int(surface.Ny/2), int(surface.Nx/2)] = sr_pt
 
-        # Bragg
-        if scat_bragg_enable:
-            if (t_now - t_last_rcs_bragg) > ocean_dt:
-
-                if scat_bragg_model == 'romeiser97':
-                    if pol == 'DP':
-                        RCS_bragg_hh, RCS_bragg_vv = rcs_bragg.rcs(az_proj_angle,
-                                                                   surface.Diffx,
-                                                                   surface.Diffy)
-                    elif pol=='hh':
-                        RCS_bragg_hh = rcs_bragg.rcs(az_proj_angle,
-                                                     surface.Diffx,
-                                                     surface.Diffy)
-                    else:
-                        RCS_bragg_vv = rcs_bragg.rcs(az_proj_angle,
-                                                     surface.Diffx,
-                                                     surface.Diffy)
-
-                if use_hmtf:
-                    # Fix Bad MTF points
-                    surface.hMTF[np.where(surface.hMTF < -1)] = -1
+            # Specular
+            if scat_spec_enable:
+                if scat_spec_mode == 'kodis':
+                    Esn_sp = np.sqrt(4.*np.pi)*rcs_spec.field(az_proj_angle, sr_surface,
+                                                              Diffx, Diffy,
+                                                              Diffxx, Diffyy, Diffxy)
                     if do_hh:
-                        RCS_bragg_hh[0] *= (1 + surface.hMTF)
-                        RCS_bragg_hh[1] *= (1 + surface.hMTF)
+                        scene_hh += Esn_sp
                     if do_vv:
-                        RCS_bragg_vv[0] *= (1 + surface.hMTF)
-                        RCS_bragg_vv[1] *= (1 + surface.hMTF)
+                        scene_vv += Esn_sp
+                else:
+                    # FIXME
+                    if do_hh:
+                        pol_tmp = 'hh'
+                        Esn_sp = (np.exp(-1j*(2.*k0*sr_surface)) * (4.*np.pi)**1.5 *
+                                rcs_spec.field(1, 1, pol_tmp[0], pol_tmp[1],
+                                                inc, inc,
+                                                az_proj_angle, az_proj_angle + np.pi,
+                                                Dz,
+                                                Diffx, Diffy,
+                                                Diffxx,
+                                                Diffyy,
+                                                Diffxy))
+                        scene_hh += Esn_sp
+                    if do_vv:
+                        pol_tmp = 'vv'
+                        Esn_sp = (np.exp(-1j*(2.*k0*sr_surface)) * (4.*np.pi)**1.5 *
+                                rcs_spec.field(1, 1, pol_tmp[0], pol_tmp[1],
+                                                inc, inc,
+                                                az_proj_angle, az_proj_angle + np.pi,
+                                                Dz,
+                                                Diffx, Diffy,
+                                                Diffxx,
+                                                Diffyy,
+                                                Diffxy))
+                        scene_vv += Esn_sp
+                NRCS_avg_hh[az_step] += (np.sum(np.abs(Esn_sp)**2) / surface_area)
+                NRCS_avg_vv[az_step] += NRCS_avg_hh[az_step]
 
-                t_last_rcs_bragg = t_now
+            # Bragg
+            if scat_bragg_enable:
+                if (t_now - t_last_rcs_bragg) > ocean_dt:
 
-            if do_hh:
-                scat_bragg_hh = np.sqrt(RCS_bragg_hh)
-                NRCS_bragg_hh_instant_avg = np.sum(RCS_bragg_hh) / surface_area
-                NRCS_avg_hh[az_step] += NRCS_bragg_hh_instant_avg
-            if do_vv:
-                scat_bragg_vv = np.sqrt(RCS_bragg_vv)
-                NRCS_bragg_vv_instant_avg = np.sum(RCS_bragg_vv) / surface_area
-                NRCS_avg_vv[az_step] += NRCS_bragg_vv_instant_avg
+                    if scat_bragg_model == 'romeiser97':
+                        if pol == 'DP':
+                            RCS_bragg_hh, RCS_bragg_vv = rcs_bragg.rcs(az_proj_angle,
+                                                                    Diffx,
+                                                                    Diffy)
+                        elif pol=='hh':
+                            RCS_bragg_hh = rcs_bragg.rcs(az_proj_angle,
+                                                        Diffx,
+                                                        Diffy)
+                        else:
+                            RCS_bragg_vv = rcs_bragg.rcs(az_proj_angle,
+                                                        Diffx,
+                                                        Diffy)
+                    if use_hmtf:
+                        # Fix Bad MTF points
+                        hmtf = np.roll(surface.hMTF.copy(), -az_now_int_smp, axis=0)
+                        surface.hMTF[np.where(hmtf < -1)] = -1
+                        if do_hh:
+                            RCS_bragg_hh[0] *= (1 + hmtf)
+                            RCS_bragg_hh[1] *= (1 + hmtf)
+                        if do_vv:
+                            RCS_bragg_vv[0] *= (1 + hmtf)
+                            RCS_bragg_vv[1] *= (1 + hmtf)
+
+                    t_last_rcs_bragg = t_now
+                    az_now_int_smp_bragg = az_now_int_smp
+                else:
+                    delta_az_smp = az_now_int_smp - az_now_int_smp_bragg
+                    if do_hh:
+                        RCS_bragg_hh = np.roll(RCS_bragg_hh, -delta_az_smp, axis=1)
+                    if do_vv:
+                        RCS_bragg_vv = np.roll(RCS_bragg_vv, -delta_az_smp, axis=1)
+                if do_hh:
+                    scat_bragg_hh = np.sqrt(RCS_bragg_hh)
+                    NRCS_bragg_hh_instant_avg = np.sum(RCS_bragg_hh) / surface_area
+                    NRCS_avg_hh[az_step] += NRCS_bragg_hh_instant_avg
+                if do_vv:
+                    scat_bragg_vv = np.sqrt(RCS_bragg_vv)
+                    NRCS_bragg_vv_instant_avg = np.sum(RCS_bragg_vv) / surface_area
+                    NRCS_avg_vv[az_step] += NRCS_bragg_vv_instant_avg
 
 
-            # Doppler phases (Note: Bragg radial velocity taken constant!)
-            surf_phase = - (2 * k0) * sr_surface
-            cap_phase = (2 * k0) * t_step * c_b * (az_step + 1)
-            phase_bragg[0] = surf_phase - cap_phase # + dop_phase_p
-            phase_bragg[1] = surf_phase + cap_phase # + dop_phase_m
-            bragg_scats[0] = rndscat_m.scats(t_now)
-            bragg_scats[1] = rndscat_p.scats(t_now)
-            if do_hh:
-                scene_hh += ne.evaluate('sum(scat_bragg_hh * exp(1j*phase_bragg) * bragg_scats, axis=0)')
-            if do_vv:
-                scene_vv += ne.evaluate('sum(scat_bragg_vv * exp(1j*phase_bragg) * bragg_scats, axis=0)')
+                # Doppler phases (Note: Bragg radial velocity taken constant!)
+                surf_phase = - (2 * k0) * sr_surface
+                cap_phase = (2 * k0) * t_step * c_b * (az_step + 1)
+                phase_bragg[0] = surf_phase - cap_phase # + dop_phase_p
+                phase_bragg[1] = surf_phase + cap_phase # + dop_phase_m
+                bragg_scats[0] = np.roll(rndscat_m.scats(t_now), -az_now_int_smp, axis=0)
+                bragg_scats[1] = np.roll(rndscat_p.scats(t_now), -az_now_int_smp, axis=0)
+                if do_hh:
+                    scene_hh += ne.evaluate('sum(scat_bragg_hh * exp(1j*phase_bragg) * bragg_scats, axis=0)')
+                if do_vv:
+                    scene_vv += ne.evaluate('sum(scat_bragg_vv * exp(1j*phase_bragg) * bragg_scats, axis=0)')
 
-        # ANTENNA PATTERN
-        # FIXME: this assume co-located Tx and Rx, so it will not work for true bistatic configurations
+            # ANTENNA PATTERN
+            # FIXME: this assume co-located Tx and Rx, so it will not work for true bistatic configurations
 
-        beam_pattern = (sinc_bp(sin_az, ant_l_tx, f0, field=True)
-                        * sinc_bp(sin_az, ant_l_rx, f0, field=True))
-        # GENERATE CHANEL PROFILES
-        for ch in np.arange(num_ch, dtype=int):
+            beam_pattern = (sinc_bp(sin_az, ant_l_tx, f0, field=True)
+                            * sinc_bp(sin_az, ant_l_rx, f0, field=True))
+            # GENERATE CHANEL PROFILES
+        
             tot_dinc = (inc - inc_angle) + wave_dinc
+            sr_surface_mod = sr_surface.flatten() + sub_pulse * cfg.sca.sub_pulse_length * const.c / 2
             if do_hh:
+                this_proc_raw_hh = np.zeros(rg_samp, dtype=complex)
                 scene_bp = scene_hh * beam_pattern
-                # Add channel phase & compute profile
-                scene_bp *= np.exp(-1j * k0 * b_ati[ch] * sin_az)
-                # Add cross-track phase
-                scene_bp *= np.exp(-1j * k0 * b_xti[ch] * tot_dinc)
-                if use_numba:
-                    raw.chan_profile_numba(sr_surface.flatten(),
-                                           scene_bp.flatten(),
-                                           sr_res/(over_fs),
-                                           min_sr,
-                                           chan_sinc_vec,
-                                           n_sinc_samples, sinc_ovs,
-                                           proc_raw_hh[ch][az_step])
+                raw.chan_profile_numba(sr_surface_mod,
+                                        scene_bp.flatten(),
+                                        sr_res/(over_fs),
+                                        min_sr,
+                                        chan_sinc_vec,
+                                        n_sinc_samples, sinc_ovs,
+                                        this_proc_raw_hh)
+                proc_raw_hh[az_step] = proc_raw_hh[az_step] + this_proc_raw_hh
 
-                else:
-                    raw.chan_profile_weave(sr_surface.flatten(),
-                                           scene_bp.flatten(),
-                                           sr_res/(over_fs),
-                                           min_sr,
-                                           chan_sinc_vec,
-                                           n_sinc_samples, sinc_ovs,
-                                           proc_raw_hh[ch][az_step])
             if do_vv:
+                this_proc_raw_vv = np.zeros(rg_samp, dtype=complex)
                 scene_bp = scene_vv * beam_pattern
-                # Add channel phase & compute profile
-                scene_bp *= np.exp(-1j * k0 * b_ati[ch] * sin_az)
-                # Add cross-track phase
-                scene_bp *= np.exp(-1j * k0 * b_xti[ch] * tot_dinc)
-                if use_numba:
-                    raw.chan_profile_numba(sr_surface.flatten(),
-                                           scene_bp.flatten(),
-                                           sr_res/(over_fs),
-                                           min_sr,
-                                           chan_sinc_vec,
-                                           n_sinc_samples, sinc_ovs,
-                                           proc_raw_vv[ch][az_step])
+                raw.chan_profile_numba(sr_surface_mod,
+                                        scene_bp.flatten(),
+                                        sr_res/(over_fs),
+                                        min_sr,
+                                        chan_sinc_vec,
+                                        n_sinc_samples, sinc_ovs,
+                                        this_proc_raw_vv)
+                proc_raw_vv[az_step] = proc_raw_vv[az_step] + this_proc_raw_vv
 
-                else:
-                    raw.chan_profile_weave(sr_surface.flatten(),
-                                           scene_bp.flatten(),
-                                           sr_res/(over_fs),
-                                           min_sr,
-                                           chan_sinc_vec,
-                                           n_sinc_samples, sinc_ovs,
-                                           proc_raw_vv[ch][az_step])
-
-        # # SHOW PROGRESS (%)
-        # current_progress = int((100*az_step)/az_steps)
-        # if current_progress != last_progress:
-        #     last_progress = current_progress
-        #     print('SP, %d' % current_progress)
+            # SHOW PROGRESS (%)
+            # current_progress = int((100*az_step)/az_steps)
+            # if current_progress != last_progress:
+            #     last_progress = current_progress
+            #     print('SP, %d' % current_progress)
 
     # PROCESS REDUCED RAW DATA & SAVE (ROOT)
 
@@ -550,9 +552,9 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
 
     #total_raw = np.fft.ifft(range_filter*np.fft.fft(total_raw))
     if do_hh:
-        proc_raw_hh = proc_raw_hh[:, :, :rg_samp_orig]
+        proc_raw_hh = proc_raw_hh[:, :rg_samp_orig]
     if do_vv:
-        proc_raw_vv = proc_raw_vv[:, :, :rg_samp_orig]
+        proc_raw_vv = proc_raw_vv[:, :rg_samp_orig]
 
     # Calibration factor (projected antenna pattern integrated in azimuth)
     az_axis = np.arange(-t_span/2.*v_ground, t_span/2.*v_ground, sr0*const.c/(np.pi*f0*ant_l_tx*10.))
@@ -601,7 +603,7 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
 
     if do_vv:
         plt.figure()
-        plt.imshow(np.abs(proc_raw_vv[0]),
+        plt.imshow(np.abs(proc_raw_vv),
                    origin='lower',
                    cmap='inferno_r')
 
@@ -621,10 +623,10 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
         plt.savefig(os.path.join(plot_path, "raw_vv.png"))
         plt.close()
 
-    raw_file = tpio.RawFile(output_file, 'w', total_raw.shape)
+    raw_file = tpio.DopscaRawFile(output_file, 'w', total_raw.shape)
     raw_file.set('inc_angle', np.rad2deg(inc_angle))
     raw_file.set('f0', f0)
-    raw_file.set('num_ch', num_ch)
+    #raw_file.set('num_ch', 1)
     raw_file.set('ant_L', ant_l_tx)
     raw_file.set('prf', prf)
     raw_file.set('v_ground', v_ground)
@@ -634,8 +636,6 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
     raw_file.set('rg_bw', rg_bw)
     raw_file.set('raw_data*', total_raw)
     raw_file.set('NRCS_avg', NRCS_avg)
-    raw_file.set('b_ati', b_ati)
-    raw_file.set('b_xti', b_xti)
     raw_file.close()
 
     print(time.strftime("Finished [%Y-%m-%d %H:%M:%S]", time.localtime()))
