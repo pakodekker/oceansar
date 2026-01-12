@@ -144,6 +144,10 @@ class DopscaRawFile(NETCDFHandler):
             rg_bw.units = '[Hz]'
             azimuth = self.__file__.createVariable('azimuth', 'f8')
             azimuth.units = '[deg]'
+            subpulse_length = self.__file__.createVariable('subpulse_length', 'f8') 
+            subpulse_length.units = '[s]'
+            subpulse_bandwidth = self.__file__.createVariable('subpulse_bandwidth', 'f8')
+            subpulse_bandwidth.units = '[Hz]'   
 
 
             raw_data_r.units = '[]'
