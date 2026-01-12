@@ -1,4 +1,4 @@
-
+#%%
 import os
 import argparse
 
@@ -185,7 +185,7 @@ class RadarSurface():
                                                           u_eff_vec[0]),
                                                self.surface.wind_fetch,
                                                scat_bragg_spec, scat_bragg_spread,
-                                               scat_bragg_d)
+                                               scat_bragg_d, use_lut=False)
         elif scat_bragg_enable:
             raise NotImplementedError('RCS model %s for Bragg scattering not implemented' % scat_bragg_model)
 
@@ -253,8 +253,8 @@ class RadarSurface():
         t_last_rcs_bragg = -1.
         last_progress = -1
         ntimes = self.ntimes
-        NRCS_avg_vv = np.zeros(ntimes, dtype=np.float)
-        NRCS_avg_hh = np.zeros(ntimes, dtype=np.float)
+        NRCS_avg_vv = np.zeros(ntimes, dtype=float)
+        NRCS_avg_hh = np.zeros(ntimes, dtype=float)
         # RCS MODELS
         # Specular
         if scat_spec_enable:
@@ -271,7 +271,7 @@ class RadarSurface():
         # Bragg
         if scat_bragg_enable:
             phase_bragg = np.zeros([2, self.surface.Ny, self.surface.Nx])
-            bragg_scats = np.zeros([2, self.surface.Ny,self.surface.Nx], dtype=np.complex)
+            bragg_scats = np.zeros([2, self.surface.Ny,self.surface.Nx], dtype=complex)
             tau_c = closure.grid_coherence(cfg.ocean.wind_U,
                                            self.surface.dx, f0)
             rndscat_p = closure.randomscat_ts(tau_c, (self.surface.Ny, self.surface.Nx), prf)
@@ -282,9 +282,9 @@ class RadarSurface():
 
         surface_area = self.surface.dx * self.surface.dy * self.surface.Nx * self.surface.Ny
         if do_hh:
-            scene_hh = np.zeros([ntimes, self.surface.Ny, self.surface.Nx], dtype=np.complex)
+            scene_hh = np.zeros([ntimes, self.surface.Ny, self.surface.Nx], dtype=complex)
         if do_vv:
-            scene_vv = np.zeros([ntimes, self.surface.Ny, self.surface.Nx], dtype=np.complex)
+            scene_vv = np.zeros([ntimes, self.surface.Ny, self.surface.Nx], dtype=complex)
 
         for az_step in range(ntimes):
 
@@ -351,6 +351,8 @@ class RadarSurface():
 
                     if scat_bragg_model == 'romeiser97':
                         if pol == 'DP':
+                            # print(self.diffx[az_step].shape)
+                            # print(self.diffy[az_step].shape)
                             RCS_bragg_hh, RCS_bragg_vv = self.rcs_bragg.rcs(az_rad,
                                                                             self.diffx[az_step],
                                                                             self.diffy[az_step])
@@ -567,25 +569,26 @@ def v_r_stats(rsurf, rel, ml=1):
     plt.ylabel("pdf($v_r$)")
     plt.legend()
 
-
+#%%
 if __name__ == '__main__':
     cfg_file = '/Users/plopezdekker/DATA/OCEANSAR/PAR/SKIM_proxy.cfg'
     cfg_file = '/Users/plopezdekker/DATA/OCEANSAR/PAR/S1_TOPS_emu1.cfg'
+    cfg_file = '/Users/plopezdekker/Documents/CODE/oceansar/PAR/sim_nompi_luttest.cfg'
     #import oceansar.scatstats as ocs
-    import drama.oceans.cmod5n as cm
+    # import drama.oceans.cmod5n as cm
     U = 8
     radsurf_U8 = RadarSurface(cfg_file, winddir=0, U10=U, t_step=1e-3)
-    gmf = radsurf_U8.gmf([30], 18)
-
+    gmf = radsurf_U8.gmf([35,40], 36)
+#%%
     plt.figure()
 
 
-    plt.plot(gmf.azimuth, 10 * np.log10(gmf.NRCS_vv[0]), label='30')
-    plt.plot(gmf.azimuth, 10 * np.log10(gmf.NRCS_vv[1]), label='12')
+    plt.plot(gmf.azimuth, 10 * np.log10(gmf.NRCS_vv[0]), label='35')
+    plt.plot(gmf.azimuth, 10 * np.log10(gmf.NRCS_vv[1]), label='40')
     #plt.plot(gmf.azimuth, 10 * np.log10(gmf.NRCS_vv[2]), label='45')
     az = np.linspace(0, 360, 100)
-    plt.plot(az, 10 * np.log10(cm.cmod5n_forward(8, az + 180, np.array([6]))), 'b--')
-    plt.plot(az, 10 * np.log10(cm.cmod5n_forward(8, az + 180, np.array([12]))), 'g--')
+    #plt.plot(az, 10 * np.log10(cm.cmod5n_forward(8, az + 180, np.array([6]))), 'b--')
+    #plt.plot(az, 10 * np.log10(cm.cmod5n_forward(8, az + 180, np.array([12]))), 'g--')
     #plt.plot(az, 10 * np.log10(cm.cmod5n_forward(8, az + 180, np.array([45]))), 'r--')
     #plt.ylim((-25, -0))
     plt.grid(True)
@@ -596,8 +599,8 @@ if __name__ == '__main__':
     plt.ylabel("$\sigma_{0,VV}$")
     plt.ylabel("$\sigma_{0,VV}$ [dB]")
     plt.figure()
-    plt.plot(gmf.azimuth, gmf.v_r_wvv[0], 'b--', label='6')
-    plt.plot(gmf.azimuth, gmf.v_r_wvv[1], 'g--', label='12')
+    plt.plot(gmf.azimuth, gmf.v_r_wvv[0], 'b--', label='35')
+    plt.plot(gmf.azimuth, gmf.v_r_wvv[1], 'g--', label='40')
     #plt.plot(gmf.azimuth, gmf.v_r_wvv[2], 'r--', label='45')
     plt.plot(gmf.azimuth, gmf.v_ATI_vv[0], 'b')
     plt.plot(gmf.azimuth, gmf.v_ATI_vv[1], 'g')
@@ -606,11 +609,12 @@ if __name__ == '__main__':
     plt.xlabel("Azimuth [deg]")
     plt.title("U=8 m/s")
     plt.grid(True)
+    plt.legend()
 
     plt.figure()
     v2dop = radsurf_U8.f0/3e8 * 2
-    plt.plot(gmf.azimuth, v2dop * gmf.v_r_wvv[0], 'b--', label='6')
-    plt.plot(gmf.azimuth, v2dop * gmf.v_r_wvv[1], 'g--', label='12')
+    plt.plot(gmf.azimuth, v2dop * gmf.v_r_wvv[0], 'b--', label='35')
+    plt.plot(gmf.azimuth, v2dop * gmf.v_r_wvv[1], 'g--', label='40')
     # plt.plot(gmf.azimuth, gmf.v_r_wvv[2], 'r--', label='45')
     plt.plot(gmf.azimuth, v2dop * gmf.v_ATI_vv[0], 'b')
     plt.plot(gmf.azimuth, v2dop * gmf.v_ATI_vv[1], 'g')
@@ -619,3 +623,7 @@ if __name__ == '__main__':
     plt.xlabel("Azimuth [deg]")
     plt.title("U=8 m/s")
     plt.grid(True)
+    plt.legend()
+# %%
+gmf.v_r_wvv.shape
+# %%

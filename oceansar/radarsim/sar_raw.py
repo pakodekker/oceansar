@@ -34,6 +34,8 @@ from scipy import linalg
 import numexpr as ne
 import datetime
 
+from tqdm import tqdm
+
 from oceansar import utils
 from oceansar import ocs_io as tpio
 from oceansar.utils import geometry as geosar
@@ -341,7 +343,7 @@ def sarraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, reu
     if rank == 0:
         print('Computing profiles...')
 
-    for az_step in np.arange(az_steps, dtype=np.int):
+    for az_step in tqdm(range(az_steps), desc="Processing azimuth steps"):
 
         ## AZIMUTH & SURFACE UPDATE
         t_now = az_step*t_step
@@ -520,11 +522,11 @@ def sarraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, reu
                                            n_sinc_samples, sinc_ovs,
                                            proc_raw_vv[ch][az_step])
 
-        # SHOW PROGRESS (%)
-        current_progress = np.int((100*az_step)/az_steps)
-        if current_progress != last_progress:
-            last_progress = current_progress
-            print('SP,%d,%d,%d' % (rank, size, current_progress))
+        # # SHOW PROGRESS (%)
+        # current_progress = np.int((100*az_step)/az_steps)
+        # if current_progress != last_progress:
+        #     last_progress = current_progress
+        #     print('SP,%d,%d,%d' % (rank, size, current_progress))
 
 
     # MERGE RESULTS
