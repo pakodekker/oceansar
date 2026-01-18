@@ -388,6 +388,8 @@ def dopsca_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
 
                 # Note: Projected displacements are added to slant range
                 sr_surface = (sr_s[range_blk] - cos_inc_s[range_blk]*Dz + az/2*sin_az + Dx*sin_inc_s[range_blk] + Dy*sin_az)
+                # To scale the field amplitudes for each grid cell, considering two way propagation losses
+                range_scaling = (sr0 / (sr0+sr_surface))**2
                 # Elevation displacements
                 wave_dinc = (Dz * sin_inc_s[range_blk] + Dx * sin_inc_s[range_blk]) / sr0
                 if az_step == 0:
@@ -418,9 +420,9 @@ def dopsca_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
                                                                                Diffx, Diffy,
                                                                                Diffxx, Diffyy, Diffxy)
                         if do_hh:
-                            scene_hh += Esn_sp
+                            scene_hh += Esn_sp * range_scaling
                         if do_vv:
-                            scene_vv += Esn_sp
+                            scene_vv += Esn_sp * range_scaling
                     else:
                         # FIXME
                         if do_hh:
@@ -431,7 +433,7 @@ def dopsca_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
                                                                                                                      Dz,
                                                                                                                      Diffx, Diffy,
                                                                                                                      Diffxx, Diffyy, Diffxy))
-                            scene_hh += Esn_sp
+                            scene_hh += Esn_sp * range_scaling
                         if do_vv:
                             pol_tmp = 'vv'
                             Esn_sp = (np.exp(-1j*(2.*k0*sr_surface)) * (4.*np.pi)**1.5 *
@@ -443,7 +445,7 @@ def dopsca_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
                                                     Diffxx,
                                                     Diffyy,
                                                     Diffxy))
-                            scene_vv += Esn_sp
+                            scene_vv += Esn_sp * range_scaling
                     NRCS_avg_hh[az_step] += (np.sum(np.abs(Esn_sp)**2) / surface_area)
                     NRCS_avg_vv[az_step] += NRCS_avg_hh[az_step]
 
@@ -486,9 +488,9 @@ def dopsca_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
                     bragg_scats[0] = np.roll(rndscat_m.scats(t_now)[range_blk], -az_now_int_smp, axis=0)
                     bragg_scats[1] = np.roll(rndscat_p.scats(t_now)[range_blk], -az_now_int_smp, axis=0)
                     if do_hh:
-                        scene_hh += ne.evaluate('sum(scat_bragg_hh * exp(1j*phase_bragg) * bragg_scats, axis=0)')
+                        scene_hh += ne.evaluate('sum(scat_bragg_hh * exp(1j*phase_bragg) * bragg_scats, axis=0)')  * range_scaling
                     if do_vv:
-                        scene_vv += ne.evaluate('sum(scat_bragg_vv * exp(1j*phase_bragg) * bragg_scats, axis=0)')
+                        scene_vv += ne.evaluate('sum(scat_bragg_vv * exp(1j*phase_bragg) * bragg_scats, axis=0)')  * range_scaling
 
                 # ANTENNA PATTERN
                 # FIXME: this assume co-located Tx and Rx, so it will not work for true bistatic configurations
@@ -550,17 +552,17 @@ def dopsca_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
                * sinc_bp(az_axis/sr0, ant_l_rx, f0, field=True))
     cal_factor = (1. / np.sqrt(np.trapz(np.abs(pattern)**2., az_axis)
                   * sr_res/np.sin(inc_angle)))
-
+    # PLD: I remove adding noise because I will add system effects later.
     if do_hh:
-        noise = (utils.db2lin(nesz, amplitude=True) / np.sqrt(2.) *
-                 (np.random.normal(size=proc_raw_hh.shape) +
-                  1j*np.random.normal(size=proc_raw_hh.shape)))
-        proc_raw_hh = proc_raw_hh * cal_factor + noise
+        # noise = (utils.db2lin(nesz, amplitude=True) / np.sqrt(2.) *
+        #          (np.random.normal(size=proc_raw_hh.shape) +
+        #           1j*np.random.normal(size=proc_raw_hh.shape)))
+        proc_raw_hh = proc_raw_hh * cal_factor #+ noise
     if do_vv:
-        noise = (utils.db2lin(nesz, amplitude=True) / np.sqrt(2.) *
-                 (np.random.normal(size=proc_raw_vv.shape) +
-                  1j*np.random.normal(size=proc_raw_vv.shape)))
-        proc_raw_vv = proc_raw_vv * cal_factor + noise
+        # noise = (utils.db2lin(nesz, amplitude=True) / np.sqrt(2.) *
+        #          (np.random.normal(size=proc_raw_vv.shape) +
+        #           1j*np.random.normal(size=proc_raw_vv.shape)))
+        proc_raw_vv = proc_raw_vv * cal_factor #+ noise
 
     # Add slow-time error
     # if use_errors:

@@ -21,10 +21,11 @@ from drama.io import cfg as drcfg
 from oceansar import ocs_io as osrio
 from oceansar import utils
 from oceansar.dopscasim.dopsca_raw import dopsca_raw
-from oceansar.radarsim.sar_processor import sar_focus
-from oceansar.radarsim.ati_processor import ati_process
-from oceansar.radarsim.insar_processor import insar_process
-from oceansar.radarsim.L2_wavespectrum import l2_wavespectrum
+from oceansar.dopscasim.dopsca_sys import dopsca_syssim
+# from oceansar.radarsim.sar_processor import sar_focus
+# from oceansar.radarsim.ati_processor import ati_process
+# from oceansar.radarsim.insar_processor import insar_process
+# from oceansar.radarsim.L2_wavespectrum import l2_wavespectrum
 
 
 # def dopscasim(cfg_file=None):
@@ -99,38 +100,18 @@ def dopscasim(cfg_file=None):
 
         print('Launching SAR RAW Generator...')
         dopsca_raw(cfg.cfg_file_name,
-                os.path.join(cfg.sim.path, cfg.sim.raw_file),
+                os.path.join(cfg.sim.path, cfg.sim.ideal_raw_file),
                 os.path.join(cfg.sim.path, cfg.sim.ocean_file),
                 cfg.sim.ocean_reuse,
                 os.path.join(cfg.sim.path, cfg.sim.errors_file),
                 cfg.sim.errors_reuse, plot_save=True)
+    # System errors
+    if cfg.sim.sys_run:
+        print('Adding system errors')
+        dopsca_syssim(cfg.cfg_file_name,
+                      os.path.join(cfg.sim.path, cfg.sim.sys_raw_file))
 
-    # Processing
-    if cfg.sim.proc_run:
-        print('Launching SAR RAW Processor...')
-        sar_focus(cfg.cfg_file_name, os.path.join(cfg.sim.path, cfg.sim.raw_file),
-                  os.path.join(cfg.sim.path, cfg.sim.proc_file))
 
-    if cfg.sim.insar_run:
-        print('Launching InSAR L1b Processor...')
-        insar_process(cfg.cfg_file_name,
-                      os.path.join(cfg.sim.path, cfg.sim.proc_file),
-                      os.path.join(cfg.sim.path, cfg.sim.ocean_file),
-                      os.path.join(cfg.sim.path, cfg.sim.insar_file))
-
-    if cfg.sim.ati_run:
-        print('Launching SAR ATI Processor...')
-        ati_process(cfg.cfg_file_name,
-                    os.path.join(cfg.sim.path, cfg.sim.insar_file),
-                    os.path.join(cfg.sim.path, cfg.sim.ocean_file),
-                    os.path.join(cfg.sim.path, cfg.sim.ati_file))
-
-    if cfg.sim.L2_wavespectrum_run:
-        print('Launching L2 Wavespectrum Processor...')
-        l2_wavespectrum(cfg.cfg_file_name,
-                        os.path.join(cfg.sim.path, cfg.sim.proc_file),
-                        os.path.join(cfg.sim.path, cfg.sim.ocean_file),
-                        os.path.join(cfg.sim.path, cfg.sim.xspectra_file))
 
 
 

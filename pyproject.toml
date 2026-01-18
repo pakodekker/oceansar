@@ -28,6 +28,8 @@ dependencies = [
     "xarray",
     "NetCDF4",
     "matplotlib",
+    "h5netcdf",
+    "tqdm",
     "drama>=0.7"
 ]
 
