@@ -47,7 +47,7 @@ j4 = -0.00161e-3  # zonal coefficient
 j5 = -0.246e-6  # zonal coefficient
 
 # Sea water rel.dielectric constant
-epsilon_sw = np.complex(73, 18)
+epsilon_sw = 73 + 18j
 # Water refractive index (approximate)
 n_w = 4./3.
 # Impedance of vacuum [Ohm]

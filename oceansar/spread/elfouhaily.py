@@ -14,14 +14,16 @@ LOG:
 import numpy as np
 from scipy.constants import g
 import numexpr as ne
+from numba import njit
 
 rho = 1000.   # Density of water in kg/m^3
 S = 0.072     # Surface tension of water in N/m
 X_0 = 22e3    # Dimensionless fetch
 
+@njit(parallel=True)
 def elfouhaily(k, theta, U_10, fetch):
     # Eq. 3 (below)
-    k_0 = g/U_10**2 
+    k_0 = g/U_10**2
     # Eq. 4 (below)
     X = k_0*fetch
     # Eq. 37
@@ -52,4 +54,3 @@ def elfouhaily(k, theta, U_10, fetch):
     G = np.where((theta > -np.pi/2.) & (theta < np.pi/2.), (1. + Delta*np.cos(2.*theta))/(np.pi), 0)
 
     return G
-

@@ -7,6 +7,7 @@ from oceansar import spread
 
 from oceansar import constants as const
 import numexpr as ne
+from numba import njit
 
 class RCSRomeiser97():
     """ Bragg scattering model (R. Romeiser '97)
@@ -26,11 +27,18 @@ class RCSRomeiser97():
         :param sw_spec_func: Omnidirectional spectrum function
         :param sw_spread_func: Spreading function
         :param d: Filter threshold (Kd = Kb/d)
+        :param numba: use to fly with numba defaults to True
+        :param rmss_x: RMS slope in x direction
+        :param rmss_y: RMS slope in y direction
+        :params az_span: range of a azimuth angles (ground projected) for LUT
+        :param_use_lut: True (defaut when we generate a LUT to speed up things)
+
     """
 
     def __init__(self, k0, inc_angle, pol, dx, dy,
                  wind_U, wind_dir, wind_fetch,
-                 sw_spec_func, sw_spread_func, d):
+                 sw_spec_func, sw_spread_func, d, numba=True,
+                 rmss_x=0.1, rmss_y=0.1, az_span=np.radians(1), use_lut=True):
 
         # Save parameters
         self.wind_U = wind_U
@@ -54,11 +62,78 @@ class RCSRomeiser97():
         #self.spec_interpolator = interpolate.InterpolatedUnivariateSpline(k, spectrum, k=1)
         self.spec_interpolator = interpolate.interp1d(k, spectrum,
                                                       bounds_error=False,
-                                                      fill_value=1  )
+                                                      fill_value=1)
+        self.numba = numba
+
         if (self.sw_dir_func == 'none') and (self.sw_spec_func == 'elfouhaily'):
             raise Exception('Elfouhaily spectrum requires a direction function')
+        self.use_lut = False
+        if use_lut:
+            lut_slope_step = 0.0025 # hard coded for now
+            lut_Nsigma = 5
+            lut_N_Diffx =  int(np.max([rmss_x,0.01]) * lut_Nsigma*2 / lut_slope_step)
+            lut_N_Diffy =  int(np.max([rmss_y,0.01]) * lut_Nsigma*2 / lut_slope_step)
+            self.lut_Diffx = (-lut_Nsigma * np.max([rmss_x,0.01]) + np.arange(lut_N_Diffx) * lut_slope_step)[np.newaxis,np.newaxis,:]
+            self.lut_Diffy = (-lut_Nsigma * np.max([rmss_y,0.01]) + np.arange(lut_N_Diffy) * lut_slope_step)[np.newaxis,:, np.newaxis]
+            # Now get range of values of az_angle
+            lut_az_step = np.radians(0.05)
+            self.lut_az = (-az_span/2 + np.arange(-1,int(az_span/lut_az_step)+2) * lut_az_step)[:,np.newaxis,np.newaxis]
+            print("LUT size: %i "% (int(az_span/lut_az_step) * lut_N_Diffx * lut_N_Diffy))
+            # I need to trick the angle of incidence here
+            # This forces the geometry to a constant angle of incidence, which is fine for small scenes
+            inc_tmp = self.inc_angle
+            self.inc_angle = inc_tmp.mean() + np.zeros_like(self.lut_Diffx)
+
+            self.lut_rcs = self.rcs_numba(self.lut_az + np.zeros((int(az_span/lut_az_step)+3, lut_N_Diffy, lut_N_Diffx)), 
+                                          self.lut_Diffx + np.zeros((int(az_span/lut_az_step)+3, lut_N_Diffy, lut_N_Diffx)),
+                                          self.lut_Diffy + np.zeros((int(az_span/lut_az_step)+3, lut_N_Diffy, lut_N_Diffx)))
+            self.inc_angle = inc_tmp 
+            print("RCS LUT computed")
+            self.use_lut = True
+
 
     def rcs(self, az_angle, diffx, diffy):
+        """ Returns RCS map of a surface given its geometry
+
+            :param az_angle: Azimuth angle
+            :param diffx: Surface X slope
+            :param diffy: Surface Y slope
+        """
+        if self.use_lut:
+            return self.rcs_lut(az_angle, diffx, diffy)
+        elif self.numba:
+            return self.rcs_numba(az_angle, diffx, diffy)
+        else:
+            return self.rcs_classic(az_angle, diffx, diffy)
+
+    def rcs_lut(self, az_angle, diffx, diffy):
+        """ Returns RCS map of a surface given its geometry
+
+            :param az_angle: Azimuth angle
+            :param diffx: Surface X slope
+            :param diffy: Surface Y slope
+        """
+        az_ind = (np.round((az_angle - self.lut_az.min()) / (self.lut_az[1,0,0] - self.lut_az[0,0,0]))).astype(int)
+        diffy_ind = (np.round((diffy - self.lut_Diffy[0,0,0])/(self.lut_Diffy[0,1,0]- self.lut_Diffy[0,0,0]))).astype(int)
+        diffx_ind = (np.round((diffx - self.lut_Diffx[0,0,0])/(self.lut_Diffx[0,0,1]- self.lut_Diffx[0,0,0]))).astype(int)
+        diffy_ind = np.where(diffy_ind > 0, diffy_ind, 0)
+        diffx_ind = np.where(diffx_ind > 0, diffx_ind, 0)
+        diffy_ind = np.where(diffy_ind < self.lut_Diffy.shape[1], diffy_ind, self.lut_Diffy.shape[1]-1)
+        diffx_ind = np.where(diffx_ind < self.lut_Diffx.shape[2], diffx_ind, self.lut_Diffx.shape[2]-1)
+        if self.pol == 'DP':
+            # print(self.lut_rcs[0].shape)
+            # print(az_ind.shape)
+            # print(az_ind.min())
+            # print(az_ind.max())
+            # print(az_ind.dtype)
+            # print(diffy_ind.dtype)
+            # print(diffx_ind.dtype)
+            return (np.stack([self.lut_rcs[0][0][az_ind, diffy_ind, diffx_ind], self.lut_rcs[0][1][az_ind, diffy_ind, diffx_ind]]), 
+                    np.stack([self.lut_rcs[1][0][az_ind, diffy_ind, diffx_ind], self.lut_rcs[1][1][az_ind, diffy_ind, diffx_ind]]))
+        else:
+            return self.lut_rcs[:,az_ind, diffy_ind, diffx_ind]
+
+    def rcs_classic(self, az_angle, diffx, diffy):
         """ Returns RCS map of a surface given its geometry
 
             :param az_angle: Azimuth angle
@@ -101,10 +176,14 @@ class RCSRomeiser97():
             T_vv = (F0 *
                     np.abs((sin_inc_anglep_2_x_cos_s_t_2_over_sin_theta_i_2 * b_vv) + (sin_s_t_2_over_sin_theta_i_2 * b_hh))**2.)
             T_vv = w * T_vv
+        else:
+            T_vv = 0
         if self.pol == 'hh' or self.pol == 'DP':
             T_hh = (F0 *
                     np.abs((sin_inc_anglep_2_x_cos_s_t_2_over_sin_theta_i_2 * b_hh) + (sin_s_t_2_over_sin_theta_i_2 * b_vv))**2.)
             T_hh = w * T_hh
+        else:
+            T_hh = 0
 
         # T = T*w
 
@@ -169,3 +248,165 @@ class RCSRomeiser97():
             rcs_hh[1][bad_ones] = 0
             return (rcs_hh, rcs_vv)
 
+    @staticmethod
+    @njit(parallel=True)
+    def _rcs_numba(inc_angle, az_angle, diffx, diffy, k0, pol, wind_dir, d):
+        """ Returns RCS map of a surface given its geometry
+
+            :param az_angle: Azimuth angle
+            :param diffx: Surface X slope
+            :param diffy: Surface Y slope
+        """
+
+        # Parallel (s_p) and orthogonal (s_t) slopes
+        cos_az = np.cos(az_angle)
+        sin_az = np.sin(az_angle)
+        s_p = np.arctan(cos_az * diffx + sin_az * diffy)
+        s_t = np.arctan(-sin_az * diffx + cos_az * diffy)
+        # s_p = ne.evaluate("arctan(cos_az * diffx + sin_az * diffy)")
+        # s_t = ne.evaluate("arctan(-sin_az * diffx + cos_az * diffy)")
+
+        # Effective local incidence angle (6)
+        cos_s_t = np.cos(s_t)
+        cos_s_t_2 = cos_s_t**2
+        sin_s_t_2 = 1 - cos_s_t_2
+        sin_inc_anglep = np.sin(inc_angle - s_p)
+        cos_inc_anglep = np.cos(inc_angle - s_p)
+        cos_inc_anglep_2 = cos_inc_anglep**2
+        sin_inc_anglep_2 = sin_inc_anglep**2
+        cos_theta_i = cos_inc_anglep * cos_s_t
+        sin_theta_i_2 = 1 - cos_theta_i**2
+        #theta_i = np.arccos(np.cos(self.inc_angle - s_p) * np.cos(s_t))
+
+        # Complex scattering coefficient (3a, 3b)
+        b_hh = const.epsilon_sw / (cos_theta_i + np.sqrt(const.epsilon_sw))**2.
+        b_vv = (((const.epsilon_sw**2.) * (1. + sin_theta_i_2)) /
+                ((const.epsilon_sw * cos_theta_i + np.sqrt(const.epsilon_sw))**2.))
+
+        # Weighting function (10) & Dimensions to mace RCS (not NRCS)
+        w = cos_inc_anglep/(np.cos(inc_angle) * np.cos(s_p))
+        # T(s_p, s_n) (5)
+        sin_s_t_2_over_sin_theta_i_2 = sin_s_t_2 / sin_theta_i_2
+        sin_inc_anglep_2_x_cos_s_t_2_over_sin_theta_i_2 = sin_inc_anglep_2 * cos_s_t_2 / sin_theta_i_2
+        F0 = 8 * np.pi * (k0 * cos_theta_i)**4
+        #T_vv = None
+        #T_hh = None
+        if pol == 'vv' or pol == 'DP':
+            T_vv = (F0 *
+                    np.abs((sin_inc_anglep_2_x_cos_s_t_2_over_sin_theta_i_2 * b_vv) + (sin_s_t_2_over_sin_theta_i_2 * b_hh))**2.)
+            T_vv = w * T_vv
+
+        if pol == 'hh' or pol == 'DP':
+            T_hh = (F0 *
+                    np.abs((sin_inc_anglep_2_x_cos_s_t_2_over_sin_theta_i_2 * b_hh) + (sin_s_t_2_over_sin_theta_i_2 * b_vv))**2.)
+            T_hh = w * T_hh
+
+
+        # Bragg wave number magnitude and direction (7) (8)
+        k_b = 2 * k0 * np.sqrt(sin_inc_anglep_2 + (cos_inc_anglep_2*sin_s_t_2))
+        k_b = np.where(k_b > (2 * k0), 0, k_b)
+        phi_b = az_angle + np.arctan((cos_inc_anglep * np.sin(-s_t)) / np.sin(inc_angle - s_p))
+        theta_inp = np.empty((2,) + phi_b.shape)
+        theta_inp[0] = phi_b - wind_dir
+        theta_inp[1] = phi_b + np.pi - wind_dir
+        # theta_inp = np.array([phi_b, phi_b + np.pi]) - wind_dir
+        theta_inp = np.angle(np.exp(1j * theta_inp))
+        bad_ones = np.where(4 * sin_inc_anglep_2 < (d**2))
+        # Ugly return, but it is necessary with Numba. Numba does not like to to have a particular
+        # variable, e.g. T_hh, have dimensions that depend on an if statement.
+        if pol == 'hh':
+            return k_b, theta_inp, T_hh, T_hh, bad_ones
+        elif pol == 'vv':
+            return k_b, theta_inp, T_vv, T_vv, bad_ones
+        else:
+            return k_b, theta_inp, T_hh, T_vv, bad_ones
+
+    def rcs_numba(self, az_angle, diffx, diffy):
+        """ Returns RCS map of a surface given its geometry
+
+            :param az_angle: Azimuth angle
+            :param diffx: Surface X slope
+            :param diffy: Surface Y slope
+        """
+        if type(az_angle) is np.ndarray:
+            az_angle_ = ne.evaluate("az_angle * ones_like(diffx)")
+        else:
+            az_angle_ = az_angle
+        if type(self.inc_angle) is np.ndarray:
+            inc_angle_ = self.inc_angle
+            inc_angle_ = ne.evaluate("inc_angle_ * ones_like(diffx)")
+        else:
+            inc_angle_ = self.inc_angle
+        k_b, theta_inp, T_hh, T_vv, bad_ones = self._rcs_numba(inc_angle_, az_angle_, diffx, diffy, self.k0, self.pol, self.wind_dir, self.d)
+        # Calculate folded spectrum
+        k_inp = np.array([k_b, k_b])
+        # TODO: thw interpolation is taking about 20% of the time of the function, this can go faster
+        spectrum_1D = self.spec_interpolator(k_b.flatten()).reshape((1,) +
+                                                                    k_b.shape)
+        # spectrum_1D = 1
+        #else:
+        #    spectrum = spec.models[self.sw_spec_func](k_inp, self.U_10, self.fetch)
+
+        spectrum = (spectrum_1D / k_inp *
+                    spread.models[self.sw_dir_func](k_inp, theta_inp,
+                                                    self.wind_U,
+                                                    self.wind_fetch))
+
+        # Calculate RCS & Filter result
+        # tan_inc_angle_md = np.tan(self.inc_angle - self.d/2.)
+        # tan_inc_angle_pd = np.tan(self.inc_angle + self.d/2.)
+        # bad_ones = np.where(np.logical_or(s_p < tan_inc_angle_md, s_p > tan_inc_angle_pd))
+
+        if self.pol == 'vv':
+            rcs = T_vv * spectrum * self.dx * self.dy
+            # rcs[0] = np.where(((s_p > tan_inc_angle_md) &
+            #                    (s_p < tan_inc_angle_pd)), 0., rcs[0])
+            # rcs[1] = np.where(((s_p > tan_inc_angle_md) &
+            #                    (s_p < tan_inc_angle_pd)), 0., rcs[1])
+            rcs[0][bad_ones] = 0
+            rcs[1][bad_ones] = 0
+            return rcs
+        elif self.pol == 'hh':
+            rcs = T_hh * spectrum * self.dx * self.dy
+            # rcs[0] = np.where(((s_p > tan_inc_angle_md) &
+            #                    (s_p < tan_inc_angle_pd)), 0., rcs[0])
+            # rcs[1] = np.where(((s_p > tan_inc_angle_md) &
+            #                    (s_p < tan_inc_angle_pd)), 0., rcs[1])
+            rcs[0][bad_ones] = 0
+            rcs[1][bad_ones] = 0
+            return rcs
+        else:
+            rcs_vv = T_vv * spectrum * self.dx * self.dy
+            # rcs_vv[0] = np.where(((s_p > tan_inc_angle_md) &
+            #                       (s_p < tan_inc_angle_pd)), 0., rcs_vv[0])
+            # rcs_vv[1] = np.where(((s_p > tan_inc_angle_md) &
+            #                       (s_p < tan_inc_angle_pd)), 0., rcs_vv[1])
+            rcs_vv[0][bad_ones] = 0
+            rcs_vv[1][bad_ones] = 0
+            rcs_hh = T_hh * spectrum * self.dx * self.dy
+            # rcs_hh[0] = np.where(((s_p > tan_inc_angle_md) &
+            #                       (s_p < tan_inc_angle_pd)), 0., rcs_hh[0])
+            # rcs_hh[1] = np.where(((s_p > tan_inc_angle_md) &
+            #                       (s_p < tan_inc_angle_pd)), 0., rcs_hh[1])
+            # rcs_hh[0][bad_ones] = 0
+            rcs_hh[1][bad_ones] = 0
+            return (rcs_hh, rcs_vv)
+
+
+if __name__ == '__main__':
+    from matplotlib import pyplot as plt
+    print("Testing")
+    rrcs = RCSRomeiser97(2*np.pi*5.4e9/3e8, np.radians(40), 'DP', 1, 1, 10, 10, 1e5, 'elfouhaily', 'elfouhaily', 0.125)
+    kb = 2*np.pi*5.4e9/3e8 * np.sin(np.linspace(np.radians(30), np.radians(50)))
+    plt.figure()
+    plt.plot(kb, rrcs.spec_interpolator(kb))
+    slopex = 0.05 * np.random.randn(2048,2048)
+    slopey = 0.05 * np.random.randn(2048,2048)
+    sh, sv = rrcs.rcs(0,slopex, slopey)
+    print(sv.mean())
+    shn, svn = rrcs.rcs_classic(0,slopex, slopey)
+    print(svn.mean())
+    # %timeit sh, sv = rrcs.rcs(0,slopex, slopey)
+    # %timeit sh, sv = rrcs.rcs_classic(0,slopex, slopey)
+    # kk = np.arange(10)
+    # type(kk) is np.ndarray

@@ -35,7 +35,7 @@ def profile_integrator(scat, bin_i, bin_f, pulse, n_samp, over_samp, output):
     nbins = output.size
     rnbins = output.size - n_samp - 1
     for i in range(npts):
-        bin_now = bin_i[i] - int(n_samp/2)
+        bin_now = bin_i[i] - int(n_samp/2) 
         sbin = bin_f[i]
         if (bin_now < 0) or (bin_now > rnbins):
             #We are at an edge and proceed with care

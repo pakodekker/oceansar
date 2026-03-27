@@ -99,15 +99,15 @@ class OceanSurface(object):
 
         ## INITIALIZE MESHGRIDS, SPECTRUM, ETC.
         # Grid dimensions
-        self.Nx = np.int(self.Lx/self.dx)
-        self.Ny = np.int(self.Ly/self.dy)
+        self.Nx = int(self.Lx/self.dx)
+        self.Ny = int(self.Ly/self.dy)
 
         if opt_res:
-            self.Nx = np.int(utils.optimize_fftsize(self.Nx, fft_max_prime))
-            self.Ny = np.int(utils.optimize_fftsize(self.Ny, fft_max_prime))
+            self.Nx = int(utils.optimize_fftsize(self.Nx, fft_max_prime))
+            self.Ny = int(utils.optimize_fftsize(self.Ny, fft_max_prime))
 
-            self.dx = np.float32(self.Lx/np.float(self.Nx))
-            self.dy = np.float32(self.Ly/np.float(self.Ny))
+            self.dx = np.float32(self.Lx/float(self.Nx))
+            self.dy = np.float32(self.Ly/float(self.Ny))
 
         # X-Y vector
         self.x = np.linspace(-self.Lx/2., self.Lx/2., self.Nx, dtype=np.float32)
@@ -134,8 +134,8 @@ class OceanSurface(object):
         self.kx, self.ky = np.meshgrid(kx_s, ky_s)
 
         # Kx-Ky resolution
-        kx_res = self.kx[0, 1] - self.kx[0, 0]
-        ky_res = self.ky[1, 0] - self.ky[0, 0]
+        self.kx_res = kx_res = self.kx[0, 1] - self.kx[0, 0]
+        self.ky_res = ky_res = self.ky[1, 0] - self.ky[0, 0]
 
         # K-theta meshgrid (Polar, wind direction shifted)
         self.k = np.sqrt(self.kx**2 + self.ky**2)
@@ -177,7 +177,10 @@ class OceanSurface(object):
                                                               self.wind_fetch)
 
             self.wave_dirspec = (self.kinv) * wave_spec * wave_spread
-
+        # PLD May 2025
+        self.rmss_x = np.sqrt(np.sum(self.wave_dirspec * self.kx**2 * self.kx_res*ky_res))
+        self.rmss_y = np.sqrt(np.sum(self.wave_dirspec * self.ky**2 * self.kx_res*ky_res))
+        print("rmssx: %f; rmssy %f" % (self.rmss_x,  self.rmss_y))
         # Filter if cutoff is imposed
         if cutoff_wl and (cutoff_wl != 'auto'):
             kco_x = 2.*np.pi/cutoff_wl
