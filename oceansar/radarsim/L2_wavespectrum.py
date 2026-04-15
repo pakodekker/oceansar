@@ -49,7 +49,7 @@ def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file):
     f0 = cfg.sar.f0
     prf = cfg.sar.prf
     num_ch = cfg.sar.num_ch
-    ant_L = cfg.sar.ant_L
+    # ant_L = cfg.sar.ant_L
     alt = cfg.sar.alt
     v_ground = cfg.sar.v_ground
     rg_bw = cfg.sar.rg_bw
@@ -137,10 +137,10 @@ def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file):
 
     # Note: RG is projected, so plots are Ground Range
     rg_min = 0
-    rg_max = np.int(rg_span/(const.c/2./rg_sampling/np.sin(inc_angle)))
-    az_min = np.int(az_size/2. + (-az_span/2. + avg_az_shift)/(v_ground/prf))
-    az_max = np.int(az_size/2. + (az_span/2. + avg_az_shift)/(v_ground/prf))
-    az_guard = np.int(std_az_shift / (v_ground / prf))
+    rg_max = int(rg_span/(const.c/2./rg_sampling/np.sin(inc_angle)))
+    az_min = int(az_size/2. + (-az_span/2. + avg_az_shift)/(v_ground/prf))
+    az_max = int(az_size/2. + (az_span/2. + avg_az_shift)/(v_ground/prf))
+    az_guard = int(std_az_shift / (v_ground / prf))
     az_min = az_min + az_guard
     az_max = az_max - az_guard
     if (az_max - az_min) < (2 * az_guard - 10):
@@ -148,26 +148,27 @@ def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file):
         return
 
     # Adaptive coregistration
-    if cfg.sar.L_total:
-        ant_L = ant_L/np.float(num_ch)
-        dist_chan = ant_L/2
-    else:
-        if np.float(cfg.sar.Spacing) != 0:
-            dist_chan = np.float(cfg.sar.Spacing)/2
-        else:
-            dist_chan = ant_L/2
-    # dist_chan = ant_L/num_ch/2.
-    print('ATI Spacing: %f' % dist_chan)
-    inter_chan_shift_dist = dist_chan/(v_ground/prf)
-    # Subsample shift in azimuth
-    for chind in range(proc_data.shape[0]):
-        shift_dist = - chind * inter_chan_shift_dist
-        shift_arr = np.exp(-2j * np.pi * shift_dist *
-                           np.roll(np.arange(az_size) - az_size/2,
-                                   int(-az_size / 2)) / az_size)
-        shift_arr = shift_arr.reshape((1, az_size, 1))
-        proc_data[chind] = np.fft.ifft(np.fft.fft(proc_data[chind], axis=1) *
-                                       shift_arr, axis=1)
+    # all of this is not needed
+    # if cfg.sar.L_total:
+    #     ant_L = ant_L/float(num_ch)
+    #     dist_chan = ant_L/2
+    # else:
+    #     if float(cfg.sar.Spacing) != 0:
+    #         dist_chan = float(cfg.sar.Spacing)/2
+    #     else:
+    #         dist_chan = ant_L/2
+    # # dist_chan = ant_L/num_ch/2.
+    # print('ATI Spacing: %f' % dist_chan)
+    # inter_chan_shift_dist = dist_chan/(v_ground/prf)
+    # # Subsample shift in azimuth
+    # for chind in range(proc_data.shape[0]):
+    #     shift_dist = - chind * inter_chan_shift_dist
+    #     shift_arr = np.exp(-2j * np.pi * shift_dist *
+    #                        np.roll(np.arange(az_size) - az_size/2,
+    #                                int(-az_size / 2)) / az_size)
+    #     shift_arr = shift_arr.reshape((1, az_size, 1))
+    #     proc_data[chind] = np.fft.ifft(np.fft.fft(proc_data[chind], axis=1) *
+    #                                    shift_arr, axis=1)
 
     # First dimension is number of channels, second is number of pols
     ch_dim = proc_data.shape[0:2]
@@ -201,14 +202,17 @@ def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file):
         sublook_filt.append(win)
 
     # Apply sublooks
-    az_downsmp = int(np.floor(az_ml / 2))
-    rg_downsmp = int(np.floor(rg_ml / 2))
+    az_downsmp = max(1, int(np.floor(az_ml / 2)))
+    rg_downsmp = max(1, int(np.floor(rg_ml / 2)))
     sublooks = []
     sublooks_f = []
+    sublooks_mean = []
+    
     for i_sbl in range(n_sublook):
         # Go to frequency domain
         sublook_data = np.fft.ifft(np.fft.fft(proc_data, axis=1) *
                                    sublook_filt[i_sbl].reshape((1, proc_data_rshp[1], 1)), axis=1)
+        
         # Get intensities
         sublook_data = np.abs(sublook_data)**2
         # Multilook
@@ -217,7 +221,11 @@ def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file):
         # Keep only valid part and down sample
         sublook_data = sublook_data[:, az_min:az_max:az_downsmp, rg_min:rg_max:rg_downsmp]
         sublooks.append(sublook_data)
-        sublooks_f.append(np.fft.fft(np.fft.fft(sublook_data - np.mean(sublook_data), axis=1), axis=2))
+        sublooks_mean.append(np.mean(sublook_data, axis=(1, 2)))
+
+        delta_rg = rg_downsmp * grg_grid_spacing
+        delta_az = az_downsmp * az_grid_spacing
+        sublooks_f.append(np.fft.fft(np.fft.fft(sublook_data, axis=1), axis=2) * delta_rg * delta_az)
 
     kaz = 2 * np.pi * np.fft.fftfreq(sublook_data.shape[1], az_downsmp * az_grid_spacing)
     kgrg = 2 * np.pi * np.fft.fftfreq(sublook_data.shape[2], rg_downsmp * grg_grid_spacing)
@@ -231,12 +239,28 @@ def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file):
             xspec_lut[ind1, ind2] = tind
             tind = tind + 1
             xspec = sublooks_f[ind1] * np.conj(sublooks_f[ind2])
+            # Normalize per channel
+            for chind in range(xspec.shape[0]):
+                xspec[chind] = xspec[chind] / (sublooks_mean[ind1][chind] * sublooks_mean[ind2][chind])
+                xspec[chind, 0, 0] = 0
             xspecs.append(xspec)
 
-
     with open(output_file, 'wb') as output:
-        pickle.dump(xspecs, output, pickle.HIGHEST_PROTOCOL)
-        pickle.dump([kaz, kgrg], output, pickle.HIGHEST_PROTOCOL)
+        pickle.dump({
+            'xspecs': xspecs,
+            'kgrg': kgrg,
+            'kaz': kaz,
+            'sublooks_mean': sublooks_mean,
+            'sublooks_f': sublooks_f,
+            'sublooks': sublooks,
+            'N_az': sublook_data.shape[1],
+            'N_rg': sublook_data.shape[2],
+            'delta_rg': rg_downsmp * grg_grid_spacing,
+            'delta_az': az_downsmp * az_grid_spacing,
+            'd_kaz': kaz[1] - kaz[0],
+            'd_kgrg': kgrg[1] - kgrg[0],
+        }, output, pickle.HIGHEST_PROTOCOL)
+
 
     # PROCESSED AMPLITUDE
     if plot_proc_ampl:
@@ -254,6 +278,7 @@ def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file):
             plt.title("Amplitude")
             plt.colorbar()
             plt.savefig(save_path)
+            plt.close()
 
             save_path = (plot_path + os.sep + 'amp_' + polt[pind]+
                          '.' + plot_format)
@@ -271,10 +296,11 @@ def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file):
             plt.title("Amplitude")
             plt.colorbar()
             plt.savefig(save_path)
+            plt.close()
 
     ## FIXME: I am plotting the cross spectrum for the first polarization and the first channel only, which is not
     ## very nice. To be fixed, in particular por multiple polarizations
-
+    plot_klim = (-0.2,0.2)
     for ind1 in range(len(sublooks)):
         for ind2 in range(ind1 + 1, len(sublooks)):
             save_path_abs = os.path.join(plot_path, ('xspec_abs_%i%i.%s' % (ind1+1, ind2+1, plot_format)))
@@ -283,13 +309,13 @@ def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file):
             ml_xspec = utils.smooth(utils.smooth(np.fft.fftshift(xspecs[xspec_lut[ind1, ind2]][0]), krg_ml, axis=1),
                                     kaz_ml, axis=0)
             plt.figure()
-            plt.imshow(np.abs(ml_xspec), origin='lower', cmap='inferno_r',
+            plt.imshow(np.log10(np.abs(ml_xspec)), origin='lower', cmap='CMRmap_r',
                        extent=[kgrg.min(), kgrg.max(), kaz.min(), kaz.max()],
-                       interpolation='nearest')
+                       interpolation='nearest',vmin=np.log10(np.abs(ml_xspec)).max()-2.5)
             plt.grid(True)
             pltax = plt.gca()
-            pltax.set_xlim((-0.1, 0.1))
-            pltax.set_ylim((-0.1, 0.1))
+            pltax.set_xlim(plot_klim)
+            pltax.set_ylim(plot_klim)
             northarr_length = 0.075  # np.min([surface_full.kx.max(), surface_full.ky.max()])
             pltax.arrow(0, 0,
                         -northarr_length * np.sin(np.radians(cfg.sar.heading)),
@@ -311,8 +337,8 @@ def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file):
                        interpolation='nearest', vmin=-2*phmax, vmax=2*phmax)
             plt.grid(True)
             pltax = plt.gca()
-            pltax.set_xlim((-0.1, 0.1))
-            pltax.set_ylim((-0.1, 0.1))
+            pltax.set_xlim(plot_klim)
+            pltax.set_ylim(plot_klim)
             northarr_length = 0.075  # np.min([surface_full.kx.max(), surface_full.ky.max()])
             pltax.arrow(0, 0,
                         -northarr_length * np.sin(np.radians(cfg.sar.heading)),
@@ -329,8 +355,8 @@ def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file):
                        interpolation='nearest', vmin=-2 * immax, vmax=2 * immax)
             plt.grid(True)
             pltax = plt.gca()
-            pltax.set_xlim((-0.1, 0.1))
-            pltax.set_ylim((-0.1, 0.1))
+            pltax.set_xlim(plot_klim)
+            pltax.set_ylim(plot_klim)
             northarr_length = 0.075  # np.min([surface_full.kx.max(), surface_full.ky.max()])
             pltax.arrow(0, 0,
                         -northarr_length * np.sin(np.radians(cfg.sar.heading)),

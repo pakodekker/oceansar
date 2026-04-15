@@ -13,6 +13,8 @@ from scipy import linalg
 import numexpr as ne
 import datetime
 
+from tqdm import tqdm
+
 from oceansar import utils
 from oceansar import ocs_io as tpio
 from oceansar.utils import geometry as geosar
@@ -344,14 +346,15 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
 
     print('Computing profiles...')
 
-    for az_step in np.arange(az_steps, dtype=int):
+    for az_step in tqdm(range(az_steps)):
 
         ## AZIMUTH & SURFACE UPDATE
         t_now = az_step*t_step
         az_now = (t_now - t_span/2.)*v_ground
         # az = np.repeat((surface.y - az_now)[:, np.newaxis], surface.Nx, axis=1)
         az = (surface.y - az_now).reshape((surface.Ny, 1))
-        if az_step == 0:
+        #if az_step == 0 or (t_now - t_last_rcs_bragg) > ocean_dt:
+        if not cfg.ocean.frozen_ocean or t_step == 0:
             surface.t = t_now
 
         ## COMPUTE RCS FOR EACH MODEL
@@ -531,11 +534,11 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
                                            n_sinc_samples, sinc_ovs,
                                            proc_raw_vv[ch][az_step])
 
-        # SHOW PROGRESS (%)
-        current_progress = int((100*az_step)/az_steps)
-        if current_progress != last_progress:
-            last_progress = current_progress
-            print('SP, %d' % current_progress)
+        # # SHOW PROGRESS (%)
+        # current_progress = int((100*az_step)/az_steps)
+        # if current_progress != last_progress:
+        #     last_progress = current_progress
+        #     print('SP, %d' % current_progress)
 
     # PROCESS REDUCED RAW DATA & SAVE (ROOT)
 

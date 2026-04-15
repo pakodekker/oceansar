@@ -16,13 +16,15 @@ e.g. python oceansar_sarsim.py d:\data\configfile\20160708_NOS.cfg
 import sys
 import os
 import time
-import subprocess
+from drama.io import cfg as drcfg
+#import stereoid.utils.config as st_config
 from oceansar import ocs_io as osrio
 from oceansar import utils
 from oceansar.radarsim.sar_raw_nompi import sar_raw
 from oceansar.radarsim.sar_processor import sar_focus
 from oceansar.radarsim.ati_processor import ati_process
 from oceansar.radarsim.insar_processor import insar_process
+from oceansar.radarsim.L2_wavespectrum import l2_wavespectrum
 
 def sarsim(cfg_file=None):
 
@@ -31,7 +33,7 @@ def sarsim(cfg_file=None):
     # print('Copyright (c) Gerard Marull Paretas, Paco López-Dekker')
     print('-------------------------------------------------------------------', flush=True)
     cfg_file = utils.get_parFile(parfile=cfg_file)
-    cfg = osrio.ConfigFile(cfg_file)
+    cfg = drcfg.ConfigFile(cfg_file)
     # Create output directory if it doesnt exist already
     os.makedirs(cfg.sim.path, exist_ok=True)
     src_path = os.path.dirname(os.path.abspath(__file__))
@@ -69,6 +71,10 @@ def sarsim(cfg_file=None):
 
     if cfg.sim.L2_wavespectrum_run:
         print('Launching L2 Wavespectrum Processor...')
+        l2_wavespectrum(cfg.cfg_file_name,
+                        os.path.join(cfg.sim.path, cfg.sim.proc_file),
+                        os.path.join(cfg.sim.path, cfg.sim.ocean_file),
+                        os.path.join(cfg.sim.path, cfg.sim.xspectra_file))
 
 
 
