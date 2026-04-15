@@ -117,8 +117,11 @@ def sarraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, reu
 
     # OCEAN / OTHERS
     ocean_dt = cfg.ocean.dt
-
-    add_point_target = False
+    
+    if hasattr(cfg.sim, 'add_point_target'):
+        add_point_target = cfg.sim.add_point_target
+    else:
+        add_point_target = False
     use_numba = True
     n_sinc_samples = 8
     sinc_ovs = 20
