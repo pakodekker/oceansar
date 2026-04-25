@@ -29,7 +29,8 @@ Since then, Paco Lopez Dekker added partial support for polarimetric acquisition
 
 Usage
 =====
-Right now probably the best way to run OCEANSAR is:
+To simulate a SAR system, the recommended approach is to run the sarsim.ipynb notebook, where you have to specify the configuration file to be used.   
+Alternatively, the simulation can be run from the command line as follows:
 
 python path-to-oceansar/oceansar/radarsim/oceansar_sarsim.py config_file.cfg
 
