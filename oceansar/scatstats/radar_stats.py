@@ -579,9 +579,10 @@ if __name__ == '__main__':
     U = 8
     radsurf_U8 = RadarSurface(cfg_file, winddir=0, U10=U, t_step=1e-3)
     gmf = radsurf_U8.gmf([35,40], 36)
+# %%
+
 #%%
     plt.figure()
-
 
     plt.plot(gmf.azimuth, 10 * np.log10(gmf.NRCS_vv[0]), label='35')
     plt.plot(gmf.azimuth, 10 * np.log10(gmf.NRCS_vv[1]), label='40')
