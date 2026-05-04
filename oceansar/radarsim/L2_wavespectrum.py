@@ -82,11 +82,30 @@ def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file):
     k0 = 2.*np.pi*f0/const.c
     rg_sampling = rg_bw*over_fs
 
-    # PROCESSED RAW DATA
+    # # PROCESSED RAW DATA
+    # proc_content = tpio.ProcFile(proc_output_file, 'r')
+    # proc_data = proc_content.get('slc*')
+    # proc_content.close()
+    # PROCESSED DATA
     proc_content = tpio.ProcFile(proc_output_file, 'r')
     proc_data = proc_content.get('slc*')
+    sr0 = proc_content.get('sr0')
+    #print(f"Read sr0 from proc file: {sr0}")
+    az0 = proc_content.get('az0')
+    print(f"Read az0 from proc file: {az0}")
+    inc_angle = proc_content.get('inc_angle')
+    b_ati = proc_content.get('b_ati')
+    b_xti = proc_content.get('b_xti')
+    f0 = proc_content.get('f0')
+    prf = proc_content.get('prf')
+    num_ch = proc_content.get('num_ch')
+    rg_bw = proc_content.get('rg_bw')
+    rg_sampling = proc_content.get('rg_sampling')
+    v_ground = proc_content.get('v_ground')
+    alt = proc_content.get('orbit_alt')
+    inc_angle = np.deg2rad(proc_content.get('inc_angle'))
+    # print(f"Read inc_angle from proc file: {np.rad2deg(inc_angle)}")
     proc_content.close()
-
     # OCEAN SURFACE
     surface = OceanSurface()
     surface.load(ocean_file, compute=['D', 'V'])
@@ -138,8 +157,10 @@ def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file):
     # Note: RG is projected, so plots are Ground Range
     rg_min = 0
     rg_max = int(rg_span/(const.c/2./rg_sampling/np.sin(inc_angle)))
-    az_min = int(az_size/2. + (-az_span/2. + avg_az_shift)/(v_ground/prf))
-    az_max = int(az_size/2. + (az_span/2. + avg_az_shift)/(v_ground/prf))
+    # az_min = int(az_size/2. + (-az_span/2. + avg_az_shift)/(v_ground/prf))
+    # az_max = int(az_size/2. + (az_span/2. + avg_az_shift)/(v_ground/prf))
+    az_min = int((-az0 -az_span/2. + avg_az_shift)/(v_ground/prf))
+    az_max = int((-az0 + az_span/2. + avg_az_shift)/(v_ground/prf))
     az_guard = int(std_az_shift / (v_ground / prf))
     az_min = az_min + az_guard
     az_max = az_max - az_guard
