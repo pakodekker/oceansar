@@ -233,6 +233,8 @@ class RawFile(NETCDFHandler):
             orbit_alt.units = '[m]'
             sr0 = self.__file__.createVariable('sr0', 'f8')
             sr0.units = '[m]'
+            az0 = self.__file__.createVariable('az0', 'f8')
+            az0.units = '[m]'
             rg_sampling = self.__file__.createVariable('rg_sampling', 'f8')
             rg_sampling.units = '[Hz]'
             rg_bw = self.__file__.createVariable('rg_bw', 'f8')
