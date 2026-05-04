@@ -413,7 +413,7 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
         # az = np.repeat((surface.y - az_now)[:, np.newaxis], surface.Nx, axis=1)
         az = (surface.y - az_now).reshape((surface.Ny, 1))
         #if az_step == 0 or (t_now - t_last_rcs_bragg) > ocean_dt:
-        if not cfg.ocean.frozen_ocean or simpar["t_step"] == 0:
+        if not cfg.ocean.frozen_ocean: ## or simpar["t_step"] == 0:
             surface.t = t_now
 
         ## COMPUTE RCS FOR EACH MODEL
