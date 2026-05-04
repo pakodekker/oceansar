@@ -15,6 +15,7 @@ import datetime
 
 from tqdm import tqdm
 
+from drama import utils as drtls
 from oceansar import utils
 from oceansar import ocs_io as tpio
 from oceansar.utils import geometry as geosar
@@ -27,6 +28,7 @@ from oceansar.radarsim import range_profile as raw
 
 from oceansar.surfaces import OceanSurface #, OceanSurfaceBalancer
 from oceansar.swell_spec import dir_swell_spec as s_spec
+from oceansar.radarsim.factorize_raw import factorize_raw_params, aggregate_factorized_raw
 
 
 def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
@@ -66,7 +68,7 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
     ## CONFIGURATION FILE
     # Note: variables are 'copied' to reduce code verbosity
     cfg = tpio.ConfigFile(cfg_file)
-
+    info = utils.PrInfo(cfg.sim.verbosity, "SAR raw")
     # RAW
     wh_tol = cfg.srg.wh_tol
     nesz = cfg.srg.nesz
@@ -79,11 +81,13 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
     scat_bragg_spec = cfg.srg.scat_bragg_spec
     scat_bragg_spread = cfg.srg.scat_bragg_spread
     use_lut = cfg.srg.use_lut 
-
+    simpar = {}
     # SAR
     inc_angle = np.deg2rad(cfg.sar.inc_angle)
     f0 = cfg.sar.f0
     pol = cfg.sar.pol
+    simpar['pol'] = pol
+    simpar['f0'] = f0
     squint_r = np.degrees(cfg.sar.squint)
     if pol == 'DP':
         do_hh = True
@@ -96,12 +100,14 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
         do_vv = True
 
     prf = cfg.sar.prf
+    simpar['prf'] = prf
     num_ch = int(cfg.sar.num_ch)
     #ant_L = cfg.sar.ant_L
     alt = cfg.sar.alt
     v_ground = cfg.sar.v_ground
     rg_bw = cfg.sar.rg_bw
     over_fs = cfg.sar.over_fs
+    simpar['Fs'] = rg_bw * over_fs
     sigma_n_tx = cfg.sar.sigma_n_tx
     phase_n_tx = np.deg2rad(cfg.sar.phase_n_tx)
     sigma_beta_tx = cfg.sar.sigma_beta_tx
@@ -124,7 +130,7 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
     chan_sinc_vec = raw.calc_sinc_vec(n_sinc_samples, sinc_ovs, Fs=over_fs)
     # OCEAN SURFACE
 
-    print('Initializing ocean surface...')
+    info.msg('Initializing ocean surface...', importance=2)
 
     surface = OceanSurface()
 
@@ -228,17 +234,21 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
 
     # CALCULATE PARAMETERS
 
-    print('Initializing simulation parameters...')
+    info.msg('Initializing simulation parameters...', importance=2)
 
     # SR/GR/INC Matrixes
     sr0 = geosar.inc_to_sr(inc_angle, alt)
     gr0 = geosar.inc_to_gr(inc_angle, alt)
+    simpar['sr0'] = sr0
+    simpar['gr0'] = gr0
     gr = surface.x + gr0
     sr, inc, _ = geosar.gr_to_geo(gr, alt)
     # Slant range of first range gate
     # We have to correct one sample delay introduced in the range profile creator
     rg_sampling = rg_bw * over_fs
+    simpar['rg_sampling'] = rg_sampling
     sr_near = sr[0] - wh_tol + const.c / 2 / (rg_sampling)
+    simpar['sr_near'] = sr_near
     sr -= np.min(sr)
 
     # Let's try to safe some memory and some operations
@@ -252,43 +262,67 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
     l0 = const.c/f0
     k0 = 2.*np.pi*f0/const.c
     sr_res = const.c/(2.*rg_bw)
+    simpar['sr_res'] = sr_res
+    simpar['l0'] = l0
+    simpar['k0'] = k0
     ant_l_tx = cfg.sar.ant_L_tx
     ant_l_rx = cfg.sar.ant_L_rx
+    simpar['ant_l_tx'] = ant_l_tx
+    simpar['ant_l_rx'] = ant_l_rx
 
     # ATI baselines
     b_ati = cfg.sar.b_ati
     if not type(b_ati) == np.ndarray:
         b_ati = np.arange(num_ch) * b_ati
+    simpar['b_ati'] = b_ati
     # XTI baselines
     b_xti = cfg.sar.b_xti
     if not type(b_xti) == np.ndarray:
         b_xti = np.arange(num_ch) * b_xti
+    simpar['b_xti'] = b_xti
 
     if v_ground == 'auto':
         v_ground = geosar.orbit_to_vel(alt, ground=True)
-    t_step = 1./prf
-    t_span = (1.5*(sr0*l0/ant_l_tx) + surface.Ly)/v_ground
-    az_steps = int(np.floor(t_span/t_step))
+    simpar['v_ground'] = v_ground
+    # t_step = 1./prf
+    # t_span = (1.5*(sr0*l0/ant_l_tx) + surface.Ly)/v_ground
+    # az_steps = int(np.floor(t_span/t_step))
+    simpar = factorize_raw_params(cfg, simpar, surface, info)
     # Get range of azimut angles to intialize Bragg model..
     # TODO 
     # angular range
-    az_span = (t_span * v_ground + surface.Ly) /gr0
+    az_span = (simpar["t_span"] * v_ground + surface.Ly) /gr0
 
     # Number of RG samples
-    max_sr = np.max(sr) + wh_tol + (np.max(surface.y) + (t_span/2.)*v_ground)**2./(2.*sr0)
+    max_sr = np.max(sr) + wh_tol + (np.max(surface.y) + (simpar["t_span"]/2.)*v_ground)**2./(2.*sr0)
     min_sr = np.min(sr) - wh_tol
     rg_samp_orig = int(np.ceil(((max_sr - min_sr)/sr_res)*over_fs))
     rg_samp = int(utils.optimize_fftsize(rg_samp_orig))
 
     # Other initializations
-    if do_hh:
-        proc_raw_hh = np.zeros([num_ch, az_steps, rg_samp], dtype=complex)
-    if do_vv:
-        proc_raw_vv = np.zeros([num_ch, az_steps, rg_samp], dtype=complex)
+    proc_raw_vv = None # Just to avoid errors in the code, these will be initialized later
+    proc_raw_hh = None
+    if cfg.srg.factorize:
+        if do_hh:
+            proc_raw_hh = np.zeros([num_ch, simpar["az_steps"], simpar["nblocks"], rg_samp], dtype=complex)
+            proc_raw_hh_ = np.zeros([surface.Ny,rg_samp], dtype=complex)
+        if do_vv:
+            proc_raw_vv = np.zeros([num_ch, simpar["az_steps"], simpar["nblocks"],rg_samp], dtype=complex)
+            proc_raw_vv_ = np.zeros([surface.Ny,rg_samp], dtype=complex)
+        sr_surface_fct = np.zeros([simpar["az_steps"], simpar['nblocks']])
+        sr_surface_fct_full = np.zeros([simpar["az_steps"]*simpar["n_pulses_b"], simpar['nblocks']])
+        # sr_surface_fct[::int(surface.Ny/simpar['nblocks'])]
+    else:
+        if do_hh:
+            proc_raw_hh = np.zeros([num_ch, simpar["az_steps"], rg_samp], dtype=complex)
+            proc_raw_hh_ = np.zeros([rg_samp], dtype=complex)
+        if do_vv:
+            proc_raw_vv = np.zeros([num_ch, simpar["az_steps"], rg_samp], dtype=complex)
+            proc_raw_vv_ = np.zeros([rg_samp], dtype=complex)
     t_last_rcs_bragg = -1.
     last_progress = -1
-    NRCS_avg_vv = np.zeros(az_steps, dtype=float)
-    NRCS_avg_hh = np.zeros(az_steps, dtype=float)
+    NRCS_avg_vv = np.zeros(simpar["az_steps"], dtype=float)
+    NRCS_avg_hh = np.zeros(simpar["az_steps"], dtype=float)
 
 
     ## RCS MODELS
@@ -311,8 +345,9 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
         # dop_phase_p = np.random.uniform(0., 2.*np.pi, size=[surface.Ny, surface.Nx])
         # dop_phase_m = np.random.uniform(0., 2.*np.pi, size=[surface.Ny, surface.Nx])
         tau_c = closure.grid_coherence(cfg.ocean.wind_U,surface.dx, f0)
-        rndscat_p = closure.randomscat_ts(tau_c, (surface.Ny, surface.Nx), prf)
-        rndscat_m = closure.randomscat_ts(tau_c, (surface.Ny, surface.Nx), prf)
+        info.msg("Surface grid coherence time: %f s" % (tau_c))
+        rndscat_p = closure.randomscat_ts(tau_c, (surface.Ny, surface.Nx), 1/simpar["t_step"])
+        rndscat_m = closure.randomscat_ts(tau_c, (surface.Ny, surface.Nx), simpar["t_step"])
         # NOTE: This ignores slope, may be changed
         k_b = 2.*k0*sin_inc
         c_b = sin_inc*np.sqrt(const.g/k_b + 0.072e-3*k_b)
@@ -343,33 +378,62 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
             raise NotImplementedError('RCS model %s for Bragg scattering not implemented' % scat_bragg_model)
 
     surface_area = surface.dx * surface.dy * surface.Nx * surface.Ny
+    # Reference block wise range history in case we factorize this
+    if cfg.srg.factorize:
+        info.msg("Initialize reference range history",1)
+        for az_step in tqdm(range(simpar["az_steps"]*simpar["n_pulses_b"])):
+            t_now = az_step * simpar["t_step"]/simpar["n_pulses_b"]
+            az_now = simpar["az0"] + t_now * simpar["v_ground"]
+            az = (surface.y - az_now).reshape((surface.Ny, 1))
+            sin_az = az / simpar["sr0"]
+            az_proj_angle = np.arcsin(az / simpar["gr0"])
+            # Note: Projected displacements are added to slant range
+            sr_surface_fct_ = (az/2*sin_az).flatten()
+            sr_surface_fct_ = sr_surface_fct_[simpar['block_Ny']//2::simpar['block_Ny']]
+            sr_surface_fct_full[az_step] = sr_surface_fct_
+        fig, axs = plt.subplots(1,2, figsize=(12,6))
+        im = axs[0].imshow(sr_surface_fct_full, aspect='auto')
+        plt.colorbar(im, ax=axs[0])
+        axs[0].set_title('Reference range history for factorization')
+        im = axs[1].imshow(sr_surface_fct_full-(sr_surface_fct_full[:,0])[:,np.newaxis], aspect='auto')
+        plt.colorbar(im, ax=axs[1])
+        axs[1].set_title('Residual reference range history for factorization')
+
     ###################
     # SIMULATION LOOP #
     ###################
 
-    print('Computing profiles...')
+    info.msg('Computing profiles...')
 
-    for az_step in tqdm(range(az_steps)):
+    for az_step in tqdm(range(simpar["az_steps"])):
 
         ## AZIMUTH & SURFACE UPDATE
-        t_now = az_step*t_step
-        az_now = (t_now - t_span/2.)*v_ground
+        t_now = az_step * simpar["t_step"]
+        az_now = simpar["az0"] + t_now * simpar["v_ground"]
         # az = np.repeat((surface.y - az_now)[:, np.newaxis], surface.Nx, axis=1)
         az = (surface.y - az_now).reshape((surface.Ny, 1))
         #if az_step == 0 or (t_now - t_last_rcs_bragg) > ocean_dt:
-        if not cfg.ocean.frozen_ocean or t_step == 0:
+        if not cfg.ocean.frozen_ocean or simpar["t_step"] == 0:
             surface.t = t_now
 
         ## COMPUTE RCS FOR EACH MODEL
         # Note: SAR processing is range independent as slant range is fixed
-        sin_az = az / sr0
-        az_proj_angle = np.arcsin(az / gr0)
+        sin_az = az / simpar["sr0"]
+        az_proj_angle = np.arcsin(az / simpar["gr0"])
 
         # Note: Projected displacements are added to slant range
         sr_surface = (sr - cos_inc*surface.Dz + az/2*sin_az
                          + surface.Dx*sin_inc + surface.Dy*sin_az)
+        if cfg.srg.factorize:
+            # Now I want to keep and subtrack a slant range for each block 
+            sr_surface_fct_ = (az/2*sin_az).flatten()
+            sr_surface_fct_ = sr_surface_fct_[simpar['block_Ny']//2::simpar['block_Ny']]
+            sr_surface_fct[az_step] = sr_surface_fct_
+            sr_surface = sr_surface.reshape([simpar['nblocks'], simpar['block_Ny'],surface.Nx])
+            sr_surface = sr_surface - sr_surface_fct_[:,np.newaxis,np.newaxis]
+            sr_surface = sr_surface.reshape([surface.Ny,surface.Nx])
         # Elevation displacements
-        wave_dinc = (surface.Dz * sin_inc + surface.Dx * sin_inc) / sr0
+        wave_dinc = (surface.Dz * sin_inc + surface.Dx * sin_inc) / simpar["sr0"]
         if az_step == 0:
             if do_hh:
                 scene_hh = np.zeros([int(surface.Ny), int(surface.Nx)], dtype=complex)
@@ -383,7 +447,7 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
         # Point target
         if add_point_target:
             sr_pt = (sr[0, int(surface.Nx/2)] + az[int(surface.Ny/2), 0]/2 *
-                     sin_az[int(surface.Ny/2), 0])
+                     sin_az[int(surface.Ny/2), 0]) - sr_surface_fct[az_step,simpar['nblocks']//2] 
             pt_scat = (100. * np.exp(-1j * 2. * k0 * sr_pt))
             if do_hh:
                 scene_hh[int(surface.Ny/2), int(surface.Nx/2)] = pt_scat
@@ -472,7 +536,7 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
 
             # Doppler phases (Note: Bragg radial velocity taken constant!)
             surf_phase = - (2 * k0) * sr_surface
-            cap_phase = (2 * k0) * t_step * c_b * (az_step + 1)
+            cap_phase = (2 * k0) * simpar["t_step"] * c_b * (az_step + 1)
             phase_bragg[0] = surf_phase - cap_phase # + dop_phase_p
             phase_bragg[1] = surf_phase + cap_phase # + dop_phase_m
             bragg_scats[0] = rndscat_m.scats(t_now)
@@ -488,6 +552,10 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
         beam_pattern = (sinc_bp(sin_az, ant_l_tx, f0, field=True)
                         * sinc_bp(sin_az, ant_l_rx, f0, field=True))
         # GENERATE CHANEL PROFILES
+        if cfg.srg.factorize:
+            sr_surface_ = sr_surface
+        else:
+            sr_surface_ = sr_surface.flatten()
         for ch in np.arange(num_ch, dtype=int):
             tot_dinc = (inc - inc_angle) + wave_dinc
             if do_hh:
@@ -496,46 +564,70 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
                 scene_bp *= np.exp(-1j * k0 * b_ati[ch] * sin_az)
                 # Add cross-track phase
                 scene_bp *= np.exp(-1j * k0 * b_xti[ch] * tot_dinc)
+                if cfg.srg.factorize:
+                    scene_bp_ = scene_bp
+                else:
+                    scene_bp_ = scene_bp.flatten()
+                proc_raw_hh_[:] = 0
+                #info.msg("Here 1")
                 if use_numba:
-                    raw.chan_profile_numba(sr_surface.flatten(),
-                                           scene_bp.flatten(),
+                    raw.chan_profile_numba(sr_surface_,
+                                           scene_bp_,
                                            sr_res/(over_fs),
                                            min_sr,
                                            chan_sinc_vec,
                                            n_sinc_samples, sinc_ovs,
-                                           proc_raw_hh[ch][az_step])
+                                           proc_raw_hh_,
+                                           rg_only=cfg.srg.factorize)
 
                 else:
-                    raw.chan_profile_weave(sr_surface.flatten(),
-                                           scene_bp.flatten(),
+                    raw.chan_profile_weave(sr_surface_,
+                                           scene_bp_,
                                            sr_res/(over_fs),
                                            min_sr,
                                            chan_sinc_vec,
                                            n_sinc_samples, sinc_ovs,
-                                           proc_raw_hh[ch][az_step])
+                                           proc_raw_hh_,
+                                           rg_only=cfg.srg.factorize)
+                info.msg("Here 2")
+                if cfg.srg.factorize:
+                    proc_raw_hh[ch][az_step] = np.sum(proc_raw_hh_.reshape([simpar['nblocks'], int(surface.Ny/simpar['nblocks']),rg_samp]), axis=1)
+                else:
+                    proc_raw_hh[ch][az_step] = proc_raw_hh_
             if do_vv:
                 scene_bp = scene_vv * beam_pattern
                 # Add channel phase & compute profile
                 scene_bp *= np.exp(-1j * k0 * b_ati[ch] * sin_az)
                 # Add cross-track phase
                 scene_bp *= np.exp(-1j * k0 * b_xti[ch] * tot_dinc)
+                if cfg.srg.factorize:
+                    scene_bp_ = scene_bp
+                else:
+                    scene_bp_ = scene_bp.flatten()     
+                proc_raw_vv_[:] = 0           
                 if use_numba:
-                    raw.chan_profile_numba(sr_surface.flatten(),
-                                           scene_bp.flatten(),
+                    raw.chan_profile_numba(sr_surface_,
+                                           scene_bp_,
                                            sr_res/(over_fs),
                                            min_sr,
                                            chan_sinc_vec,
                                            n_sinc_samples, sinc_ovs,
-                                           proc_raw_vv[ch][az_step])
+                                           proc_raw_vv_,
+                                           rg_only=cfg.srg.factorize)
 
                 else:
-                    raw.chan_profile_weave(sr_surface.flatten(),
-                                           scene_bp.flatten(),
+                    raw.chan_profile_weave(sr_surface_,
+                                           scene_bp_,
                                            sr_res/(over_fs),
                                            min_sr,
                                            chan_sinc_vec,
                                            n_sinc_samples, sinc_ovs,
-                                           proc_raw_vv[ch][az_step])
+                                           proc_raw_vv_,
+                                           rg_only=cfg.srg.factorize)
+                if cfg.srg.factorize:
+                     proc_raw_vv[ch][az_step] = np.sum(proc_raw_vv_.reshape([simpar['nblocks'], int(surface.Ny/simpar['nblocks']),rg_samp]), axis=1)
+                else:
+                    proc_raw_vv[ch][az_step] = proc_raw_vv_
 
         # # SHOW PROGRESS (%)
         # current_progress = int((100*az_step)/az_steps)
@@ -544,8 +636,16 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
         #     print('SP, %d' % current_progress)
 
     # PROCESS REDUCED RAW DATA & SAVE (ROOT)
-
-    print('Processing and saving results...')
+    if cfg.srg.factorize:
+        # Now we need to upsample, and restore the full RCM and phase
+        # sr_surface_fct
+        # proc_raw_vv
+        # proc_raw_hh
+        proc_raw_hh, proc_raw_vv = aggregate_factorized_raw(proc_raw_hh, 
+                                                            proc_raw_vv, 
+                                                            sr_surface_fct, sr_surface_fct_full,
+                                                            simpar, surface, cfg, info)
+    info.msg('Processing and saving results...')
 
     # Filter and decimate
     #range_filter = np.ones_like(total_raw)
@@ -558,7 +658,7 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
         proc_raw_vv = proc_raw_vv[:, :, :rg_samp_orig]
 
     # Calibration factor (projected antenna pattern integrated in azimuth)
-    az_axis = np.arange(-t_span/2.*v_ground, t_span/2.*v_ground, sr0*const.c/(np.pi*f0*ant_l_tx*10.))
+    az_axis = np.arange(-simpar["t_span"]/2.*v_ground, simpar["t_span"]/2.*v_ground, sr0*const.c/(np.pi*f0*ant_l_tx*10.))
 
     pattern = (sinc_bp(az_axis/sr0, ant_l_tx, f0, field=True)
                * sinc_bp(az_axis/sr0, ant_l_rx, f0, field=True))
@@ -631,11 +731,18 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
     raw_file.set('ant_L', ant_l_tx)
     raw_file.set('prf', prf)
     raw_file.set('v_ground', v_ground)
+    raw_file.set('az0', simpar['az0'])
     raw_file.set('orbit_alt', alt)
     raw_file.set('sr0', sr_near)
     raw_file.set('rg_sampling', rg_bw*over_fs)
     raw_file.set('rg_bw', rg_bw)
     raw_file.set('raw_data*', total_raw)
+    # abit of a hack
+    if cfg.srg.factorize:
+        info.msg(NRCS_avg.shape)
+        info.msg(total_raw.shape)
+        NRCS_avg = drtls.linresample(NRCS_avg, np.arange(total_raw.shape[2])/simpar['n_pulses_b'], axis=1,
+                                     extrapolate=True)
     raw_file.set('NRCS_avg', NRCS_avg)
     raw_file.set('b_ati', b_ati)
     raw_file.set('b_xti', b_xti)
