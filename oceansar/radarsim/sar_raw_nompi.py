@@ -347,7 +347,7 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
         tau_c = closure.grid_coherence(cfg.ocean.wind_U,surface.dx, f0)
         info.msg("Surface grid coherence time: %f s" % (tau_c))
         rndscat_p = closure.randomscat_ts(tau_c, (surface.Ny, surface.Nx), 1/simpar["t_step"])
-        rndscat_m = closure.randomscat_ts(tau_c, (surface.Ny, surface.Nx), simpar["t_step"])
+        rndscat_m = closure.randomscat_ts(tau_c, (surface.Ny, surface.Nx), 1/simpar["t_step"])
         # NOTE: This ignores slope, may be changed
         k_b = 2.*k0*sin_inc
         c_b = sin_inc*np.sqrt(const.g/k_b + 0.072e-3*k_b)
@@ -446,8 +446,12 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
                 scene_vv[:,:] = 0 
         # Point target
         if add_point_target:
-            sr_pt = (sr[0, int(surface.Nx/2)] + az[int(surface.Ny/2), 0]/2 *
-                     sin_az[int(surface.Ny/2), 0]) - sr_surface_fct[az_step,simpar['nblocks']//2] 
+            if cfg.srg.factorize:
+                sr_pt = (sr[0, int(surface.Nx/2)] + az[int(surface.Ny/2), 0]/2 *
+                        sin_az[int(surface.Ny/2), 0]) - sr_surface_fct[az_step,simpar['nblocks']//2] 
+            else:
+                sr_pt = (sr[0, int(surface.Nx/2)] + az[int(surface.Ny/2), 0]/2 *
+                        sin_az[int(surface.Ny/2), 0])   
             pt_scat = (100. * np.exp(-1j * 2. * k0 * sr_pt))
             if do_hh:
                 scene_hh[int(surface.Ny/2), int(surface.Nx/2)] = pt_scat
