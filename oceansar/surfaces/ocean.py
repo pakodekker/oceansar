@@ -275,6 +275,7 @@ class OceanSurface(object):
         self.wind_U_eff = state.get('wind_U_eff')
         self.current_mag = state.get('current_mag')
         self.current_dir = np.deg2rad(state.get('current_dir'))
+        print("current_mag: %f; current_dir: %f" % (self.current_mag, np.rad2deg(self.current_dir)))
         self.swell_enable = True if state.get('swell_enable') == 1 else False
         self.swell_ampl = state.get('swell_ampl')
         self.swell_dir = np.deg2rad(state.get('swell_dir'))
@@ -303,7 +304,7 @@ class OceanSurface(object):
         ## Calculate derivated parameters
         # Current
         self.current = self.current_mag*np.array([np.cos(self.current_dir), np.sin(self.current_dir)])
-
+        #print("current vector: %f, %f" % (self.current[0], self.current[1]))
         # X-Y vector
         self.x = np.linspace(-self.Lx/2, self.Lx/2., self.Nx)
         self.y = np.linspace(-self.Ly/2., self.Ly/2., self.Ny)
