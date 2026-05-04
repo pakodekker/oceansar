@@ -90,7 +90,8 @@ def ati_process(cfg_file, insar_output_file, ocean_file, output_file):
     rg_sampling = insar_data.get('rg_sampling')
     v_ground = insar_data.get('v_ground')
     alt = insar_data.get('orbit_alt')
-    inc_angle = np.deg2rad(insar_data.get('inc_angle'))
+    # inc_angle = np.deg2rad(insar_data.get('inc_angle'))
+    # print("Incidence angle: %f deg" % (np.rad2deg(inc_angle)))
     rg_ml = insar_data.get('rg_ml')
     az_ml = insar_data.get('az_ml')
     insar_data.close()
@@ -188,7 +189,7 @@ def ati_process(cfg_file, insar_output_file, ocean_file, output_file):
             plt.figure()
             plt.imshow(utils.db(i_all[0, pind]), aspect='equal',
                        origin='lower',
-                       vmin=utils.db(np.max(i_all[pind]))-20,
+                       vmin=utils.db(np.max(i_all[pind]))-30,
                        extent=[0., rg_span, 0., az_span], interpolation='nearest',
                        cmap='viridis')
             plt.xlabel('Ground range [m]')

@@ -71,6 +71,7 @@ def sar_focus(cfg_file, raw_output_file, output_file):
     raw_file = tpio.RawFile(raw_output_file, 'r')
     raw_data = raw_file.get('raw_data*')
     sr0 = raw_file.get('sr0')
+    az0 = raw_file.get('az0')
     inc_angle = raw_file.get('inc_angle')
     b_ati = raw_file.get('b_ati')
     b_xti = raw_file.get('b_xti')
@@ -166,7 +167,7 @@ def sar_focus(cfg_file, raw_output_file, output_file):
                             * sinc_bp(sin_az, ant_l_rx, f0, field=True))
         #fa[az_size/2:] = fa[az_size/2:] - prf
         rcmc_fa = sr0 / np.sqrt(1 - (fa * (l0 / 2.) / v_ground)**2.) - sr0
-
+        #rcmc_fa[:]=0
         data = np.fft.fft(np.fft.fft(data, axis=-1), axis=-2)
 
 #        for i in np.arange(az_size):
@@ -248,6 +249,7 @@ def sar_focus(cfg_file, raw_output_file, output_file):
     proc_file.set('ant_L', ant_l_tx)
     proc_file.set('prf', prf)
     proc_file.set('v_ground', v_ground)
+    proc_file.set('az0', az0+n_val_az_2*(v_ground/prf))
     proc_file.set('orbit_alt', alt)
     proc_file.set('sr0', sr0)
     proc_file.set('rg_sampling', rg_bw*over_fs)

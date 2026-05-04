@@ -77,6 +77,9 @@ def insar_process(cfg_file, proc_output_file, ocean_file, output_file):
     proc_content = tpio.ProcFile(proc_output_file, 'r')
     proc_data = proc_content.get('slc*')
     sr0 = proc_content.get('sr0')
+    #print(f"Read sr0 from proc file: {sr0}")
+    az0 = proc_content.get('az0')
+    print(f"Read az0 from proc file: {az0}")
     inc_angle = proc_content.get('inc_angle')
     b_ati = proc_content.get('b_ati')
     b_xti = proc_content.get('b_xti')
@@ -88,6 +91,7 @@ def insar_process(cfg_file, proc_output_file, ocean_file, output_file):
     v_ground = proc_content.get('v_ground')
     alt = proc_content.get('orbit_alt')
     inc_angle = np.deg2rad(proc_content.get('inc_angle'))
+    # print(f"Read inc_angle from proc file: {np.rad2deg(inc_angle)}")
     proc_content.close()
 
     ## CALCULATE PARAMETERS
@@ -123,9 +127,12 @@ def insar_process(cfg_file, proc_output_file, ocean_file, output_file):
     res_fact = np.ceil(np.sqrt(rg_res_fact*az_res_fact))
 
     # SURFACE RADIAL VELOCITY
+    #print("current vector: %f, %f" % (surface.current[0], surface.current[1]))
     v_radial_surf = surface.Vx*np.sin(inc_angle) - surface.Vz*np.cos(inc_angle)
+    #print("Mean Vx: %f; Mean Vz: %f" % (np.mean(surface.Vx), np.mean(surface.Vz)))
     v_radial_surf_ml = utils.smooth(utils.smooth(v_radial_surf, res_fact * rg_ml, axis=1), res_fact * az_ml, axis=0)
     v_radial_surf_mean = np.mean(v_radial_surf)
+    #print("Mean radial velocity: %f" % (v_radial_surf_mean))
     v_radial_surf_std = np.std(v_radial_surf)
     v_radial_surf_ml_std = np.std(v_radial_surf_ml)
 
@@ -139,6 +146,7 @@ def insar_process(cfg_file, proc_output_file, ocean_file, output_file):
     # Expected mean azimuth shift
     # sr0 = geosar.inc_to_sr(inc_angle, alt)
     avg_az_shift = - v_radial_surf_mean / v_ground * sr0
+    print("Expected mean azimuth shift: %f m" % (avg_az_shift))
     std_az_shift = v_radial_surf_std / v_ground * sr0
     ##################
     # InSAR PROCESSING #
@@ -155,8 +163,8 @@ def insar_process(cfg_file, proc_output_file, ocean_file, output_file):
     # Note: RG is projected, so plots are Ground Range
     rg_min = 0
     rg_max = int(rg_span/(const.c/2./rg_sampling/np.sin(inc_angle)))
-    az_min = int(az_size/2. + (-az_span/2. + avg_az_shift)/(v_ground/prf))
-    az_max = int(az_size/2. + (az_span/2. + avg_az_shift)/(v_ground/prf))
+    az_min = int((-az0 -az_span/2. + avg_az_shift)/(v_ground/prf))
+    az_max = int((-az0 + az_span/2. + avg_az_shift)/(v_ground/prf))
     az_guard = int(std_az_shift / (v_ground / prf))
     if (az_max - az_min) < (2 * az_guard - 10):
         print('Not enough edge-effect free image')
