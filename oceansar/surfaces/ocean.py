@@ -1,5 +1,6 @@
 
 import numpy as np
+import scipy as sp
 from scipy import linalg
 import types
 
@@ -128,9 +129,9 @@ class OceanSurface(object):
 
         # Kx-Ky meshgrid (0:N/2, -N/2:-1)
         #kx_o = np.linspace(-kmax_x, kmax_x, self.Nx)
-        kx_s = (2*np.pi*np.fft.fftfreq(self.Nx, self.dx)).astype(np.float32)
+        kx_s = (2*np.pi*sp.fft.fftfreq(self.Nx, self.dx)).astype(np.float32)
         #ky_o = np.linspace(-kmax_y, kmax_y, self.Ny)
-        ky_s = (2*np.pi*np.fft.fftfreq(self.Ny, self.dy)).astype(np.float32)
+        ky_s = (2*np.pi*sp.fft.fftfreq(self.Ny, self.dy)).astype(np.float32)
         self.kx, self.ky = np.meshgrid(kx_s, ky_s)
 
         # Kx-Ky resolution
@@ -195,7 +196,7 @@ class OceanSurface(object):
             k_f[(k_f.shape[0]/2 - ky_sample):(k_f.shape[0]/2 + ky_sample),
                 (k_f.shape[1]/2 - kx_sample):(k_f.shape[1]/2 + kx_sample)] = 1.
 
-            self.wave_dirspec *= np.fft.fftshift(k_f)
+            self.wave_dirspec *= sp.fft.fftshift(k_f)
 
         # Complex Gaussian to randomize spectrum coefficients
         random_cg = (1./np.sqrt(2) * (np.random.normal(0., 1., size=[self.Ny, self.Nx]) +
@@ -433,9 +434,9 @@ class OceanSurface(object):
         if 'D' in self.compute:
             #self.Dx[:] = np.real(np.fft.ifft2(1j*self.kx*self.kinv*wave_coefs_phased)) + self.current[0]*self._t
             #self.Dy[:] = np.real(np.fft.ifft2(1j*self.ky*self.kinv*wave_coefs_phased)) + self.current[1]*self._t
-            self.Dx[:] = - np.imag(np.fft.ifft2(self.kxn * wave_coefs_phased)) + self.current[0] * self._t
-            self.Dy[:] = - np.imag(np.fft.ifft2(self.kyn * wave_coefs_phased)) + self.current[1] * self._t
-            self.Dz[:] = np.real(np.fft.ifft2(wave_coefs_phased))
+            self.Dx[:] = - np.imag(sp.fft.ifft2(self.kxn * wave_coefs_phased)) + self.current[0] * self._t
+            self.Dy[:] = - np.imag(sp.fft.ifft2(self.kyn * wave_coefs_phased)) + self.current[1] * self._t
+            self.Dz[:] = np.real(sp.fft.ifft2(wave_coefs_phased))
             if self.swell_enable:
                 self.Dx[:] = self.Dx[:] + np.real(1j*self.swell_kx/self.swell_k*swell_phased).astype(np.float32)
                 self.Dy[:] = self.Dy[:] + np.real(1j*self.swell_ky/self.swell_k*swell_phased).astype(np.float32)
@@ -444,14 +445,14 @@ class OceanSurface(object):
         # FIRST SPATIAL DERIVATIVES - SLOPES (Diffx, Diffy)
         if 'Diff' in self.compute:
             if not self.choppy_enable:
-                self.Diffx[:] = np.real(np.fft.ifft2(1j*self.kx*wave_coefs_phased))
-                self.Diffy[:] = np.real(np.fft.ifft2(1j*self.ky*wave_coefs_phased))
+                self.Diffx[:] = np.real(sp.fft.ifft2(1j*self.kx*wave_coefs_phased))
+                self.Diffy[:] = np.real(sp.fft.ifft2(1j*self.ky*wave_coefs_phased))
                 if self.swell_enable:
                     self.Diffx[:] = self.Diffx[:] + np.real(1j*self.swell_kx*swell_phased)
                     self.Diffy[:] = self.Diffy[:] + np.real(1j*self.swell_ky*swell_phased)
             else:
-                self.Diffx[:] = np.real(np.fft.ifft2(1j*self.kx*wave_coefs_phased))/(1.+np.real(np.fft.ifft2(-self.kx**2.*self.kinv*wave_coefs_phased)))
-                self.Diffy[:] = np.real(np.fft.ifft2(1j*self.ky*wave_coefs_phased))/(1.+np.real(np.fft.ifft2(-self.ky**2.*self.kinv*wave_coefs_phased)))
+                self.Diffx[:] = np.real(sp.fft.ifft2(1j*self.kx*wave_coefs_phased))/(1.+np.real(sp.fft.ifft2(-self.kx**2.*self.kinv*wave_coefs_phased)))
+                self.Diffy[:] = np.real(sp.fft.ifft2(1j*self.ky*wave_coefs_phased))/(1.+np.real(sp.fft.ifft2(-self.ky**2.*self.kinv*wave_coefs_phased)))
                 if self.swell_enable:
                     self.Diffx[:] = self.Diffx[:] + np.real(1j*self.swell_kx*swell_phased)
                     self.Diffy[:] = self.Diffy[:] + np.real(1j*self.swell_ky*swell_phased)
@@ -459,24 +460,24 @@ class OceanSurface(object):
         # SECOND SPATIAL DERIVATIVES (Diffxx, Diffyy, Diffxy)
         if 'Diff2' in self.compute:
             if not self.choppy_enable:
-                self.Diffxx[:] = np.real(np.fft.ifft2(-self.kx**2.*wave_coefs_phased))
-                self.Diffyy[:] = np.real(np.fft.ifft2(-self.ky**2.*wave_coefs_phased))
-                self.Diffxy[:] = np.real(np.fft.ifft2(-self.kx*self.ky*wave_coefs_phased))
+                self.Diffxx[:] = np.real(sp.fft.ifft2(-self.kx**2.*wave_coefs_phased))
+                self.Diffyy[:] = np.real(sp.fft.ifft2(-self.ky**2.*wave_coefs_phased))
+                self.Diffxy[:] = np.real(sp.fft.ifft2(-self.kx*self.ky*wave_coefs_phased))
                 if self.swell_enable:
                     self.Diffxx[:] = self.Diffxx[:] + np.real(-self.swell_kx**2.*swell_phased)
                     self.Diffyy[:] = self.Diffyy[:] + np.real(-self.swell_ky**2.*swell_phased)
                     self.Diffxy[:] = self.Diffxy[:] + np.real(-self.swell_kx*self.swell_ky*swell_phased)
             else:
-                aux_x = np.real(np.fft.ifft2(1j*self.kx*wave_coefs_phased))
-                aux_y = np.real(np.fft.ifft2(1j*self.ky*wave_coefs_phased))
-                aux_xx = np.real(np.fft.ifft2(-self.kx**2.*self.kinv*wave_coefs_phased))
-                aux_yy = np.real(np.fft.ifft2(-self.ky**2.*self.kinv*wave_coefs_phased))
-                aux_xxx = np.real(np.fft.ifft2(-1j*self.kx**3.*self.kinv*wave_coefs_phased))
-                aux_yyy = np.real(np.fft.ifft2(-1j*self.ky**3.*self.kinv*wave_coefs_phased))
-                aux_xxy = np.real(np.fft.ifft2(-1j*self.kx**2.*self.ky*self.kinv*wave_coefs_phased))
-                self.Diffxx[:] = ((1.+aux_xx)*np.real(np.fft.ifft2(-self.kx**2.*wave_coefs_phased)) - aux_xxx*aux_x)/((1+aux_xx)**3.)
-                self.Diffyy[:] = ((1.+aux_yy)*np.real(np.fft.ifft2(-self.ky**2.*wave_coefs_phased)) - aux_yyy*aux_y)/((1+aux_yy)**3.)
-                self.Diffxy[:] = ((1.+aux_xx)*np.real(np.fft.ifft2(-self.kx*self.ky*wave_coefs_phased)) - aux_xxy*aux_x)/((1+aux_xx)**2.*(1+aux_yy))
+                aux_x = np.real(sp.fft.ifft2(1j*self.kx*wave_coefs_phased))
+                aux_y = np.real(sp.fft.ifft2(1j*self.ky*wave_coefs_phased))
+                aux_xx = np.real(sp.fft.ifft2(-self.kx**2.*self.kinv*wave_coefs_phased))
+                aux_yy = np.real(sp.fft.ifft2(-self.ky**2.*self.kinv*wave_coefs_phased))
+                aux_xxx = np.real(sp.fft.ifft2(-1j*self.kx**3.*self.kinv*wave_coefs_phased))
+                aux_yyy = np.real(sp.fft.ifft2(-1j*self.ky**3.*self.kinv*wave_coefs_phased))
+                aux_xxy = np.real(sp.fft.ifft2(-1j*self.kx**2.*self.ky*self.kinv*wave_coefs_phased))
+                self.Diffxx[:] = ((1.+aux_xx)*np.real(sp.fft.ifft2(-self.kx**2.*wave_coefs_phased)) - aux_xxx*aux_x)/((1+aux_xx)**3.)
+                self.Diffyy[:] = ((1.+aux_yy)*np.real(sp.fft.ifft2(-self.ky**2.*wave_coefs_phased)) - aux_yyy*aux_y)/((1+aux_yy)**3.)
+                self.Diffxy[:] = ((1.+aux_xx)*np.real(sp.fft.ifft2(-self.kx*self.ky*wave_coefs_phased)) - aux_xxy*aux_x)/((1+aux_xx)**2.*(1+aux_yy))
                 if self.swell_enable:
                     self.Diffxx[:] = self.Diffxx[:] + np.real(-self.swell_kx**2.*swell_phased)
                     self.Diffyy[:] = self.Diffyy[:] + np.real(-self.swell_ky**2.*swell_phased)
@@ -485,9 +486,9 @@ class OceanSurface(object):
         # FIRST TIME DERIVATIVES - VELOCITY (Vx, Vy, Vz)
         if 'V' in self.compute:
             wave_coefs_diff_t_phased = -1j*self.omega*wave_coefs_phased
-            self.Vx[:] = - np.imag(np.fft.ifft2(self.kxn * wave_coefs_diff_t_phased)) + self.current[0]
-            self.Vy[:] = - np.imag(np.fft.ifft2(self.kyn * wave_coefs_diff_t_phased)) + self.current[1]
-            self.Vz[:] = np.real(np.fft.ifft2(wave_coefs_diff_t_phased))
+            self.Vx[:] = - np.imag(sp.fft.ifft2(self.kxn * wave_coefs_diff_t_phased)) + self.current[0]
+            self.Vy[:] = - np.imag(sp.fft.ifft2(self.kyn * wave_coefs_diff_t_phased)) + self.current[1]
+            self.Vz[:] = np.real(sp.fft.ifft2(wave_coefs_diff_t_phased))
             if self.swell_enable:
                 swell_diff_t_phased = -1j*self.swell_omega*swell_phased
                 self.Vx[:] = self.Vx[:] + np.real(1j*self.swell_kx/self.swell_k*swell_diff_t_phased)
@@ -497,9 +498,9 @@ class OceanSurface(object):
         # SECOND TIME DERIVATIVES - ACCELERATION (Ax, Ay, Az)
         if 'A' in self.compute:
             wave_coefs_diff2_t_phased = -self.omega**2.*wave_coefs_phased
-            self.Ax[:] = np.real(np.fft.ifft2(1j*self.kx*self.kinv*wave_coefs_diff2_t_phased))
-            self.Ay[:] = np.real(np.fft.ifft2(1j*self.ky*self.kinv*wave_coefs_diff2_t_phased))
-            self.Az[:] = np.real(np.fft.ifft2(wave_coefs_diff2_t_phased))
+            self.Ax[:] = np.real(sp.fft.ifft2(1j*self.kx*self.kinv*wave_coefs_diff2_t_phased))
+            self.Ay[:] = np.real(sp.fft.ifft2(1j*self.ky*self.kinv*wave_coefs_diff2_t_phased))
+            self.Az[:] = np.real(sp.fft.ifft2(wave_coefs_diff2_t_phased))
             if self.swell_enable:
                 swell_diff2_t_phased = -self.swell_omega**2.*swell_phased
                 self.Ax[:] = self.Ax[:] + np.real(1j*self.swell_kx/self.swell_k*swell_diff2_t_phased)
@@ -524,4 +525,4 @@ class OceanSurface(object):
             #wave_coefs_hmtf_phased[np.where((np.abs(self.kx) > k_max) & (np.abs(self.ky) > k_max))] = 0.
             wave_coefs_hmtf_phased[np.where(self.k > k_max) ] = 0.
             # Compute hMTF
-            self.hMTF[:] = np.real(np.fft.ifft2(wave_coefs_hmtf_phased))
+            self.hMTF[:] = np.real(sp.fft.ifft2(wave_coefs_hmtf_phased))
