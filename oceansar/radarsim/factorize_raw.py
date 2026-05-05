@@ -107,7 +107,7 @@ def aggregate_factorized_raw(proc_raw_hh, proc_raw_vv,
                 proc_raw_hh_block = sp.fft.ifft(np.roll(proc_raw_hh_block, shift=-int(az_steps/2), axis=1), axis=1, workers=workers)
                 # Now we need to restore the RCM and phase for this block, which is equivalent to multiplying by a complex exponential in the time domain
                 # The RCM is given by sr_surface_fct[b], and the phase is given
-                proc_raw_hh_block = proc_raw_hh_block * phasor_b[np.newaxis,:,np.newaxis]
+                proc_raw_hh_block *= phasor_b[np.newaxis,:,np.newaxis]
                 proc_raw_hh_block = sp.fft.fft(proc_raw_hh_block, axis=2, workers=workers)
                 proc_raw_hh_block *=  range_phasor_b
                 proc_raw_hh_block = sp.fft.ifft(proc_raw_hh_block, axis=2, workers=workers)
@@ -118,7 +118,7 @@ def aggregate_factorized_raw(proc_raw_hh, proc_raw_vv,
                 proc_raw_vv_block[:] = 0
                 proc_raw_vv_block[:,0:az_steps,0:rg_samp_zp] = params["n_pulses_b"] * sp.fft.fftshift(sp.fft.fft(proc_raw_vv_b, axis=1, workers=workers), axes=(1,))
                 proc_raw_vv_block = sp.fft.ifft(np.roll(proc_raw_vv_block, shift=-int(az_steps/2), axis=1), axis=1, workers=workers)
-                proc_raw_vv_block = proc_raw_vv_block * phasor_b[np.newaxis,:,np.newaxis]
+                proc_raw_vv_block *= phasor_b[np.newaxis,:,np.newaxis]
                 proc_raw_vv_block = sp.fft.fft(proc_raw_vv_block, axis=2, workers=workers)
                 proc_raw_vv_block *=  range_phasor_b
                 proc_raw_vv_block = sp.fft.ifft(proc_raw_vv_block, axis=2, workers=workers)

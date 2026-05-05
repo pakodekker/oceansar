@@ -196,7 +196,8 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
                      choppy_enable=cfg.ocean.choppy_enable,
                      depth=cfg.ocean.depth,
                      dirspectrum_func=dirspectrum_func,
-                     dir_swell_spec=dir_swell_spec)
+                     dir_swell_spec=dir_swell_spec,
+                     workers=cfg.sim.nworkers)
 
         surface.save(ocean_file)
  
@@ -560,14 +561,19 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
             sr_surface_ = sr_surface
         else:
             sr_surface_ = sr_surface.flatten()
-        for ch in np.arange(num_ch, dtype=int):
-            tot_dinc = (inc - inc_angle) + wave_dinc
+        tot_dinc = (inc - inc_angle) + wave_dinc
+        if do_hh:
+            scene_hh *= beam_pattern
+        if do_vv:
+            scene_vv *= beam_pattern
+        for ch in np.arange(num_ch, dtype=int):   
+            chan_phase = np.exp(-1j * k0 * (b_ati[ch] * sin_az + b_xti[ch] * tot_dinc))
             if do_hh:
-                scene_bp = scene_hh * beam_pattern
-                # Add channel phase & compute profile
-                scene_bp *= np.exp(-1j * k0 * b_ati[ch] * sin_az)
-                # Add cross-track phase
-                scene_bp *= np.exp(-1j * k0 * b_xti[ch] * tot_dinc)
+                # scene_bp = scene_hh * beam_pattern
+                # # Add channel phase & compute profile
+                # scene_bp *= np.exp(-1j * k0 * b_ati[ch] * sin_az)
+                # # Add cross-track phase
+                scene_bp = scene_hh * chan_phase
                 if cfg.srg.factorize:
                     scene_bp_ = scene_bp
                 else:
@@ -593,17 +599,18 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
                                            n_sinc_samples, sinc_ovs,
                                            proc_raw_hh_,
                                            rg_only=cfg.srg.factorize)
-                info.msg("Here 2")
+                #info.msg("Here 2")
                 if cfg.srg.factorize:
                     proc_raw_hh[ch][az_step] = np.sum(proc_raw_hh_.reshape([simpar['nblocks'], int(surface.Ny/simpar['nblocks']),rg_samp]), axis=1)
                 else:
                     proc_raw_hh[ch][az_step] = proc_raw_hh_
             if do_vv:
-                scene_bp = scene_vv * beam_pattern
-                # Add channel phase & compute profile
-                scene_bp *= np.exp(-1j * k0 * b_ati[ch] * sin_az)
-                # Add cross-track phase
-                scene_bp *= np.exp(-1j * k0 * b_xti[ch] * tot_dinc)
+                # scene_bp = scene_vv * beam_pattern
+                # # Add channel phase & compute profile
+                # scene_bp *= np.exp(-1j * k0 * b_ati[ch] * sin_az)
+                # # Add cross-track phase
+                # scene_bp *= np.exp(-1j * k0 * b_xti[ch] * tot_dinc)
+                scene_bp = scene_vv * chan_phase
                 if cfg.srg.factorize:
                     scene_bp_ = scene_bp
                 else:
@@ -648,7 +655,7 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
         proc_raw_hh, proc_raw_vv = aggregate_factorized_raw(proc_raw_hh, 
                                                             proc_raw_vv, 
                                                             sr_surface_fct, sr_surface_fct_full,
-                                                            simpar, surface, cfg, info)
+                                                            simpar, surface, cfg, info, workers=cfg.sim.nworkers)
     info.msg('Processing and saving results...')
 
     # Filter and decimate

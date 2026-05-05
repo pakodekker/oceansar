@@ -25,6 +25,8 @@ class OceanStateFile(NETCDFHandler):
             self.__file__.createDimension('x_dim', ocean_dim[1])
 
             # Variables
+            workers = self.__file__.createVariable('workers', 'u4')
+            workers.units = '[]'
             Nx = self.__file__.createVariable('Nx', 'u4')
             Nx.units = '[]'
             Ny = self.__file__.createVariable('Ny', 'u4')
