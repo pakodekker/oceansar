@@ -555,7 +555,7 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
         # FIXME: this assume co-located Tx and Rx, so it will not work for true bistatic configurations
 
         beam_pattern = (sinc_bp(sin_az, ant_l_tx, f0, field=True)
-                        * sinc_bp(sin_az, ant_l_rx, f0, field=True))
+                        * sinc_bp(sin_az, ant_l_rx, f0, field=True)).astype(np.float32)
         # GENERATE CHANEL PROFILES
         if cfg.srg.factorize:
             sr_surface_ = sr_surface
@@ -601,7 +601,7 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
                                            rg_only=cfg.srg.factorize)
                 #info.msg("Here 2")
                 if cfg.srg.factorize:
-                    proc_raw_hh[ch][az_step] = np.sum(proc_raw_hh_.reshape([simpar['nblocks'], int(surface.Ny/simpar['nblocks']),rg_samp]), axis=1)
+                    proc_raw_hh[ch][az_step] = np.sum(proc_raw_hh_.reshape([simpar['nblocks'], simpar['block_Ny'], rg_samp]), axis=1)
                 else:
                     proc_raw_hh[ch][az_step] = proc_raw_hh_
             if do_vv:
@@ -636,7 +636,7 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
                                            proc_raw_vv_,
                                            rg_only=cfg.srg.factorize)
                 if cfg.srg.factorize:
-                     proc_raw_vv[ch][az_step] = np.sum(proc_raw_vv_.reshape([simpar['nblocks'], int(surface.Ny/simpar['nblocks']),rg_samp]), axis=1)
+                     proc_raw_vv[ch][az_step] = np.sum(proc_raw_vv_.reshape([simpar['nblocks'], simpar['block_Ny'], rg_samp]), axis=1)
                 else:
                     proc_raw_vv[ch][az_step] = proc_raw_vv_
 

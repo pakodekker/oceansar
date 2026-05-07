@@ -6,6 +6,16 @@ from oceansar import closure
 from oceansar import utils
 from tqdm import tqdm
 
+
+def _next_divisor_at_least(value, minimum):
+    """Return the smallest divisor of value that is at least minimum."""
+    minimum = max(1, int(np.ceil(minimum)))
+    for divisor in range(minimum, value + 1):
+        if value % divisor == 0:
+            return divisor
+    return value
+
+
 def factorize_raw_params(cfg, params, surface, info, internal_oversampling=8):
     factorize = cfg.srg.factorize
     prf = cfg.sar.prf
@@ -35,8 +45,10 @@ def factorize_raw_params(cfg, params, surface, info, internal_oversampling=8):
             # ly2dop * ly < 1/params["t_step"]/internal_oversampling
             block_ly = 1/(params["t_step"]*internal_oversampling*ly2dop)
             info.msg("Block size in azimuth: %f m" % (block_ly))
-            # Now adjust the block size to be a divisor of the total length
-            nblocks = utils.optimize_fftsize(int(np.ceil(surface.Ly/block_ly)))
+            # Now adjust the block size to be a divisor of the surface grid
+            # length, otherwise block_Ny truncates and the reshape/indexing
+            # path below loses the tail rows.
+            nblocks = _next_divisor_at_least(surface.Ny, np.ceil(surface.Ly/block_ly))
             block_ly = surface.Ly/nblocks
             info.msg("Adjusted block size in azimuth: %f m" % (block_ly))
             info.msg("Number of blocks: %i" % nblocks)
