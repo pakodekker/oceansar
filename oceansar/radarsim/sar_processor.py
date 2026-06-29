@@ -263,7 +263,7 @@ def sar_focus(cfg_file, raw_output_file, output_file):
         "Processing finished [%Y-%m-%d %H:%M:%S]", time.localtime()))
     print('-----------------------------------------')
 
-def ross_sar_focus(cfg_file, raw_output_file, raw_reconstr, output_file):
+def ross_sar_focus(cfg_file, reconstruct_raw_output_file, output_file):
 
     ###################
     # INITIALIZATIONS #
@@ -302,14 +302,13 @@ def ross_sar_focus(cfg_file, raw_output_file, raw_reconstr, output_file):
     rg_sampling = rg_bw * over_fs
 
     # RAW DATA
-    raw_file = tpio.RawFile(raw_output_file, 'r')
-    # raw_data = raw_file.get('raw_data*')
-    raw_data = raw_reconstr
+    raw_file = tpio.RawFile(reconstruct_raw_output_file, 'r')
+    raw_data = raw_file.get('raw_data*')
     sr0 = raw_file.get('sr0')
     az0 = raw_file.get('az0')
     inc_angle = raw_file.get('inc_angle')
-    b_ati = raw_file.get('b_ati')
-    b_xti = raw_file.get('b_xti')
+    # b_ati = raw_file.get('b_ati')
+    # b_xti = raw_file.get('b_xti')
     raw_file.close()
 
     # OTHER INITIALIZATIONS
@@ -327,16 +326,16 @@ def ross_sar_focus(cfg_file, raw_output_file, raw_reconstr, output_file):
 
     if plot_raw:
         plt.figure()
-        plt.imshow(np.real(raw_data[0]),
-                    vmin=-np.max(np.abs(raw_data[0])),
-                    vmax=np.max(np.abs(raw_data[0])), cmap='gray')
+        plt.imshow(np.real(raw_data),
+                    vmin=-np.max(np.abs(raw_data)),
+                    vmax=np.max(np.abs(raw_data)), cmap='gray')
         plt.savefig(plot_path + os.sep + ('plot_raw_real.%s' % (plot_format)))
         plt.close()
         
     # Optimize matrix sizes
     az_size_orig, rg_size_orig = raw_data[0].shape
     optsize = utils.optimize_fftsize(raw_data[0].shape)
-    optsize = [raw_data.shape[0], optsize[0], optsize[1]]
+    optsize = [raw_data.shape[0], optsize[0], optsize[1]] # remove the hard coded number of 1
     data = np.zeros(optsize, dtype=complex)
     data[:, :raw_data[0].shape[0],
             :raw_data[0].shape[1]] = raw_data[:, :, :]
@@ -418,7 +417,7 @@ def ross_sar_focus(cfg_file, raw_output_file, raw_reconstr, output_file):
         plt.xlabel("Range")
         plt.ylabel("Azimuth")
         plt.savefig(os.path.join(
-            plot_path, ('plot_image_valid_%d.%s' % (ch, plot_format))))
+            plot_path, ('plot_image_valid_.%s' % (plot_format))))
 
     slc.append(data)
 
@@ -437,8 +436,6 @@ def ross_sar_focus(cfg_file, raw_output_file, raw_reconstr, output_file):
     proc_file.set('sr0', sr0)
     proc_file.set('rg_sampling', rg_bw*over_fs)
     proc_file.set('rg_bw', rg_bw)
-    proc_file.set('b_ati', b_ati)
-    proc_file.set('b_xti', b_xti)
     proc_file.close()
 
     print('-----------------------------------------')
