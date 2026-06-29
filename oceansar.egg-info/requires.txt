@@ -1,6 +1,10 @@
+numba
 numpy
 scipy
-numexpr
-numba
-matplotlib
+numexpr>=2.7
+xarray
 NetCDF4
+matplotlib
+h5netcdf
+tqdm
+drama>=0.7

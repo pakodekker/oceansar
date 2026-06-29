@@ -263,6 +263,188 @@ def sar_focus(cfg_file, raw_output_file, output_file):
         "Processing finished [%Y-%m-%d %H:%M:%S]", time.localtime()))
     print('-----------------------------------------')
 
+def ross_sar_focus(cfg_file, raw_output_file, raw_reconstr, output_file):
+
+    ###################
+    # INITIALIZATIONS #
+    ###################
+
+    print('-------------------------------------------------------------------')
+    print(time.strftime("- OCEANSAR SAR Processor for Rose-L: %Y-%m-%d %H:%M:%S", time.localtime()))
+    print('-------------------------------------------------------------------')
+
+    # CONFIGURATION FILE
+    cfg = tpio.ConfigFile(cfg_file)
+
+    # PROCESSING
+    az_weighting = cfg.processing.az_weighting
+    doppler_bw = cfg.processing.doppler_bw
+    plot_format = cfg.processing.plot_format
+    plot_save = cfg.processing.plot_save
+    plot_path = cfg.processing.plot_path
+    plot_raw = cfg.processing.plot_raw
+    plot_rcmc_dopp = cfg.processing.plot_rcmc_dopp
+    plot_rcmc_time = cfg.processing.plot_rcmc_time
+    plot_image_valid = cfg.processing.plot_image_valid
+
+    # SAR
+    f0 = cfg.sar.f0
+    prf = cfg.sar.prf
+    alt = cfg.sar.alt
+    v_ground = cfg.sar.v_ground
+    rg_bw = cfg.sar.rg_bw
+    over_fs = cfg.sar.over_fs
+
+    # CALCULATE PARAMETERS
+    l0 = const.c / f0
+    if v_ground == 'auto':
+        v_ground = geo.orbit_to_vel(alt, ground=True)
+    rg_sampling = rg_bw * over_fs
+
+    # RAW DATA
+    raw_file = tpio.RawFile(raw_output_file, 'r')
+    # raw_data = raw_file.get('raw_data*')
+    raw_data = raw_reconstr
+    sr0 = raw_file.get('sr0')
+    az0 = raw_file.get('az0')
+    inc_angle = raw_file.get('inc_angle')
+    b_ati = raw_file.get('b_ati')
+    b_xti = raw_file.get('b_xti')
+    raw_file.close()
+
+    # OTHER INITIALIZATIONS
+    # Create plots directory
+    plot_path = os.path.dirname(output_file) + os.sep + plot_path
+    if plot_save:
+        if not os.path.exists(plot_path):
+            os.makedirs(plot_path)
+
+    slc = []
+
+    ########################
+    # PROCESSING MAIN LOOP #
+    ########################
+
+    if plot_raw:
+        plt.figure()
+        plt.imshow(np.real(raw_data[0]),
+                    vmin=-np.max(np.abs(raw_data[0])),
+                    vmax=np.max(np.abs(raw_data[0])), cmap='gray')
+        plt.savefig(plot_path + os.sep + ('plot_raw_real.%s' % (plot_format)))
+        plt.close()
+        
+    # Optimize matrix sizes
+    az_size_orig, rg_size_orig = raw_data[0].shape
+    optsize = utils.optimize_fftsize(raw_data[0].shape)
+    optsize = [raw_data.shape[0], optsize[0], optsize[1]]
+    data = np.zeros(optsize, dtype=complex)
+    data[:, :raw_data[0].shape[0],
+            :raw_data[0].shape[1]] = raw_data[:, :, :]
+
+    az_size, rg_size = data.shape[1:]
+
+    # RCMC Correction
+    print('Applying RCMC correction... ')
+    
+    fr = np.fft.fftfreq(rg_size, 1/rg_sampling)
+    fa = np.fft.fftfreq(az_size, 1/prf)
+    ## Compensation of ANTENNA PATTERN
+    ## FIXME this will not work for a long separation betwen Tx and Rx!!!
+    sin_az = fa * l0 / (2 * v_ground)
+    if hasattr(cfg.sar, 'ant_L'):
+        ant_L = cfg.sar.ant_L
+        beam_pattern = sinc_1tx_nrx(sin_az, ant_L, f0, 1, field=True)
+    else:
+        ant_l_tx = cfg.sar.ant_L_tx
+        ant_l_rx = cfg.sar.ant_L_rx
+        beam_pattern = (sinc_bp(sin_az, ant_l_tx, f0, field=True)
+                        * sinc_bp(sin_az, ant_l_rx, f0, field=True))
+    rcmc_fa = sr0 / np.sqrt(1 - (fa * (l0 / 2.) / v_ground)**2.) - sr0
+    data = np.fft.fft(np.fft.fft(data, axis=-1), axis=-2)
+    data = (data * np.exp(4j * np.pi * rcmc_fa.reshape((1, az_size, 1)) /
+                            const.c * fr.reshape((1, 1, rg_size))))
+    data = np.fft.ifft(data, axis=2)
+
+    if plot_rcmc_dopp:
+        plt.figure()
+        plt.imshow(np.fft.fftshift(np.abs(data[0]), axes=0), vmax=np.max(np.abs(data)), cmap='gray',
+                    origin='lower')
+        plt.savefig(plot_path + os.sep + ('plot_rcmc_dopp.%s' % (plot_format)))
+
+    if plot_rcmc_time:
+        rcmc_time = np.fft.ifft(data[0], axis=0)[
+            :az_size_orig, :rg_size_orig]
+        rcmc_time_max = np.max(np.abs(rcmc_time))
+        plt.figure()
+        plt.imshow(np.real(rcmc_time), vmin=-rcmc_time_max, vmax=rcmc_time_max, cmap='gray',
+                    origin='lower')
+        plt.savefig(plot_path + os.sep + ('plot_rcmc_time_real.%s' % (plot_format)))
+
+    # Azimuth compression
+    print(
+        'Applying azimuth compression... ')
+
+    n_samp = 2 * (int(doppler_bw / (fa[1] - fa[0])) / 2)
+    weighting = (az_weighting -
+                    (1. - az_weighting) * np.cos(2 * np.pi * np.linspace(0, 1., int(n_samp))))
+    # Compensate amplitude loss
+
+    L_win = np.sum(np.abs(weighting)**2) / weighting.size
+    weighting /= np.sqrt(L_win)
+    if fa.size > n_samp:
+        zeros = np.zeros(az_size)
+        zeros[0:int(n_samp)] = weighting
+        weighting = np.roll(zeros, int(-n_samp / 2))
+    weighting = np.where(np.abs(beam_pattern) > 0, weighting/beam_pattern, 0)
+    ph_ac = 4. * np.pi / l0 * sr0 * \
+        (np.sqrt(1. - (fa * l0 / 2. / v_ground)**2.) - 1.)
+    data = data * (np.exp(1j * ph_ac) * weighting).reshape((1, az_size, 1))
+
+    data = np.fft.ifft(data, axis=1)
+
+    print('Finishing... ')
+    # Reduce to initial dimension
+    data = data[:, :int(az_size_orig), :int(rg_size_orig)]
+
+    # Removal of non valid samples
+    n_val_az_2 = np.floor(
+        doppler_bw / 2. / (2. * v_ground**2. / l0 / sr0) * prf / 2.) * 2.
+    data = data[:, int(n_val_az_2):int(az_size_orig - n_val_az_2 - 1), :]
+    if plot_image_valid:
+        plt.figure()
+        plt.imshow(np.abs(data[0]), origin='lower', vmin=0, vmax=np.max(np.abs(data)),
+                    aspect=float(rg_size_orig) / float(az_size_orig),
+                    cmap='gray')
+        plt.xlabel("Range")
+        plt.ylabel("Azimuth")
+        plt.savefig(os.path.join(
+            plot_path, ('plot_image_valid_%d.%s' % (ch, plot_format))))
+
+    slc.append(data)
+
+    # Save processed data
+    slc = np.array(slc, dtype=complex)
+    print("Shape of SLC: " + str(slc.shape), flush=True)
+    proc_file = tpio.ProcFile(output_file, 'w', slc.shape)
+    proc_file.set('slc*', slc)
+    proc_file.set('inc_angle', inc_angle)
+    proc_file.set('f0', f0)
+    proc_file.set('ant_L', ant_l_tx)
+    proc_file.set('prf', prf)
+    proc_file.set('v_ground', v_ground)
+    proc_file.set('az0', az0+n_val_az_2*(v_ground/prf))
+    proc_file.set('orbit_alt', alt)
+    proc_file.set('sr0', sr0)
+    proc_file.set('rg_sampling', rg_bw*over_fs)
+    proc_file.set('rg_bw', rg_bw)
+    proc_file.set('b_ati', b_ati)
+    proc_file.set('b_xti', b_xti)
+    proc_file.close()
+
+    print('-----------------------------------------')
+    print(time.strftime(
+        "Processing finished [%Y-%m-%d %H:%M:%S]", time.localtime()))
+    print('-----------------------------------------')
 
 if __name__ == '__main__':
 
