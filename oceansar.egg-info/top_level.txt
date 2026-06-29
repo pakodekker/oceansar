@@ -1,4 +1,6 @@
 Notebooks
+build
+dist
 doc
 misc
 oceansar

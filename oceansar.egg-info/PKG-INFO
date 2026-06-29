@@ -1,4 +1,4 @@
-Metadata-Version: 2.4
+Metadata-Version: 2.1
 Name: oceansar
 Version: 25.12
 Summary: Similator of SAR and other radar images of the ocean
@@ -25,6 +25,3 @@ Requires-Dist: matplotlib
 Requires-Dist: h5netcdf
 Requires-Dist: tqdm
 Requires-Dist: drama>=0.7
-Dynamic: author-email
-Dynamic: home-page
-Dynamic: license-file
