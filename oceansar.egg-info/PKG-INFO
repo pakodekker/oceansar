@@ -1,10 +1,27 @@
-Metadata-Version: 1.0
+Metadata-Version: 2.1
 Name: oceansar
-Version: 19.1.1
-Summary: UNKNOWN
+Version: 25.12
+Summary: Similator of SAR and other radar images of the ocean
 Home-page: https://github.com/pakodekker/OCEANSAR
-Author: Paco Lopez Dekker
+Author: Paco López-Dekker
 Author-email: F.LopezDekker@tudelft.nl
-License: GPL-3.0
-Description: UNKNOWN
-Platform: UNKNOWN
+License: GPL-3.0-or-later
+Project-URL: Bug Tracker, https://gitlab.tudelft.nl/swarmsar/-/issues
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: GNU General Public License v3 (GPLv3)
+Classifier: Operating System :: OS Independent
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Scientific/Engineering
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE.txt
+Requires-Dist: numba
+Requires-Dist: numpy
+Requires-Dist: scipy
+Requires-Dist: numexpr>=2.7
+Requires-Dist: xarray
+Requires-Dist: NetCDF4
+Requires-Dist: matplotlib
+Requires-Dist: h5netcdf
+Requires-Dist: tqdm
+Requires-Dist: drama>=0.7
