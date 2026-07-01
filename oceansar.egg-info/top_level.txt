@@ -1,5 +1,0 @@
-doc
-misc
-oceansar
-par
-testdata
