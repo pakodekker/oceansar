@@ -91,7 +91,9 @@ class OceanSurface(object):
         self.swell_ampl = swell_ampl
         self.swell_dir = swell_dir
         self.swell_wl = swell_wl
-        self.compute = compute
+        self.compute = list(compute)
+        if 'Diff2' in self.compute and 'Diff' not in self.compute:
+            self.compute.append('Diff')
         self.choppy_enable = choppy_enable
         self.dir_swell_dir = dir_swell_dir
         self.freq_r = freq_r
@@ -331,7 +333,9 @@ class OceanSurface(object):
                                                                  np.sin(self.swell_dir)*y) + self.swell_ph0))
 
         # Set compute, allocate memory & mark as initialized
-        self.compute = compute
+        self.compute = list(compute)
+        if 'Diff2' in self.compute and 'Diff' not in self.compute:
+            self.compute.append('Diff')
 
         self.__allocate()
         self.initialized = True
@@ -386,6 +390,60 @@ class OceanSurface(object):
                 Internal use only
         """
 
+        # Indices used to pack an arbitrary complex spectrum into the
+        # Hermitian half-spectrum consumed by irfft2.
+        self._neg_y = (-np.arange(self.Ny)) % self.Ny
+        self._rfft_x = np.arange(self.Nx // 2 + 1)
+        self._neg_rfft_x = (-self._rfft_x) % self.Nx
+        self._wave_coefs_pos = self.wave_coefs[:, :self.Nx//2 + 1]
+        self._wave_coefs_neg_conj = np.conj(self.wave_coefs[
+            self._neg_y[:, np.newaxis],
+            self._neg_rfft_x[np.newaxis, :]
+        ])
+        half_shape = (self.Ny, self.Nx//2 + 1)
+        self._phase_pos = np.empty(half_shape, dtype=np.complex64)
+        self._phase_neg_conj = np.empty(half_shape, dtype=np.complex64)
+        self._wave_phased_pos = np.empty(half_shape, dtype=np.complex64)
+        self._wave_phased_neg_conj = np.empty(half_shape, dtype=np.complex64)
+        self._wave_phased = np.empty(half_shape, dtype=np.complex64)
+        self._ifft_scratch = np.empty(half_shape, dtype=np.complex64)
+
+        self._omega_pos = self.omega[:, :self.Nx//2 + 1]
+        if 'V' in self.compute:
+            self._iomega_pos = 1j*self._omega_pos
+            self._wave_diff_t_phased = np.empty(half_shape, dtype=np.complex64)
+            self._wave_diff_t_phased_neg_conj = np.empty(
+                half_shape, dtype=np.complex64
+            )
+        if 'A' in self.compute:
+            self._neg_omega2_pos = -(self._omega_pos**2)
+            self._wave_diff2_t_phased = np.empty(
+                half_shape, dtype=np.complex64
+            )
+            self._wave_diff2_t_phased_neg_conj = np.empty(
+                half_shape, dtype=np.complex64
+            )
+        if 'Diff2' in self.compute or (
+                'Diff' in self.compute and self.choppy_enable):
+            self._neg_kx2 = -(self.kx*self.kx)
+            self._neg_ky2 = -(self.ky*self.ky)
+        if 'Diff2' in self.compute:
+            self._neg_kxky = -(self.kx*self.ky)
+        if 'hMTF' in self.compute:
+            k_max = np.float32(2.*np.pi/20.)
+            mu = np.float32(0.04/16.)
+            dlnS_dlnk = np.float32(-3.)
+            Vg_c = np.float32(0.5)
+            M_h = (1j*self.k*self.omega*(self.omega + 1j*mu)
+                   / (self.omega**2 + mu**2)
+                   * (dlnS_dlnk - Vg_c)).astype(np.complex64)
+            M_h[self.k > k_max] = 0.
+            self._hmtf_pos = M_h[:, :self.Nx//2 + 1].copy()
+            self._hmtf_pos_conj = np.conj(self._hmtf_pos)
+            self._wave_hmtf_phased = np.empty(
+                half_shape, dtype=np.complex64
+            )
+
         if 'D' in self.compute:
             self.Dx = np.empty([self.Ny, self.Nx], dtype=np.float32)
             self.Dy = np.empty([self.Ny, self.Nx], dtype=np.float32)
@@ -407,6 +465,41 @@ class OceanSurface(object):
             self.Az = np.empty([self.Ny, self.Nx], dtype=np.float32)
         if 'hMTF' in self.compute:
             self.hMTF = np.empty([self.Ny, self.Nx], dtype=np.float32)
+
+    def _ifft2_real(self, hermitian_half, multiplier=1.,
+                    spectrum_neg_conj=None):
+        """Transform a packed Hermitian spectrum into a real field."""
+        if not np.isscalar(multiplier):
+            multiplier_full = multiplier
+            multiplier = multiplier_full[:, :self.Nx//2 + 1]
+            np.multiply(
+                multiplier, hermitian_half, out=self._ifft_scratch
+            )
+
+            # fftfreq represents an even-sized Nyquist bin with its negative
+            # frequency. Correct those self-paired rows/columns explicitly so
+            # odd derivative multipliers remain identical to the full ifft2.
+            if spectrum_neg_conj is not None and self.Nx % 2 == 0:
+                self._ifft_scratch[:, -1] += 0.5*(
+                    np.conj(multiplier_full[self._neg_y, self.Nx//2])
+                    - multiplier[:, -1]
+                )*spectrum_neg_conj[:, -1]
+            if spectrum_neg_conj is not None and self.Ny % 2 == 0:
+                x_stop = -1 if self.Nx % 2 == 0 else None
+                self._ifft_scratch[self.Ny//2, :x_stop] += 0.5*(
+                    np.conj(multiplier_full[
+                        self.Ny//2, self._neg_rfft_x[:x_stop]
+                    ]) - multiplier[self.Ny//2, :x_stop]
+                )*spectrum_neg_conj[self.Ny//2, :x_stop]
+        else:
+            np.multiply(
+                multiplier, hermitian_half, out=self._ifft_scratch
+            )
+        return sp.fft.irfft2(
+            self._ifft_scratch,
+            s=(self.Ny, self.Nx),
+            workers=self.workers
+        )
 
 
     @property
@@ -430,103 +523,136 @@ class OceanSurface(object):
         self._t = np.float32(value)
 
         # Propagate
-        wave_coefs_phased = (self.wave_coefs*np.exp(-1j*self.omega*self._t)).astype(np.complex64)
+        np.exp(
+            -1j*self._omega_pos*self._t, out=self._phase_pos
+        )
+        np.conjugate(self._phase_pos, out=self._phase_neg_conj)
+        np.multiply(
+            self._wave_coefs_pos, self._phase_pos,
+            out=self._wave_phased_pos
+        )
+        np.multiply(
+            self._wave_coefs_neg_conj, self._phase_neg_conj,
+            out=self._wave_phased_neg_conj
+        )
+        np.add(
+            self._wave_phased_pos, self._wave_phased_neg_conj,
+            out=self._wave_phased
+        )
+        self._wave_phased *= 0.5
         if self.swell_enable:
             swell_phased = (self.swell_exp*np.exp(-1j*self.swell_omega*self._t)).astype(np.complex64)
 
         # HORIZ. DISPL. & HEIGHT FIELD (Dx, Dy, Dz)
         if 'D' in self.compute:
-            #self.Dx[:] = np.real(np.fft.ifft2(1j*self.kx*self.kinv*wave_coefs_phased)) + self.current[0]*self._t
-            #self.Dy[:] = np.real(np.fft.ifft2(1j*self.ky*self.kinv*wave_coefs_phased)) + self.current[1]*self._t
-            self.Dx[:] = - np.imag(sp.fft.ifft2(self.kxn * wave_coefs_phased, workers=self.workers)) + self.current[0] * self._t
-            self.Dy[:] = - np.imag(sp.fft.ifft2(self.kyn * wave_coefs_phased, workers=self.workers)) + self.current[1] * self._t
-            self.Dz[:] = np.real(sp.fft.ifft2(wave_coefs_phased, workers=self.workers))
+            self.Dx[:] = self._ifft2_real(self._wave_phased, 1j*self.kxn, self._wave_phased_neg_conj) + self.current[0]*self._t
+            self.Dy[:] = self._ifft2_real(self._wave_phased, 1j*self.kyn, self._wave_phased_neg_conj) + self.current[1]*self._t
+            self.Dz[:] = self._ifft2_real(self._wave_phased)
             if self.swell_enable:
-                self.Dx[:] = self.Dx[:] + np.real(1j*self.swell_kx/self.swell_k*swell_phased).astype(np.float32)
-                self.Dy[:] = self.Dy[:] + np.real(1j*self.swell_ky/self.swell_k*swell_phased).astype(np.float32)
-                self.Dz[:] = self.Dz[:] + np.real(swell_phased).astype(np.float32)
+                self.Dx += np.real(1j*self.swell_kx/self.swell_k*swell_phased).astype(np.float32)
+                self.Dy += np.real(1j*self.swell_ky/self.swell_k*swell_phased).astype(np.float32)
+                self.Dz += np.real(swell_phased).astype(np.float32)
 
         # FIRST SPATIAL DERIVATIVES - SLOPES (Diffx, Diffy)
         if 'Diff' in self.compute:
             if not self.choppy_enable:
-                self.Diffx[:] = np.real(sp.fft.ifft2(1j*self.kx*wave_coefs_phased, workers=self.workers))
-                self.Diffy[:] = np.real(sp.fft.ifft2(1j*self.ky*wave_coefs_phased, workers=self.workers))
+                self.Diffx[:] = self._ifft2_real(self._wave_phased, 1j*self.kx, self._wave_phased_neg_conj)
+                self.Diffy[:] = self._ifft2_real(self._wave_phased, 1j*self.ky, self._wave_phased_neg_conj)
                 if self.swell_enable:
-                    self.Diffx[:] = self.Diffx[:] + np.real(1j*self.swell_kx*swell_phased)
-                    self.Diffy[:] = self.Diffy[:] + np.real(1j*self.swell_ky*swell_phased)
+                    self.Diffx += np.real(1j*self.swell_kx*swell_phased)
+                    self.Diffy += np.real(1j*self.swell_ky*swell_phased)
             else:
-                self.Diffx[:] = np.real(sp.fft.ifft2(1j*self.kx*wave_coefs_phased, workers=self.workers))/(1.+np.real(sp.fft.ifft2(-self.kx**2.*self.kinv*wave_coefs_phased, workers=self.workers)))
-                self.Diffy[:] = np.real(sp.fft.ifft2(1j*self.ky*wave_coefs_phased, workers=self.workers))/(1.+np.real(sp.fft.ifft2(-self.ky**2.*self.kinv*wave_coefs_phased, workers=self.workers)))
+                aux_x = self._ifft2_real(
+                    self._wave_phased, 1j*self.kx,
+                    self._wave_phased_neg_conj
+                )
+                aux_y = self._ifft2_real(
+                    self._wave_phased, 1j*self.ky,
+                    self._wave_phased_neg_conj
+                )
+                aux_xx = self._ifft2_real(
+                    self._wave_phased, self._neg_kx2*self.kinv
+                )
+                aux_yy = self._ifft2_real(
+                    self._wave_phased, self._neg_ky2*self.kinv
+                )
+                self.Diffx[:] = aux_x/(1.+aux_xx)
+                self.Diffy[:] = aux_y/(1.+aux_yy)
                 if self.swell_enable:
-                    self.Diffx[:] = self.Diffx[:] + np.real(1j*self.swell_kx*swell_phased)
-                    self.Diffy[:] = self.Diffy[:] + np.real(1j*self.swell_ky*swell_phased)
+                    self.Diffx += np.real(1j*self.swell_kx*swell_phased)
+                    self.Diffy += np.real(1j*self.swell_ky*swell_phased)
 
         # SECOND SPATIAL DERIVATIVES (Diffxx, Diffyy, Diffxy)
         if 'Diff2' in self.compute:
             if not self.choppy_enable:
-                self.Diffxx[:] = np.real(sp.fft.ifft2(-self.kx**2.*wave_coefs_phased, workers=self.workers))
-                self.Diffyy[:] = np.real(sp.fft.ifft2(-self.ky**2.*wave_coefs_phased, workers=self.workers))
-                self.Diffxy[:] = np.real(sp.fft.ifft2(-self.kx*self.ky*wave_coefs_phased, workers=self.workers))
+                self.Diffxx[:] = self._ifft2_real(self._wave_phased, self._neg_kx2)
+                self.Diffyy[:] = self._ifft2_real(self._wave_phased, self._neg_ky2)
+                self.Diffxy[:] = self._ifft2_real(self._wave_phased, self._neg_kxky, self._wave_phased_neg_conj)
                 if self.swell_enable:
-                    self.Diffxx[:] = self.Diffxx[:] + np.real(-self.swell_kx**2.*swell_phased)
-                    self.Diffyy[:] = self.Diffyy[:] + np.real(-self.swell_ky**2.*swell_phased)
-                    self.Diffxy[:] = self.Diffxy[:] + np.real(-self.swell_kx*self.swell_ky*swell_phased)
+                    self.Diffxx += np.real(-self.swell_kx**2.*swell_phased)
+                    self.Diffyy += np.real(-self.swell_ky**2.*swell_phased)
+                    self.Diffxy += np.real(-self.swell_kx*self.swell_ky*swell_phased)
             else:
-                aux_x = np.real(sp.fft.ifft2(1j*self.kx*wave_coefs_phased, workers=self.workers))
-                aux_y = np.real(sp.fft.ifft2(1j*self.ky*wave_coefs_phased, workers=self.workers))
-                aux_xx = np.real(sp.fft.ifft2(-self.kx**2.*self.kinv*wave_coefs_phased, workers=self.workers))
-                aux_yy = np.real(sp.fft.ifft2(-self.ky**2.*self.kinv*wave_coefs_phased, workers=self.workers))
-                aux_xxx = np.real(sp.fft.ifft2(-1j*self.kx**3.*self.kinv*wave_coefs_phased, workers=self.workers))
-                aux_yyy = np.real(sp.fft.ifft2(-1j*self.ky**3.*self.kinv*wave_coefs_phased, workers=self.workers))
-                aux_xxy = np.real(sp.fft.ifft2(-1j*self.kx**2.*self.ky*self.kinv*wave_coefs_phased, workers=self.workers))
-                self.Diffxx[:] = ((1.+aux_xx)*np.real(sp.fft.ifft2(-self.kx**2.*wave_coefs_phased, workers=self.workers)) - aux_xxx*aux_x)/((1+aux_xx)**3.)
-                self.Diffyy[:] = ((1.+aux_yy)*np.real(sp.fft.ifft2(-self.ky**2.*wave_coefs_phased, workers=self.workers)) - aux_yyy*aux_y)/((1+aux_yy)**3.)
-                self.Diffxy[:] = ((1.+aux_xx)*np.real(sp.fft.ifft2(-self.kx*self.ky*wave_coefs_phased, workers=self.workers)) - aux_xxy*aux_x)/((1+aux_xx)**2.*(1+aux_yy))
+                aux_xxx = self._ifft2_real(self._wave_phased, 1j*self._neg_kx2*self.kx*self.kinv, self._wave_phased_neg_conj)
+                aux_yyy = self._ifft2_real(self._wave_phased, 1j*self._neg_ky2*self.ky*self.kinv, self._wave_phased_neg_conj)
+                aux_xxy = self._ifft2_real(self._wave_phased, 1j*self._neg_kx2*self.ky*self.kinv, self._wave_phased_neg_conj)
+                self.Diffxx[:] = ((1.+aux_xx)*self._ifft2_real(self._wave_phased, self._neg_kx2) - aux_xxx*aux_x)/((1+aux_xx)**3.)
+                self.Diffyy[:] = ((1.+aux_yy)*self._ifft2_real(self._wave_phased, self._neg_ky2) - aux_yyy*aux_y)/((1+aux_yy)**3.)
+                self.Diffxy[:] = ((1.+aux_xx)*self._ifft2_real(self._wave_phased, self._neg_kxky, self._wave_phased_neg_conj) - aux_xxy*aux_x)/((1+aux_xx)**2.*(1+aux_yy))
                 if self.swell_enable:
-                    self.Diffxx[:] = self.Diffxx[:] + np.real(-self.swell_kx**2.*swell_phased)
-                    self.Diffyy[:] = self.Diffyy[:] + np.real(-self.swell_ky**2.*swell_phased)
-                    self.Diffxy[:] = self.Diffxy[:] + np.real(-self.swell_kx*self.swell_ky*swell_phased)
+                    self.Diffxx += np.real(-self.swell_kx**2.*swell_phased)
+                    self.Diffyy += np.real(-self.swell_ky**2.*swell_phased)
+                    self.Diffxy += np.real(-self.swell_kx*self.swell_ky*swell_phased)
 
         # FIRST TIME DERIVATIVES - VELOCITY (Vx, Vy, Vz)
         if 'V' in self.compute:
-            wave_coefs_diff_t_phased = -1j*self.omega*wave_coefs_phased
-            self.Vx[:] = - np.imag(sp.fft.ifft2(self.kxn * wave_coefs_diff_t_phased, workers=self.workers)) + self.current[0]
-            self.Vy[:] = - np.imag(sp.fft.ifft2(self.kyn * wave_coefs_diff_t_phased, workers=self.workers)) + self.current[1]
-            self.Vz[:] = np.real(sp.fft.ifft2(wave_coefs_diff_t_phased, workers=self.workers))
+            np.subtract(
+                self._wave_phased_neg_conj, self._wave_phased_pos,
+                out=self._wave_diff_t_phased
+            )
+            self._wave_diff_t_phased *= 0.5*self._iomega_pos
+            np.multiply(
+                self._iomega_pos, self._wave_phased_neg_conj,
+                out=self._wave_diff_t_phased_neg_conj
+            )
+            self.Vx[:] = self._ifft2_real(self._wave_diff_t_phased, 1j*self.kxn, self._wave_diff_t_phased_neg_conj) + self.current[0]
+            self.Vy[:] = self._ifft2_real(self._wave_diff_t_phased, 1j*self.kyn, self._wave_diff_t_phased_neg_conj) + self.current[1]
+            self.Vz[:] = self._ifft2_real(self._wave_diff_t_phased)
             if self.swell_enable:
                 swell_diff_t_phased = -1j*self.swell_omega*swell_phased
-                self.Vx[:] = self.Vx[:] + np.real(1j*self.swell_kx/self.swell_k*swell_diff_t_phased)
-                self.Vy[:] = self.Vy[:] + np.real(1j*self.swell_ky/self.swell_k*swell_diff_t_phased)
-                self.Vz[:] = self.Vz[:] + np.real(swell_diff_t_phased)
+                self.Vx += np.real(1j*self.swell_kx/self.swell_k*swell_diff_t_phased)
+                self.Vy += np.real(1j*self.swell_ky/self.swell_k*swell_diff_t_phased)
+                self.Vz += np.real(swell_diff_t_phased)
 
         # SECOND TIME DERIVATIVES - ACCELERATION (Ax, Ay, Az)
         if 'A' in self.compute:
-            wave_coefs_diff2_t_phased = -self.omega**2.*wave_coefs_phased
-            self.Ax[:] = np.real(sp.fft.ifft2(1j*self.kx*self.kinv*wave_coefs_diff2_t_phased, workers=self.workers))
-            self.Ay[:] = np.real(sp.fft.ifft2(1j*self.ky*self.kinv*wave_coefs_diff2_t_phased, workers=self.workers))
-            self.Az[:] = np.real(sp.fft.ifft2(wave_coefs_diff2_t_phased, workers=self.workers))
+            np.multiply(
+                self._neg_omega2_pos, self._wave_phased,
+                out=self._wave_diff2_t_phased
+            )
+            np.multiply(
+                self._neg_omega2_pos, self._wave_phased_neg_conj,
+                out=self._wave_diff2_t_phased_neg_conj
+            )
+            self.Ax[:] = self._ifft2_real(self._wave_diff2_t_phased, 1j*self.kx*self.kinv, self._wave_diff2_t_phased_neg_conj)
+            self.Ay[:] = self._ifft2_real(self._wave_diff2_t_phased, 1j*self.ky*self.kinv, self._wave_diff2_t_phased_neg_conj)
+            self.Az[:] = self._ifft2_real(self._wave_diff2_t_phased)
             if self.swell_enable:
                 swell_diff2_t_phased = -self.swell_omega**2.*swell_phased
-                self.Ax[:] = self.Ax[:] + np.real(1j*self.swell_kx/self.swell_k*swell_diff2_t_phased)
-                self.Ay[:] = self.Ay[:] + np.real(1j*self.swell_ky/self.swell_k*swell_diff2_t_phased)
-                self.Az[:] = self.Az[:] + np.real(swell_diff2_t_phased)
+                self.Ax += np.real(1j*self.swell_kx/self.swell_k*swell_diff2_t_phased)
+                self.Ay += np.real(1j*self.swell_ky/self.swell_k*swell_diff2_t_phased)
+                self.Az += np.real(swell_diff2_t_phased)
 
         # HYDRODYNAMIC MTF (Bertrand Chapron, personal communication)
         # TODO: Stefan Sauer should check this is correct.
         # TODO: What happens with swell?
         if 'hMTF' in self.compute:
-
-            k_max = 2.*np.pi/20.
-            mu = 0.04/16.
-            dlnS_dlnk = -3.
-            Vg_c = 0.5
-            # FIXME: I am changig the sign of M_h so that down-wind slopes have
-            # a positive modulation
-            M_h = 1j * self.k*self.omega*(self.omega + 1j*mu)/(self.omega**2. + mu**2.)*(dlnS_dlnk - Vg_c)
-
-            # Calculate coefficients & filter
-            wave_coefs_hmtf_phased = M_h*wave_coefs_phased
-            #wave_coefs_hmtf_phased[np.where((np.abs(self.kx) > k_max) & (np.abs(self.ky) > k_max))] = 0.
-            wave_coefs_hmtf_phased[np.where(self.k > k_max) ] = 0.
-            # Compute hMTF
-            self.hMTF[:] = np.real(sp.fft.ifft2(wave_coefs_hmtf_phased, workers=self.workers))
+            np.multiply(
+                self._hmtf_pos, self._wave_phased_pos,
+                out=self._wave_hmtf_phased
+            )
+            self._wave_hmtf_phased += (
+                self._hmtf_pos_conj*self._wave_phased_neg_conj
+            )
+            self._wave_hmtf_phased *= 0.5
+            self.hMTF[:] = self._ifft2_real(self._wave_hmtf_phased)
