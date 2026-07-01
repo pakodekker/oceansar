@@ -10,6 +10,7 @@ import argparse
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy import linalg
+from scipy.integrate import trapezoid
 import numexpr as ne
 import datetime
 
@@ -550,7 +551,7 @@ def dopsca_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
 
     pattern = (sinc_bp(az_axis/sr0, ant_l_tx, f0, field=True)
                * sinc_bp(az_axis/sr0, ant_l_rx, f0, field=True))
-    cal_factor = (1. / np.sqrt(np.trapz(np.abs(pattern)**2., az_axis)
+    cal_factor = (1. / np.sqrt(trapezoid(np.abs(pattern)**2., az_axis)
                   * sr_res/np.sin(inc_angle)))
     # PLD: I remove adding noise because I will add system effects later.
     if do_hh:
