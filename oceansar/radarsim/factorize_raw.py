@@ -3,7 +3,6 @@
 import numpy as np
 import scipy as sp
 from oceansar import closure
-from oceansar import utils
 from tqdm import tqdm
 
 
@@ -25,7 +24,7 @@ def factorize_raw_params(cfg, params, surface, info, internal_oversampling=8):
             # Coherence time of the surface, for a large area
             tau_c = closure.grid_coherence(cfg.ocean.wind_U,500, params["f0"])
             info.msg("Surface coherence time: %f s" % (tau_c))
-            n_pulses_b = int(utils.optimize_fftsize(int(tau_c * prf/4)))
+            n_pulses_b = sp.fft.next_fast_len(int(tau_c * prf/4))
             info.msg("PRF down-sampling rate =%i" % (n_pulses_b))
             # n_pulses_b = 4
             params["t_step"] = 1./prf
