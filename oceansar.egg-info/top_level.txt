@@ -1,5 +1,4 @@
 Notebooks
-build
 dist
 doc
 misc
