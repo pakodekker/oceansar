@@ -20,11 +20,46 @@ import argparse
 import numpy as np
 from matplotlib import pyplot as plt
 
+from drama.geo.geo_history import GeoHistory
+from drama.performance.sar.sar_performance_common import calc_analysis_time
 from oceansar.utils import geometry as geo
 from oceansar import utils
 from oceansar import ocs_io as tpio
 from oceansar import constants as const
 from oceansar.radarsim.antenna import sinc_1tx_nrx, sinc_bp
+
+
+def estimate_effective_velocity(cfg, inc_angle, fit_half_span=1.0):
+    """Fit the local GeoHistory range curvature and return its velocity."""
+    alt = cfg.orbit.Horb
+    t_analysis = max(
+        2.0 * fit_half_span + 2.0,
+        calc_analysis_time(
+            alt, inc_angle, cfg.sar.f0, cfg.sar.prf, n_amb=1))
+    ghist = GeoHistory(
+        cfg,
+        latitude=10,
+        inc_range=(np.degrees(
+            np.array([inc_angle, inc_angle + np.radians(30.0)]))
+            + np.array([-3.0, 3.0])),
+        inc_swth=np.degrees(inc_angle) + np.array([-1.0, 1.0]),
+        n_la_pts=800,
+        aei=None,
+        t_analysis=t_analysis)
+
+    gr0 = geo.inc_to_gr(inc_angle, alt)
+    look_angle = np.asarray(
+        geo.gr_to_geo(np.array([gr0]), alt)[2]).item()
+    fit_time = np.linspace(-fit_half_span, fit_half_span, 9)
+    slant_range = ghist.sr_spl(look_angle, fit_time).ravel()
+    range_zero = ghist.sr_spl(look_angle, 0.0).item()
+    time_squared = fit_time**2
+    curvature = np.dot(time_squared, slant_range - range_zero) / np.dot(
+        time_squared, time_squared)
+    if curvature <= 0:
+        raise ValueError(
+            "GeoHistory produced non-positive slant-range curvature")
+    return np.sqrt(2.0 * range_zero * curvature)
 
 
 def sar_focus(cfg_file, raw_output_file, output_file):
@@ -76,6 +111,8 @@ def sar_focus(cfg_file, raw_output_file, output_file):
     b_ati = raw_file.get('b_ati')
     b_xti = raw_file.get('b_xti')
     raw_file.close()
+    v_eff = estimate_effective_velocity(cfg, np.deg2rad(inc_angle))
+    print("Effective focusing velocity: %.3f m/s" % v_eff)
 
     # OTHER INITIALIZATIONS
     # Create plots directory
@@ -153,7 +190,7 @@ def sar_focus(cfg_file, raw_output_file, output_file):
         fa = np.fft.fftfreq(az_size, 1/prf)
         ## Compensation of ANTENNA PATTERN
         ## FIXME this will not work for a long separation betwen Tx and Rx!!!
-        sin_az = fa * l0 / (2 * v_ground)
+        sin_az = fa * l0 / (2 * v_eff)
         if hasattr(cfg.sar, 'ant_L'):
             ant_L = cfg.sar.ant_L
             if cfg.sar.L_total:
@@ -166,7 +203,7 @@ def sar_focus(cfg_file, raw_output_file, output_file):
             beam_pattern = (sinc_bp(sin_az, ant_l_tx, f0, field=True)
                             * sinc_bp(sin_az, ant_l_rx, f0, field=True))
         #fa[az_size/2:] = fa[az_size/2:] - prf
-        rcmc_fa = sr0 / np.sqrt(1 - (fa * (l0 / 2.) / v_ground)**2.) - sr0
+        rcmc_fa = sr0 / np.sqrt(1 - (fa * (l0 / 2.) / v_eff)**2.) - sr0
         #rcmc_fa[:]=0
         data = np.fft.fft(np.fft.fft(data, axis=-1), axis=-2)
 
@@ -210,7 +247,7 @@ def sar_focus(cfg_file, raw_output_file, output_file):
             weighting = np.roll(zeros, int(-n_samp / 2))
         weighting = np.where(np.abs(beam_pattern) > 0, weighting/beam_pattern, 0)
         ph_ac = 4. * np.pi / l0 * sr0 * \
-            (np.sqrt(1. - (fa * l0 / 2. / v_ground)**2.) - 1.)
+            (np.sqrt(1. - (fa * l0 / 2. / v_eff)**2.) - 1.)
 #        for i in np.arange(rg_size):
 #            data[:,i] *= np.exp(1j*ph_ac)*weighting
         data = data * (np.exp(1j * ph_ac) * weighting).reshape((1, az_size, 1))
@@ -223,7 +260,7 @@ def sar_focus(cfg_file, raw_output_file, output_file):
 
         # Removal of non valid samples
         n_val_az_2 = np.floor(
-            doppler_bw / 2. / (2. * v_ground**2. / l0 / sr0) * prf / 2.) * 2.
+            doppler_bw / 2. / (2. * v_eff**2. / l0 / sr0) * prf / 2.) * 2.
         # data = raw_data[ch, n_val_az_2:(az_size_orig - n_val_az_2 - 1), :]
         data = data[:, int(n_val_az_2):int(az_size_orig - n_val_az_2 - 1), :]
         if plot_image_valid:
