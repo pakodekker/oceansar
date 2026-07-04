@@ -17,6 +17,17 @@ import datetime
 from tqdm import tqdm
 
 from drama import utils as drtls
+from drama.geo.geo_history import GeoHistory
+from drama.performance.sar.sar_performance_common import (
+    mode_from_conf,
+    is_scansar,
+    beamcentertime_to_zeroDopplertime,
+    define_tx_ant,
+    define_rx_ant,
+    plot_pattern,
+    calc_analysis_time
+)
+
 from oceansar import utils
 from oceansar import ocs_io as tpio
 from oceansar.utils import geometry as geosar
@@ -33,7 +44,7 @@ from oceansar.radarsim.factorize_raw import factorize_raw_params, aggregate_fact
 
 
 def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
-            reuse_errors_file, plot_save=True):
+            reuse_errors_file, plot_save=True, bistatic=False, dau=0):
     """Short summary.
 
     Parameters
@@ -104,7 +115,7 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
     simpar['prf'] = prf
     num_ch = int(cfg.sar.num_ch)
     #ant_L = cfg.sar.ant_L
-    alt = cfg.sar.alt
+    alt = cfg.orbit.Horb
     v_ground = cfg.sar.v_ground
     rg_bw = cfg.sar.rg_bw
     over_fs = cfg.sar.over_fs
@@ -238,13 +249,14 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
 
     info.msg('Initializing simulation parameters...', importance=2)
 
+
     # SR/GR/INC Matrixes
     sr0 = geosar.inc_to_sr(inc_angle, alt)
     gr0 = geosar.inc_to_gr(inc_angle, alt)
     simpar['sr0'] = sr0
     simpar['gr0'] = gr0
     gr = surface.x + gr0
-    sr, inc, _ = geosar.gr_to_geo(gr, alt)
+    sr, inc, la = geosar.gr_to_geo(gr, alt)
     # Slant range of first range gate
     # We have to correct one sample delay introduced in the range profile creator
     rg_sampling = rg_bw * over_fs
@@ -277,11 +289,13 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
     if not type(b_ati) == np.ndarray:
         b_ati = np.arange(num_ch) * b_ati
     simpar['b_ati'] = b_ati
+    k0_b_ati = k0 * b_ati
     # XTI baselines
     b_xti = cfg.sar.b_xti
     if not type(b_xti) == np.ndarray:
         b_xti = np.arange(num_ch) * b_xti
     simpar['b_xti'] = b_xti
+    k0_b_xti = k0 * b_xti
 
     if v_ground == 'auto':
         v_ground = geosar.orbit_to_vel(alt, ground=True)
@@ -290,6 +304,36 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
     # t_span = (1.5*(sr0*l0/ant_l_tx) + surface.Ly)/v_ground
     # az_steps = int(np.floor(t_span/t_step))
     simpar = factorize_raw_params(cfg, simpar, surface, info)
+    ghist = GeoHistory(
+        cfg,
+        #tilt=txcnf.tilt,
+        #tilt_b=rxcnf.tilt,
+        latitude=10,
+        bistatic=bistatic,
+        dau=dau,
+        inc_range= np.degrees(np.array([inc_angle, inc_angle+np.radians(30)])) + np.array([-3, 3]),
+        inc_swth=np.degrees(inc_angle)+ np.array([-1, 1]),
+        #=verbosity,
+        n_la_pts=800,
+        #r_planet=r_planet,
+        #gm_planet=gm_planet,
+        aei=None,
+        #ellipsoid=ellipsoid,
+        #orb_type=orb_type,
+        t_analysis = simpar["t_span"] + calc_analysis_time(cfg.orbit.Horb, inc_angle,
+                                                    cfg.sar.f0, cfg.sar.prf,
+                                                    n_amb=1)
+
+    )
+    # recompute sr using ghist
+    sr = ghist.sr_spl(la, 0).flatten()
+    simpar['sr0'] = sr[0]
+    sr_near = sr[0] - wh_tol + const.c / 2 / (rg_sampling)
+    simpar['sr_near'] = sr_near
+    sr = sr - np.min(sr)
+    sr = sr.reshape(1, sr.size)
+    #print("SR difference between geosar and geohistory: %f m" % (np.max(np.abs(sr.flatten()-sr.flatten()))))
+    #simpar['v_ground'] = ghist.v_ground
     # Get range of azimut angles to intialize Bragg model..
     # TODO 
     # angular range
@@ -387,10 +431,12 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
             t_now = az_step * simpar["t_step"]/simpar["n_pulses_b"]
             az_now = simpar["az0"] + t_now * simpar["v_ground"]
             az = (surface.y - az_now).reshape((surface.Ny, 1))
+            t_az = -az / simpar["v_ground"]
             sin_az = az / simpar["sr0"]
             az_proj_angle = np.arcsin(az / simpar["gr0"])
             # Note: Projected displacements are added to slant range
             sr_surface_fct_ = (az/2*sin_az).flatten()
+            sr_surface_fct_ = np.flip(ghist.sr_spl(la[0], np.flip(t_az.flatten()))).flatten() - simpar['sr0']
             sr_surface_fct_ = sr_surface_fct_[simpar['block_Ny']//2::simpar['block_Ny']]
             sr_surface_fct_full[az_step] = sr_surface_fct_
         fig, axs = plt.subplots(1,2, figsize=(12,6))
@@ -420,15 +466,23 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
 
         ## COMPUTE RCS FOR EACH MODEL
         # Note: SAR processing is range independent as slant range is fixed
-        sin_az = az / simpar["sr0"]
+        t_az = -az / simpar["v_ground"]
+        # Approximate the azimuth geometry with the scene-center look angle;
+        # its range dependence is expected to be negligible over the swath.
+        sin_az = np.flip(
+            ghist.t2u_spl(la[la.size // 2], np.flip(t_az.flatten())),
+            axis=1).T
         az_proj_angle = np.arcsin(az / simpar["gr0"])
 
         # Note: Projected displacements are added to slant range
-        sr_surface = (sr - cos_inc*surface.Dz + az/2*sin_az
+        sr_history = np.flip(
+            ghist.sr_spl(la, np.flip(t_az.flatten())), axis=1).T
+        sr_history -= simpar["sr0"]
+        sr_surface = (sr_history - cos_inc*surface.Dz
                          + surface.Dx*sin_inc + surface.Dy*sin_az)
         if cfg.srg.factorize:
             # Now I want to keep and subtrack a slant range for each block 
-            sr_surface_fct_ = (az/2*sin_az).flatten()
+            sr_surface_fct_ = sr_history[:, 0]
             sr_surface_fct_ = sr_surface_fct_[simpar['block_Ny']//2::simpar['block_Ny']]
             sr_surface_fct[az_step] = sr_surface_fct_
             sr_surface = sr_surface.reshape([simpar['nblocks'], simpar['block_Ny'],surface.Nx])
@@ -449,11 +503,9 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
         # Point target
         if add_point_target:
             if cfg.srg.factorize:
-                sr_pt = (sr[0, int(surface.Nx/2)] + az[int(surface.Ny/2), 0]/2 *
-                        sin_az[int(surface.Ny/2), 0]) - sr_surface_fct[az_step,simpar['nblocks']//2] 
+                sr_pt = sr_history[int(surface.Ny/2), int(surface.Nx/2)] - sr_surface_fct[az_step,simpar['nblocks']//2]
             else:
-                sr_pt = (sr[0, int(surface.Nx/2)] + az[int(surface.Ny/2), 0]/2 *
-                        sin_az[int(surface.Ny/2), 0])   
+                sr_pt = sr_history[int(surface.Ny/2), int(surface.Nx/2)]
             pt_scat = (100. * np.exp(-1j * 2. * k0 * sr_pt))
             if do_hh:
                 scene_hh[int(surface.Ny/2), int(surface.Nx/2)] = pt_scat
@@ -568,7 +620,21 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
         if do_vv:
             scene_vv *= beam_pattern
         for ch in np.arange(num_ch, dtype=int):   
-            chan_phase = np.exp(-1j * k0 * (b_ati[ch] * sin_az + b_xti[ch] * tot_dinc))
+            if k0_b_xti[ch] == 0:
+                if k0_b_ati[ch] == 0:
+                    chan_phase = 1.
+                else:
+                    # Keep the compact azimuth-column shape. Adding
+                    # 0 * tot_dinc would broadcast this over the full surface.
+                    chan_phase = np.exp(-1j * k0_b_ati[ch] * sin_az)
+            else:
+                if k0_b_ati[ch] == 0:
+                    chan_phase_arg = k0_b_xti[ch] * tot_dinc
+                else:
+                    chan_phase_arg = (k0_b_ati[ch] * sin_az +
+                                      k0_b_xti[ch] * tot_dinc)
+                chan_phase = ne.evaluate(
+                    "cos(chan_phase_arg) - 1j * sin(chan_phase_arg)")
             if do_hh:
                 # scene_bp = scene_hh * beam_pattern
                 # # Add channel phase & compute profile
