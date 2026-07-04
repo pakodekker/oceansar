@@ -78,16 +78,37 @@ class RCSRomeiser97():
             # Now get range of values of az_angle
             lut_az_step = np.radians(0.05)
             self.lut_az = (-az_span/2 + np.arange(-1,int(az_span/lut_az_step)+2) * lut_az_step)[:,np.newaxis,np.newaxis]
-            print("LUT size: %i "% (int(az_span/lut_az_step) * lut_N_Diffx * lut_N_Diffy))
-            # I need to trick the angle of incidence here
-            # This forces the geometry to a constant angle of incidence, which is fine for small scenes
-            inc_tmp = self.inc_angle
-            self.inc_angle = inc_tmp.mean() + np.zeros_like(self.lut_Diffx)
+            print("LUT size per incidence plane: %i "% (int(az_span/lut_az_step) * lut_N_Diffx * lut_N_Diffy))
 
-            self.lut_rcs = self.rcs_numba(self.lut_az + np.zeros((int(az_span/lut_az_step)+3, lut_N_Diffy, lut_N_Diffx)), 
-                                          self.lut_Diffx + np.zeros((int(az_span/lut_az_step)+3, lut_N_Diffy, lut_N_Diffx)),
-                                          self.lut_Diffy + np.zeros((int(az_span/lut_az_step)+3, lut_N_Diffy, lut_N_Diffx)))
-            self.inc_angle = inc_tmp 
+            # Build the LUT at the near- and far-range incidence angles. RCS
+            # values at intermediate ranges are linearly interpolated in
+            # rcs_lut(). For a scalar incidence angle only one plane is needed.
+            inc_tmp = self.inc_angle
+            self.lut_inc_min = float(np.min(inc_tmp))
+            self.lut_inc_max = float(np.max(inc_tmp))
+            if self.lut_inc_max > self.lut_inc_min:
+                self.lut_inc_weight = np.clip(
+                    (inc_tmp - self.lut_inc_min) /
+                    (self.lut_inc_max - self.lut_inc_min), 0., 1.)
+            else:
+                self.lut_inc_weight = 0.
+
+            lut_shape = (int(az_span/lut_az_step)+3,
+                         lut_N_Diffy, lut_N_Diffx)
+            lut_az = self.lut_az + np.zeros(lut_shape)
+            lut_diffx = self.lut_Diffx + np.zeros(lut_shape)
+            lut_diffy = self.lut_Diffy + np.zeros(lut_shape)
+
+            self.inc_angle = np.float64(self.lut_inc_min)
+            self.lut_rcs_min = self.rcs_numba(lut_az, lut_diffx,
+                                              lut_diffy)
+            if self.lut_inc_max > self.lut_inc_min:
+                self.inc_angle = np.float64(self.lut_inc_max)
+                self.lut_rcs_max = self.rcs_numba(lut_az, lut_diffx,
+                                                  lut_diffy)
+            else:
+                self.lut_rcs_max = self.lut_rcs_min
+            self.inc_angle = inc_tmp
             print("RCS LUT computed")
             self.use_lut = True
 
@@ -120,18 +141,24 @@ class RCSRomeiser97():
         diffx_ind = np.where(diffx_ind > 0, diffx_ind, 0)
         diffy_ind = np.where(diffy_ind < self.lut_Diffy.shape[1], diffy_ind, self.lut_Diffy.shape[1]-1)
         diffx_ind = np.where(diffx_ind < self.lut_Diffx.shape[2], diffx_ind, self.lut_Diffx.shape[2]-1)
+
+        def lookup(lut):
+            return lut[:, az_ind, diffy_ind, diffx_ind]
+
+        def interpolate(lut_min, lut_max):
+            rcs_min = lookup(lut_min)
+            if lut_max is lut_min:
+                return rcs_min
+            return (rcs_min + self.lut_inc_weight *
+                    (lookup(lut_max) - rcs_min))
+
         if self.pol == 'DP':
-            # print(self.lut_rcs[0].shape)
-            # print(az_ind.shape)
-            # print(az_ind.min())
-            # print(az_ind.max())
-            # print(az_ind.dtype)
-            # print(diffy_ind.dtype)
-            # print(diffx_ind.dtype)
-            return (np.stack([self.lut_rcs[0][0][az_ind, diffy_ind, diffx_ind], self.lut_rcs[0][1][az_ind, diffy_ind, diffx_ind]]), 
-                    np.stack([self.lut_rcs[1][0][az_ind, diffy_ind, diffx_ind], self.lut_rcs[1][1][az_ind, diffy_ind, diffx_ind]]))
+            return (interpolate(self.lut_rcs_min[0],
+                                self.lut_rcs_max[0]),
+                    interpolate(self.lut_rcs_min[1],
+                                self.lut_rcs_max[1]))
         else:
-            return self.lut_rcs[:,az_ind, diffy_ind, diffx_ind]
+            return interpolate(self.lut_rcs_min, self.lut_rcs_max)
 
     def rcs_classic(self, az_angle, diffx, diffy):
         """ Returns RCS map of a surface given its geometry
