@@ -298,7 +298,7 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
     k0_b_xti = k0 * b_xti
 
     if v_ground == 'auto':
-        v_ground = geosar.orbit_to_vel(alt, ground=True)
+        v_ground = geosar.orbit_to_vel(alt, ground=True, inc=inc_angle)
     simpar['v_ground'] = v_ground
     # t_step = 1./prf
     # t_span = (1.5*(sr0*l0/ant_l_tx) + surface.Ly)/v_ground
