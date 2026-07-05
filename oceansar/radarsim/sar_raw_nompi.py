@@ -147,7 +147,11 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
     surface = OceanSurface()
 
     # Setup compute values
-    compute = ['D', 'Diff', 'Diff2']
+    if scat_spec_enable:
+        compute = ['D', 'Diff', 'Diff2']
+    else:
+        compute = ['D', 'Diff']
+
     if use_hmtf:
         compute.append('hMTF')
 
