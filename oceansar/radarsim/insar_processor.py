@@ -95,7 +95,10 @@ def insar_process(cfg_file, proc_output_file, ocean_file, output_file):
     proc_content.close()
 
     ## CALCULATE PARAMETERS
-    if v_ground == 'auto': v_ground = geosar.orbit_to_vel(alt, ground=True)
+    if v_ground == 'auto':
+        v_ground = geosar.orbit_to_vel(
+            alt, ground=True, inc=inc_angle)
+    v_orbit = geosar.orbit_to_vel(alt, ground=False)
     k0 = 2.*np.pi*f0/const.c
 
 
@@ -170,7 +173,9 @@ def insar_process(cfg_file, proc_output_file, ocean_file, output_file):
         print('Not enough edge-effect free image')
         return
 
-    inter_chan_shift_dist = b_ati / (v_ground/prf)
+    # The along-track baseline is traversed at the platform velocity. Convert
+    # its time delay to focused-image azimuth samples using the PRF.
+    inter_chan_shift_dist = b_ati / (v_orbit/prf)
     # Subsample shift in azimuth
     for chind in range(proc_data.shape[0]):
         shift_dist = - inter_chan_shift_dist[chind]
