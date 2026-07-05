@@ -1,28 +1,28 @@
 import numpy as np
 from scipy import interpolate
 from collections import namedtuple
-#from drama.geo import orbit_to_vel
+from drama.orbits.velocity import orbit_to_vel
 from oceansar import constants as const
 #import drama.utils.gohlke_transf as trans
 #from drama.utils.coord_trans import (rot_z, rot_z_prime)
 
-def orbit_to_vel(orbit_alt, ground=False,
-                 r_planet=const.r_earth,
-                 m_planet=const.m_earth):
-    """ Calculates orbital/ground velocity assuming circular orbit
+# def orbit_to_vel(orbit_alt, ground=False,
+#                  r_planet=const.r_earth,
+#                  m_planet=const.m_earth):
+#     """ Calculates orbital/ground velocity assuming circular orbit
 
-        :param orbit_alt: Satellite orbit altitude
-        :param ground: If true, returned value will be ground velocity
+#         :param orbit_alt: Satellite orbit altitude
+#         :param ground: If true, returned value will be ground velocity
 
-        :returns: Orbital or Ground velocity
-    """
-    v = np.sqrt(const.G * m_planet/(r_planet + orbit_alt))
+#         :returns: Orbital or Ground velocity
+#     """
+#     v = np.sqrt(const.G * m_planet/(r_planet + orbit_alt))
 
-    # Convert to ground velocity if needed
-    if ground:
-        v = r_planet / (r_planet + orbit_alt) * v
+#     # Convert to ground velocity if needed
+#     if ground:
+#         v = r_planet / (r_planet + orbit_alt) * v
 
-    return v
+#     return v
 
 
 def inc_to_sr(theta_i, orbit_alt, r_planet=const.r_earth):
@@ -117,7 +117,8 @@ def sr_to_geo(slant_range, orbit_alt,
     theta_i = look_to_inc(theta_l, orbit_alt, r_planet=r_planet)
     delta_theta = theta_i - theta_l
     r_track = np.cos(delta_theta) * r_planet
-    v_orb = orbit_to_vel(orbit_alt, r_planet=r_planet, m_planet=m_planet)
+    v_orb = orbit_to_vel(
+        orbit_alt, r_planet=r_planet, gm_planet=const.G * m_planet)
     b = v_orb**2 * r_track / (r_planet + orbit_alt)
 
     # Calculate Ground Range and Slant Range
