@@ -99,7 +99,8 @@ def sar_focus(cfg_file, raw_output_file, output_file):
     # CALCULATE PARAMETERS
     l0 = const.c / f0
     if v_ground == 'auto':
-        v_ground = geo.orbit_to_vel(alt, ground=True)
+        v_ground = geo.orbit_to_vel(
+            alt, ground=True, inc=np.deg2rad(cfg.sar.inc_angle))
     rg_sampling = rg_bw * over_fs
 
     # RAW DATA
@@ -335,7 +336,8 @@ def ross_sar_focus(cfg_file, reconstruct_raw_output_file, output_file):
     # CALCULATE PARAMETERS
     l0 = const.c / f0
     if v_ground == 'auto':
-        v_ground = geo.orbit_to_vel(alt, ground=True)
+        v_ground = geo.orbit_to_vel(
+            alt, ground=True, inc=np.deg2rad(cfg.sar.inc_angle))
     rg_sampling = rg_bw * over_fs
 
     # RAW DATA
