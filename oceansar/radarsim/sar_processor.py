@@ -341,7 +341,7 @@ def ross_sar_focus(cfg_file, reconstruct_raw_output_file, output_file):
     rg_sampling = rg_bw * over_fs
 
     # RAW DATA
-    raw_file = tpio.RawFile(reconstruct_raw_output_file, 'r')
+    raw_file = tpio.ReconstructedRawFile(reconstruct_raw_output_file, 'r')
     raw_data = raw_file.get('raw_data*')
     sr0 = raw_file.get('sr0')
     az0 = raw_file.get('az0')

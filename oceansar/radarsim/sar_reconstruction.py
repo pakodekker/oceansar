@@ -52,15 +52,25 @@ def raw_reconstr(raw_output_file, reconstr_output_file):
             freqs_array = np.where((freqs >= -num_ch * prf/2 + jj * freqs_bin) & (freqs < -num_ch * prf/2 + (jj + 1)* freqs_bin), 1, 0)
             reconstr_signal[ii, :, :] = reconstr_signal[ii, :, :] + raw_data_fft[ii, :, :] * freqs_array[:, None] * P_vec[ii, jj]
 
-    reconstr_signal = N_ch * np.fft.ifft(np.fft.ifftshift(reconstr_signal, axes=1), axis=1)  # IFFT to get back to time domain
-
+    # reconstr_signal = N_ch * np.fft.ifft(np.fft.ifftshift(reconstr_signal, axes=1), axis=1)  # IFFT to get back to time domain
     # combination of muti-channel signals by simply suming up 
-    reconstr_signal_sum = np.sum(reconstr_signal, axis=0)[None, :]
+    # reconstr_signal_sum = np.sum(reconstr_signal, axis=0)[None, :]
     # apply other methods to combine all channels, e.g., weighted sum
     print('Reconstruction completed!')  
+    # upsampling: placing the recovered ambiguity bands into their correct Doppler locations
+    Naz = reconstr_signal.shape[1]
+    Nrg = reconstr_signal.shape[2]
+    upsample_signal = np.zeros((N_ch * Naz, Nrg), dtype=complex)
+    for k in range(Naz):
+        upsample_signal[5*k:5*k+5, :] = reconstr_signal[:, k, :]
+
+    upsample_signal = N_ch * np.fft.ifft(np.fft.ifftshift(upsample_signal, axes=0), axis=0)  # IFFT to get back to time domain
+    # add the dimension of polarization
+    upsample_signal = upsample_signal[None, :, :]
+    print('Upsampling completed!')
     # save the recontructed raw data to a new file
     # better to put together with the raw_data to reduce the volume in the future
-    reconstr_file = tpio.ReconstructedRawFile(reconstr_output_file, 'w', reconstr_signal_sum.shape)
+    reconstr_file = tpio.ReconstructedRawFile(reconstr_output_file, 'w', upsample_signal.shape)
     reconstr_file.set('inc_angle', np.rad2deg(inc_angle))
     reconstr_file.set('f0', f0)
     reconstr_file.set('ant_L', ant_L)
@@ -71,5 +81,5 @@ def raw_reconstr(raw_output_file, reconstr_output_file):
     reconstr_file.set('sr0', sr0)
     reconstr_file.set('rg_sampling', rg_sampling)
     reconstr_file.set('rg_bw', rg_bw)
-    reconstr_file.set('raw_data*', reconstr_signal_sum)
+    reconstr_file.set('raw_data*', upsample_signal)
     reconstr_file.close()
