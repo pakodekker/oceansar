@@ -25,12 +25,11 @@ def raw_reconstr(raw_output_file, reconstr_output_file):
     v_ground = raw_file.get('v_ground')
     alt = raw_file.get('orbit_alt')
 
-    if v_ground == 'auto':
-        v_ground = geo.orbit_to_vel(alt, ground=True)
+    v_orbit = geo.orbit_to_vel(alt, inc=np.deg2rad(inc_angle))
 
     l0 = const.c / f0
 
-    print(f"v_ground: {v_ground}, prf: {prf}")
+    print(f"v_orbit: {v_orbit}, prf: {prf}")
 
     # let's start from following the paper
     N_ch = raw_data.shape[1] # number of channels
@@ -38,7 +37,7 @@ def raw_reconstr(raw_output_file, reconstr_output_file):
     H_vec = np.zeros((N_ch, N_ch), dtype=complex)
     for ii in np.arange(N_ch):
         f = f0 + ii * prf
-        H_vec[ii, :] = np.exp(-1j * np.pi * (b_ati**2 / (2 * l0 * sr0) + b_ati * f / v_ground)) 
+        H_vec[ii, :] = np.exp(-1j * np.pi * (b_ati**2 / (2 * l0 * sr0) + b_ati * f / v_orbit)) 
     P_vec = np.linalg.inv(H_vec)
 
     raw_data_fft = np.fft.fft(raw_data[0, :, :, :], axis=1)  # FFT along azimuth
