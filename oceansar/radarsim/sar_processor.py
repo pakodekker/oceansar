@@ -349,6 +349,8 @@ def ross_sar_focus(cfg_file, reconstruct_raw_output_file, output_file):
     # b_ati = raw_file.get('b_ati')
     # b_xti = raw_file.get('b_xti')
     raw_file.close()
+    v_eff = estimate_effective_velocity(cfg, np.deg2rad(inc_angle))
+    print("Effective focusing velocity: %.3f m/s" % v_eff)
 
     # OTHER INITIALIZATIONS
     # Create plots directory
@@ -388,7 +390,7 @@ def ross_sar_focus(cfg_file, reconstruct_raw_output_file, output_file):
     fa = np.fft.fftfreq(az_size, 1/prf)
     ## Compensation of ANTENNA PATTERN
     ## FIXME this will not work for a long separation betwen Tx and Rx!!!
-    sin_az = fa * l0 / (2 * v_ground)
+    sin_az = fa * l0 / (2 * v_eff)
     if hasattr(cfg.sar, 'ant_L'):
         ant_L = cfg.sar.ant_L
         beam_pattern = sinc_1tx_nrx(sin_az, ant_L, f0, 1, field=True)
@@ -397,7 +399,7 @@ def ross_sar_focus(cfg_file, reconstruct_raw_output_file, output_file):
         ant_l_rx = cfg.sar.ant_L_rx
         beam_pattern = (sinc_bp(sin_az, ant_l_tx, f0, field=True)
                         * sinc_bp(sin_az, ant_l_rx, f0, field=True))
-    rcmc_fa = sr0 / np.sqrt(1 - (fa * (l0 / 2.) / v_ground)**2.) - sr0
+    rcmc_fa = sr0 / np.sqrt(1 - (fa * (l0 / 2.) / v_eff)**2.) - sr0
     data = np.fft.fft(np.fft.fft(data, axis=-1), axis=-2)
     data = (data * np.exp(4j * np.pi * rcmc_fa.reshape((1, az_size, 1)) /
                             const.c * fr.reshape((1, 1, rg_size))))
@@ -435,7 +437,7 @@ def ross_sar_focus(cfg_file, reconstruct_raw_output_file, output_file):
         weighting = np.roll(zeros, int(-n_samp / 2))
     weighting = np.where(np.abs(beam_pattern) > 0, weighting/beam_pattern, 0)
     ph_ac = 4. * np.pi / l0 * sr0 * \
-        (np.sqrt(1. - (fa * l0 / 2. / v_ground)**2.) - 1.)
+        (np.sqrt(1. - (fa * l0 / 2. / v_eff)**2.) - 1.)
     data = data * (np.exp(1j * ph_ac) * weighting).reshape((1, az_size, 1))
 
     data = np.fft.ifft(data, axis=1)
@@ -446,7 +448,7 @@ def ross_sar_focus(cfg_file, reconstruct_raw_output_file, output_file):
 
     # Removal of non valid samples
     n_val_az_2 = np.floor(
-        doppler_bw / 2. / (2. * v_ground**2. / l0 / sr0) * prf / 2.) * 2.
+        doppler_bw / 2. / (2. * v_eff**2. / l0 / sr0) * prf / 2.) * 2.
     data = data[:, int(n_val_az_2):int(az_size_orig - n_val_az_2 - 1), :]
     if plot_image_valid:
         plt.figure()

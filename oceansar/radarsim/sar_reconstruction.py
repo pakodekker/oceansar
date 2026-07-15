@@ -70,7 +70,7 @@ def raw_reconstr(raw_output_file, reconstr_output_file):
     # save the recontructed raw data to a new file
     # better to put together with the raw_data to reduce the volume in the future
     reconstr_file = tpio.ReconstructedRawFile(reconstr_output_file, 'w', upsample_signal.shape)
-    reconstr_file.set('inc_angle', np.rad2deg(inc_angle))
+    reconstr_file.set('inc_angle', inc_angle)
     reconstr_file.set('f0', f0)
     reconstr_file.set('ant_L', ant_L)
     reconstr_file.set('prf', prf)
