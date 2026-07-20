@@ -373,6 +373,19 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
     last_progress = -1
     NRCS_avg_vv = np.zeros(simpar["az_steps"], dtype=float)
     NRCS_avg_hh = np.zeros(simpar["az_steps"], dtype=float)
+    sr_pt_history = np.zeros(simpar["az_steps"], dtype=float)
+    sr_pt_y = int(surface.Ny/2)
+    sr_pt_x = int(surface.Nx/2)
+    pt_y_edge = int(round(0.1*(surface.Ny - 1)))
+    pt_x_edge = int(round(0.1*(surface.Nx - 1)))
+    point_targets = tuple(
+        (target_y, target_x)
+        for target_y in (pt_y_edge, sr_pt_y,
+                         int(surface.Ny - 1 - pt_y_edge))
+        for target_x in (pt_x_edge, sr_pt_x,
+                         int(surface.Nx - 1 - pt_x_edge)))
+    if cfg.srg.factorize:
+        sr_pt_block = sr_pt_y//simpar['block_Ny']
 
 
     ## RCS MODELS
@@ -504,18 +517,29 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
                 scene_hh[:,:] = 0 
             if do_vv:
                 scene_vv[:,:] = 0 
+        # Point target history
+        # We keep it even if we don't add it, as it gives a reference to check
+        # the processor
+        if cfg.srg.factorize:
+            sr_pt = sr_history[sr_pt_y, sr_pt_x] - sr_surface_fct[az_step, sr_pt_block]
+        else:
+            sr_pt = sr_history[sr_pt_y, sr_pt_x]
+        sr_pt_history[az_step] = sr_pt
         # Point target
         if add_point_target:
-            if cfg.srg.factorize:
-                sr_pt = sr_history[int(surface.Ny/2), int(surface.Nx/2)] - sr_surface_fct[az_step,simpar['nblocks']//2]
-            else:
-                sr_pt = sr_history[int(surface.Ny/2), int(surface.Nx/2)]
-            pt_scat = (100. * np.exp(-1j * 2. * k0 * sr_pt))
-            if do_hh:
-                scene_hh[int(surface.Ny/2), int(surface.Nx/2)] = pt_scat
-            if do_vv:
-                scene_vv[int(surface.Ny/2), int(surface.Nx/2)] = pt_scat
-            sr_surface[int(surface.Ny/2), int(surface.Nx/2)] = sr_pt
+            for target_y, target_x in point_targets:
+                if cfg.srg.factorize:
+                    target_block = target_y//simpar['block_Ny']
+                    sr_target = (sr_history[target_y, target_x]
+                                 - sr_surface_fct[az_step, target_block])
+                else:
+                    sr_target = sr_history[target_y, target_x]
+                pt_scat = 100.*np.exp(-1j*2.*k0*sr_target)
+                if do_hh:
+                    scene_hh[target_y, target_x] = pt_scat
+                if do_vv:
+                    scene_vv[target_y, target_x] = pt_scat
+                sr_surface[target_y, target_x] = sr_target
 
         # Specular
         if scat_spec_enable:
@@ -727,6 +751,11 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
                                                             proc_raw_vv, 
                                                             sr_surface_fct, sr_surface_fct_full,
                                                             simpar, surface, cfg, info, workers=cfg.sim.nworkers)
+        sr_pt_history = drtls.quadresample(
+            sr_pt_history,
+            np.arange(simpar["az_steps"]*simpar["n_pulses_b"])/simpar["n_pulses_b"],
+            extrapolate=True)
+        sr_pt_history = sr_pt_history + sr_surface_fct_full[:, sr_pt_block]
     info.msg('Processing and saving results...')
 
     # Filter and decimate
@@ -818,6 +847,9 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
     raw_file.set('sr0', sr_near)
     raw_file.set('rg_sampling', rg_bw*over_fs)
     raw_file.set('rg_bw', rg_bw)
+    if sr_pt_history.shape[0] != total_raw.shape[2]:
+        raise ValueError('sr_pt azimuth samples do not match raw az_dim')
+    raw_file.set('sr_pt', sr_pt_history)
     raw_file.set('raw_data*', total_raw)
     # abit of a hack
     if cfg.srg.factorize:
