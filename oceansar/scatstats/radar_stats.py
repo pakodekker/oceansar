@@ -613,7 +613,7 @@ if __name__ == '__main__':
     plt.legend()
 
     plt.figure()
-    v2dop = radsurf_U8.f0/3e8 * 2
+    v2dop = radsurf_U8.f0/const.c * 2
     plt.plot(gmf.azimuth, v2dop * gmf.v_r_wvv[0], 'b--', label='35')
     plt.plot(gmf.azimuth, v2dop * gmf.v_r_wvv[1], 'g--', label='40')
     # plt.plot(gmf.azimuth, gmf.v_r_wvv[2], 'r--', label='45')

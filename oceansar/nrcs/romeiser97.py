@@ -423,8 +423,9 @@ class RCSRomeiser97():
 if __name__ == '__main__':
     from matplotlib import pyplot as plt
     print("Testing")
-    rrcs = RCSRomeiser97(2*np.pi*5.4e9/3e8, np.radians(40), 'DP', 1, 1, 10, 10, 1e5, 'elfouhaily', 'elfouhaily', 0.125)
-    kb = 2*np.pi*5.4e9/3e8 * np.sin(np.linspace(np.radians(30), np.radians(50)))
+    rrcs = RCSRomeiser97(2*np.pi*5.4e9/const.c, np.radians(40), 'DP', 1, 1, 10, 10, 1e5, 'elfouhaily', 'elfouhaily', 0.125)
+    kb = (2*np.pi*5.4e9/const.c
+          * np.sin(np.linspace(np.radians(30), np.radians(50))))
     plt.figure()
     plt.plot(kb, rrcs.spec_interpolator(kb))
     slopex = 0.05 * np.random.randn(2048,2048)

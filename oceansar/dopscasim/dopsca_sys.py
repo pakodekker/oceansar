@@ -5,6 +5,7 @@ from drama.io import cfg as drcfg
 from drama import utils as drtls
 import drama.geo as drgeo
 import drama.performance.oscillators as drosc
+from oceansar import constants as const
 
 
 def dopsca_syssim(cfg_file, output_file='auto', add_noise=True, clock_errors=True,plots=False):
@@ -15,7 +16,8 @@ def dopsca_syssim(cfg_file, output_file='auto', add_noise=True, clock_errors=Tru
     dtraw.close()
     geom = drgeo.QuickRadarGeometry(dtraw.orbit_alt.values)
     sr0 = dtraw.sr0.values
-    sr = sr0 + 3e8 * np.arange(dtraw.rg_dim.size) / (2 * dtraw.rg_sampling.values)
+    sr = (sr0 + const.c * np.arange(dtraw.rg_dim.size)
+          / (2 * dtraw.rg_sampling.values))
     range_scaling = (sr0 / sr)**2
     craw = dtraw.raw_data_r.values + 1j * dtraw.raw_data_i.values
     dshape = craw.shape

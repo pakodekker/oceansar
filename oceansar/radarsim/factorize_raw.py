@@ -3,6 +3,7 @@
 import numpy as np
 import scipy as sp
 from oceansar import closure
+from oceansar import constants as const
 from tqdm import tqdm
 
 
@@ -106,7 +107,8 @@ def aggregate_factorized_raw(proc_raw_hh, proc_raw_vv,
             phase_b = - 2 * params["k0"] * rcm_b
             #phasor_b = np.exp(1j*phase_b)
             phasor_b = np.exp(1j * phase_b).astype(np.complex64)
-            rcm_smp = (rcm_b*2/3e8*params["Fs"])[np.newaxis,:, np.newaxis]
+            rcm_smp = (rcm_b * 2 / const.c * params["Fs"])[
+                np.newaxis, :, np.newaxis]
             range_phasor_b = np.exp(-1j * 2 * np.pi * rcm_smp * rg_freq).astype(np.complex64)
 
             if do_hh:
