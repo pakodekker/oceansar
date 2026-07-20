@@ -174,6 +174,20 @@ def geohistory_range_azimuth_filter(ghist, slant_range, fa, f0):
     return phase.T
 
 
+def geohistory_src_filter(ghist, look_angle, fa, fr, f0,
+                          range_migration, azimuth_phase):
+    """Return center-reference secondary range-compression phase."""
+    rcmc_phase = (4*np.pi/const.c * range_migration[:, np.newaxis]
+                  * fr[np.newaxis, :])
+    src_phase = np.empty((fa.size, fr.size), dtype=np.float32)
+    for rg_index, range_frequency in enumerate(fr):
+        _, wideband_phase, _, _ = geohistory_reference_filter(
+            ghist, look_angle, fa, f0 + range_frequency)
+        src_phase[:, rg_index] = (
+            wideband_phase - azimuth_phase - rcmc_phase[:, rg_index])
+    return src_phase
+
+
 def point_target_azimuth_profile(data, expected_az, expected_rg,
                                  oversample=16, span=10):
     """Return an oversampled, phase-compensated point-target profile."""
@@ -208,9 +222,62 @@ def point_target_azimuth_profile(data, expected_az, expected_rg,
 
 
 def plot_point_target_azimuth_grid(data, expected_targets, channel,
-                                   plot_path, plot_format,
+                                   prf, plot_path, plot_format,
                                    oversample=16, span=10):
     """Plot the 3x3 target-grid azimuth responses for one channel."""
+    def azimuth_spectrum(expected_az, expected_rg, cut_samples=128,
+                         fft_oversample=8, phase_threshold_db=-12.0):
+        """Return amplitude and detrended phase of a local target-cut FFT."""
+        cut_samples = min(cut_samples, data.shape[1])
+        az_center = int(np.round(expected_az))
+        rg_center = int(np.round(expected_rg))
+        az_slice = slice(max(0, az_center - 8),
+                         min(data.shape[1], az_center + 9))
+        rg_slice = slice(max(0, rg_center - 4),
+                         min(data.shape[2], rg_center + 5))
+        local_image = np.abs(data[0, az_slice, rg_slice])
+        local_peak = np.unravel_index(
+            np.argmax(local_image), local_image.shape)
+        rg_peak = rg_slice.start + local_peak[1]
+
+        cut_start = az_center - cut_samples//2
+        cut_start = min(max(0, cut_start), data.shape[1] - cut_samples)
+        profile = data[0, cut_start:cut_start + cut_samples, rg_peak]
+        if profile.size < 2:
+            raise ValueError(
+                'Point-target azimuth cut is too short for an FFT')
+
+        n_fft = profile.size*fft_oversample
+        profile_padded = np.zeros(n_fft, dtype=complex)
+        pad_start = (n_fft - profile.size)//2
+        profile_padded[pad_start:pad_start + profile.size] = profile
+        spectrum = np.fft.fftshift(np.fft.fft(
+            np.fft.ifftshift(profile_padded)))
+        frequency = np.fft.fftshift(np.fft.fftfreq(n_fft, d=1/prf))
+        amplitude = np.abs(spectrum)
+        amplitude /= np.max(amplitude)
+        amplitude_db = 20*np.log10(np.maximum(amplitude, 1e-6))
+
+        # Ignore phase where crop leakage and numerical noise dominate.
+        phase_support = amplitude_db >= phase_threshold_db
+        center = n_fft//2
+        left = center
+        right = center
+        while left > 0 and phase_support[left - 1]:
+            left -= 1
+        while right + 1 < n_fft and phase_support[right + 1]:
+            right += 1
+        support = slice(left, right + 1)
+        phase_frequency = frequency[support]
+        phase = np.unwrap(np.angle(spectrum[support]))
+        if phase.size >= 2:
+            linear_phase = np.polyval(np.polyfit(
+                phase_frequency, phase, 1, w=amplitude[support]),
+                phase_frequency)
+            phase -= linear_phase
+
+        return frequency, amplitude_db, phase_frequency, phase
+
     fig, axs = plt.subplots(3, 3, figsize=(15, 11), sharex=True, sharey=True)
     for ax, (target_name, expected_az, expected_rg) in zip(
             axs.ravel(), expected_targets):
@@ -241,6 +308,50 @@ def plot_point_target_azimuth_grid(data, expected_targets, channel,
     fig.tight_layout(rect=(0, 0, 1, 0.93))
     fig.savefig(os.path.join(
         plot_path, 'plot_point_target_azimuth_grid_%d.%s' %
+        (channel, plot_format)))
+    plt.close(fig)
+
+    spectra = [azimuth_spectrum(expected_az, expected_rg)
+               for _, expected_az, expected_rg in expected_targets]
+
+    fig, axs = plt.subplots(3, 3, figsize=(15, 11), sharex=True, sharey=True)
+    for ax, (target, spectrum) in zip(
+            axs.ravel(), zip(expected_targets, spectra)):
+        frequency, amplitude_db, _, _ = spectrum
+        ax.plot(frequency, amplitude_db)
+        ax.set_title(target[0].replace('_', ' / '))
+        ax.set_xlim(-prf/2, prf/2)
+        ax.set_ylim(-40, 1)
+        ax.grid(True)
+    for ax in axs[-1, :]:
+        ax.set_xlabel('Doppler frequency [Hz]')
+    for ax in axs[:, 0]:
+        ax.set_ylabel('Normalized amplitude [dB]')
+    fig.suptitle('Point-target azimuth spectra, channel %d' % channel)
+    fig.tight_layout(rect=(0, 0, 1, 0.97))
+    fig.savefig(os.path.join(
+        plot_path, 'plot_point_target_azimuth_spectrum_amplitude_%d.%s' %
+        (channel, plot_format)))
+    plt.close(fig)
+
+    fig, axs = plt.subplots(3, 3, figsize=(15, 11), sharex=True, sharey=True)
+    for ax, (target, spectrum) in zip(
+            axs.ravel(), zip(expected_targets, spectra)):
+        _, _, phase_frequency, phase = spectrum
+        ax.plot(phase_frequency, phase)
+        ax.set_title(target[0].replace('_', ' / '))
+        ax.set_xlim(-prf/2, prf/2)
+        ax.grid(True)
+    for ax in axs[-1, :]:
+        ax.set_xlabel('Doppler frequency [Hz]')
+    for ax in axs[:, 0]:
+        ax.set_ylabel('Residual phase [rad]')
+    fig.suptitle(
+        'Point-target azimuth spectral phase, channel %d\n'
+        '(constant and linear phase removed)' % channel)
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    fig.savefig(os.path.join(
+        plot_path, 'plot_point_target_azimuth_spectrum_phase_%d.%s' %
         (channel, plot_format)))
     plt.close(fig)
 
@@ -501,6 +612,9 @@ def sar_focus(cfg_file, raw_output_file, output_file):
         if filter_key not in filter_cache:
             rcmc_fa, ph_ac_reference, _, _ = (
                 geohistory_reference_filter(ghist, look_focus, fa, f0))
+            ph_src = geohistory_src_filter(
+                ghist, look_focus, fa, fr, f0,
+                rcmc_fa, ph_ac_reference)
             if range_dependent_azimuth:
                 slant_range = (sr0 + np.arange(rg_size)
                                * const.c/(2*rg_sampling))
@@ -508,15 +622,17 @@ def sar_focus(cfg_file, raw_output_file, output_file):
                     ghist, slant_range, fa, f0)
             else:
                 ph_ac = ph_ac_reference
-            filter_cache[filter_key] = (rcmc_fa, ph_ac)
-        rcmc_fa, ph_ac = filter_cache[filter_key]
+            filter_cache[filter_key] = (rcmc_fa, ph_src, ph_ac)
+        rcmc_fa, ph_src, ph_ac = filter_cache[filter_key]
         #rcmc_fa[:]=0
         data = np.fft.fft(np.fft.fft(data, axis=-1), axis=-2)
 
 #        for i in np.arange(az_size):
 #            data[i,:] *= np.exp(1j*2*np.pi*2*rcmc_fa[i]/const.c*fr)
-        data = (data * np.exp(4j * np.pi * rcmc_fa.reshape((1, az_size, 1)) /
-                              const.c * fr.reshape((1, 1, rg_size))))
+        range_doppler_phase = (
+            4*np.pi/const.c * rcmc_fa[:, np.newaxis]
+            * fr[np.newaxis, :] + ph_src)
+        data = data * np.exp(1j*range_doppler_phase[np.newaxis, :, :])
         data = np.fft.ifft(data, axis=2)
 
         if plot_rcmc_dopp:
@@ -583,7 +699,7 @@ def sar_focus(cfg_file, raw_output_file, output_file):
                 expected_targets.append(
                     (target_name, expected_az, expected_rg))
             plot_point_target_azimuth_grid(
-                data, expected_targets, ch, plot_path, plot_format)
+                data, expected_targets, ch, prf, plot_path, plot_format)
         if plot_image_valid:
             plt.figure()
             plt.imshow(np.abs(data[0]), origin='lower', vmin=0, vmax=np.max(np.abs(data)),
