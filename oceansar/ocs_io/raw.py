@@ -239,6 +239,8 @@ class RawFile(NETCDFHandler):
             rg_sampling.units = '[Hz]'
             rg_bw = self.__file__.createVariable('rg_bw', 'f8')
             rg_bw.units = '[Hz]'
+            sr_pt = self.__file__.createVariable('sr_pt', 'f8', ('az_dim',))
+            sr_pt.units = '[m]'
             b_ati = self.__file__.createVariable('b_ati', 'f8', 'ch_dim')
             b_ati.units = '[m]'
             b_xti = self.__file__.createVariable('b_xti', 'f8', 'ch_dim')
