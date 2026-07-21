@@ -538,7 +538,7 @@ def dopsca_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
 
     # Filter and decimate
     #range_filter = np.ones_like(total_raw)
-    #range_filter[:, :, rg_samp/(2*2*cfg.sar.over_fs):-rg_samp/(2*2*cfg.sar.over_fs)] = 0
+    #range_filter[:, :, rg_samp/(2*2*cfg.mode.over_fs):-rg_samp/(2*2*cfg.mode.over_fs)] = 0
 
     #total_raw = np.fft.ifft(range_filter*np.fft.fft(total_raw))
     if do_hh:

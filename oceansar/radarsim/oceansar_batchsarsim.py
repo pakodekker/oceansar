@@ -71,7 +71,7 @@ def batch_sarsim(template_file):
                             cfg.ocean.wind_dir = wind_dir
                             cfg.ocean.current_mag = current_mag
                             cfg.ocean.current_dir = current_dir
-                            cfg.sar.inc_angle = inc_angle
+                            cfg.mode.inc_angle = inc_angle
 
                             if not os.path.exists(cfg.sim.path):
                                 os.makedirs(cfg.sim.path)
@@ -87,7 +87,7 @@ def postprocess_batch_sim(template_file, plots=True, fontsize=14, pltsymb = ['o'
     cfg_file = utils.get_parFile(parfile=template_file)
     ref_cfg = osrio.ConfigFile(cfg_file)
     step = 0
-    npol = (2 if ref_cfg.sar.pol == 'DP' else 1)
+    npol = (2 if ref_cfg.mode.pol == 'DP' else 1)
     nch = int(ref_cfg.sar.num_ch)
     nim = nch * npol
 

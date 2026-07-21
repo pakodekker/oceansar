@@ -36,7 +36,7 @@ def make_geohistory(cfg, inc_angle, fit_half_span=1.0):
     t_analysis = max(
         2.0 * fit_half_span + 2.0,
         calc_analysis_time(
-            alt, inc_angle, cfg.sar.f0, cfg.sar.prf, n_amb=1))
+            alt, inc_angle, cfg.sar.f0, cfg.mode.prf, n_amb=1))
     return GeoHistory(
         cfg,
         latitude=10,
@@ -478,18 +478,18 @@ def sar_focus(cfg_file, raw_output_file, output_file):
 
     # SAR
     f0 = cfg.sar.f0
-    prf = cfg.sar.prf
+    prf = cfg.mode.prf
     num_ch = cfg.sar.num_ch
     alt = cfg.sar.alt
     v_ground = cfg.sar.v_ground
-    rg_bw = cfg.sar.rg_bw
-    over_fs = cfg.sar.over_fs
+    rg_bw = cfg.mode.rg_bw
+    over_fs = cfg.mode.over_fs
 
     # CALCULATE PARAMETERS
     l0 = const.c / f0
     if v_ground == 'auto':
         v_ground = geo.orbit_to_vel(
-            alt, ground=True, inc=np.deg2rad(cfg.sar.inc_angle))
+            alt, ground=True, inc=np.deg2rad(cfg.mode.inc_angle))
     rg_sampling = rg_bw * over_fs
 
     # RAW DATA
@@ -763,17 +763,17 @@ def ross_sar_focus(cfg_file, reconstruct_raw_output_file, output_file):
 
     # SAR
     f0 = cfg.sar.f0
-    prf = cfg.sar.prf
+    prf = cfg.mode.prf
     alt = cfg.sar.alt
     v_ground = cfg.sar.v_ground
-    rg_bw = cfg.sar.rg_bw
-    over_fs = cfg.sar.over_fs
+    rg_bw = cfg.mode.rg_bw
+    over_fs = cfg.mode.over_fs
 
     # CALCULATE PARAMETERS
     l0 = const.c / f0
     if v_ground == 'auto':
         v_ground = geo.orbit_to_vel(
-            alt, ground=True, inc=np.deg2rad(cfg.sar.inc_angle))
+            alt, ground=True, inc=np.deg2rad(cfg.mode.inc_angle))
     rg_sampling = rg_bw * over_fs
 
     # RAW DATA

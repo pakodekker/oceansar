@@ -95,9 +95,9 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
     use_lut = cfg.srg.use_lut 
     simpar = {}
     # SAR
-    inc_angle = np.deg2rad(cfg.sar.inc_angle)
+    inc_angle = np.deg2rad(cfg.mode.inc_angle)
     f0 = cfg.sar.f0
-    pol = cfg.sar.pol
+    pol = cfg.mode.pol
     simpar['pol'] = pol
     simpar['f0'] = f0
     squint_r = np.degrees(cfg.sar.squint)
@@ -111,14 +111,14 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
         do_hh = False
         do_vv = True
 
-    prf = cfg.sar.prf
+    prf = cfg.mode.prf
     simpar['prf'] = prf
     num_ch = int(cfg.sar.num_ch)
     #ant_L = cfg.sar.ant_L
     alt = cfg.orbit.Horb
     v_ground = cfg.sar.v_ground
-    rg_bw = cfg.sar.rg_bw
-    over_fs = cfg.sar.over_fs
+    rg_bw = cfg.mode.rg_bw
+    over_fs = cfg.mode.over_fs
     simpar['Fs'] = rg_bw * over_fs
     sigma_n_tx = cfg.sar.sigma_n_tx
     phase_n_tx = np.deg2rad(cfg.sar.phase_n_tx)
@@ -325,7 +325,7 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
         #ellipsoid=ellipsoid,
         #orb_type=orb_type,
         t_analysis = simpar["t_span"] + calc_analysis_time(cfg.orbit.Horb, inc_angle,
-                                                    cfg.sar.f0, cfg.sar.prf,
+                                                    cfg.sar.f0, cfg.mode.prf,
                                                     n_amb=1)
 
     )
@@ -760,7 +760,7 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
 
     # Filter and decimate
     #range_filter = np.ones_like(total_raw)
-    #range_filter[:, :, rg_samp/(2*2*cfg.sar.over_fs):-rg_samp/(2*2*cfg.sar.over_fs)] = 0
+    #range_filter[:, :, rg_samp/(2*2*cfg.mode.over_fs):-rg_samp/(2*2*cfg.mode.over_fs)] = 0
 
     #total_raw = np.fft.ifft(range_filter*np.fft.fft(total_raw))
     if do_hh:

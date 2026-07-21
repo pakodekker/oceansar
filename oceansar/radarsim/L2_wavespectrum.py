@@ -319,16 +319,16 @@ def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file, xvmax=1
     cfg = tpio.ConfigFile(cfg_file)
 
     # SAR
-    inc_angle = np.deg2rad(cfg.sar.inc_angle)
+    inc_angle = np.deg2rad(cfg.mode.inc_angle)
     f0 = cfg.sar.f0
-    prf = cfg.sar.prf
+    prf = cfg.mode.prf
     num_ch = cfg.sar.num_ch
     # ant_L = cfg.sar.ant_L
     alt = cfg.sar.alt
     v_ground = cfg.sar.v_ground
-    rg_bw = cfg.sar.rg_bw
-    over_fs = cfg.sar.over_fs
-    pol = cfg.sar.pol
+    rg_bw = cfg.mode.rg_bw
+    over_fs = cfg.mode.over_fs
+    pol = cfg.mode.pol
     if pol == 'DP':
         polt = ['hh', 'vv']
     elif pol == 'hh':
@@ -478,7 +478,7 @@ def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file, xvmax=1
     ## Wave spectra computation
     ## Processed Doppler bandwidth
     proc_bw = cfg.processing.doppler_bw
-    PRF = cfg.sar.prf
+    PRF = cfg.mode.prf
     fa = sp.fft.fftfreq(proc_data_rshp[1], 1/PRF)
     # Filters
     sublook_filt = []

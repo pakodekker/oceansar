@@ -40,11 +40,11 @@ def surface_rel(cfg_file=None, inc_deg=None, ntimes=2, t_step=10e-3):
     scat_bragg_spread = cfg.srg.scat_bragg_spread
 
     # SAR
-    inc_angle = np.deg2rad(cfg.sar.inc_angle)
+    inc_angle = np.deg2rad(cfg.mode.inc_angle)
     alt = cfg.sar.alt
     f0 = cfg.sar.f0
-    prf = cfg.sar.prf
-    pol = cfg.sar.pol
+    prf = cfg.mode.prf
+    pol = cfg.mode.pol
     l0 = const.c / f0
     k0 = 2.*np.pi*f0/const.c
     if pol == 'DP':

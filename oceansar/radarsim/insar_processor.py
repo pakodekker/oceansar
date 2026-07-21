@@ -52,7 +52,7 @@ def insar_process(cfg_file, proc_output_file, ocean_file, output_file):
     ## CONFIGURATION FILE
     cfg = tpio.ConfigFile(cfg_file)
 
-    pol = cfg.sar.pol
+    pol = cfg.mode.pol
     if pol == 'DP':
         polt = ['hh', 'vv']
     elif pol == 'hh':

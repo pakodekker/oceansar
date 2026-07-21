@@ -28,3 +28,5 @@ oceansar.egg-info/requires.txt
 oceansar.egg-info/SOURCES.txt
 oceansar.egg-info/top_level.txt
 oceansar.egg-info/PKG-INFO
+oceansar/scatstats/__pycache__/radar_stats.cpython-314.pyc
+oceansar/scatstats/__pycache__/surface_stats.cpython-314.pyc

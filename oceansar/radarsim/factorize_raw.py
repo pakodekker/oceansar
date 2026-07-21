@@ -18,7 +18,7 @@ def _next_divisor_at_least(value, minimum):
 
 def factorize_raw_params(cfg, params, surface, info, internal_oversampling=8):
     factorize = cfg.srg.factorize
-    prf = cfg.sar.prf
+    prf = cfg.mode.prf
     if factorize:
             info.msg("Factorizing raw data generation", importance=2)
             # We will compute less surface realizations

@@ -52,7 +52,7 @@ def ati_process(cfg_file, insar_output_file, ocean_file, output_file):
     cfg = tpio.ConfigFile(cfg_file)
 
     # SAR
-    pol = cfg.sar.pol
+    pol = cfg.mode.pol
     if pol == 'DP':
         polt = ['hh', 'vv']
     elif pol == 'hh':
