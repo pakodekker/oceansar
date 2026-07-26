@@ -90,16 +90,35 @@ def insar_process(cfg_file, proc_output_file, ocean_file, output_file):
     rg_sampling = proc_content.get('rg_sampling')
     v_ground = proc_content.get('v_ground')
     alt = proc_content.get('orbit_alt')
+    if 'v_orbit' in proc_content.__file__.variables:
+        v_orbit = np.asarray(proc_content.get('v_orbit')).item()
+    else:
+        v_orbit = geosar.orbit_to_vel(alt, ground=False)
+        print(
+            "SLC has no v_orbit metadata; using circular-orbit "
+            "approximation: %.3f m/s" % v_orbit)
+    if 'sin_az' in proc_content.__file__.variables:
+        sin_az = np.asarray(proc_content.get('sin_az')).ravel()
+    else:
+        sin_az = None
+    if 'reramp' in proc_content.__file__.variables:
+        reramp = bool(np.asarray(proc_content.get('reramp')).item())
+    else:
+        reramp = bool(getattr(cfg.processing, 'reramp', True))
+    operation_mode = getattr(cfg.mode, 'mode', 'stripmap').lower()
     inc_angle = np.deg2rad(proc_content.get('inc_angle'))
     # print(f"Read inc_angle from proc file: {np.rad2deg(inc_angle)}")
     proc_content.close()
+    if operation_mode == 'scansar' and reramp:
+        raise ValueError(
+            "ScanSAR InSAR coregistration requires reramp=False")
 
     ## CALCULATE PARAMETERS
     if v_ground == 'auto':
         v_ground = geosar.orbit_to_vel(
             alt, ground=True, inc=inc_angle)
-    v_orbit = geosar.orbit_to_vel(alt, ground=False)
     k0 = 2.*np.pi*f0/const.c
+    print("Orbital velocity used for coregistration: %.3f m/s" % v_orbit)
 
 
     # OCEAN SURFACE
@@ -162,6 +181,9 @@ def insar_process(cfg_file, proc_output_file, ocean_file, output_file):
     az_span = surface.Ly
     rg_size = proc_data[0].shape[2]
     az_size = proc_data[0].shape[1]
+    if sin_az is not None and sin_az.size != az_size:
+        raise ValueError(
+            "SLC sin_az metadata does not match its azimuth dimension")
 
     # Note: RG is projected, so plots are Ground Range
     rg_min = 0
@@ -192,9 +214,9 @@ def insar_process(cfg_file, proc_output_file, ocean_file, output_file):
         print('Not enough edge-effect free image')
         return
 
-    # The along-track baseline is traversed at the platform velocity. Convert
-    # its time delay to focused-image azimuth samples using the PRF.
-    inter_chan_shift_dist = b_ati / (v_orbit/prf)
+    # b_ati is the receive-antenna separation. In quasi-monostatic SAR the
+    # effective phase-center displacement is half this baseline.
+    inter_chan_shift_dist = 0.5 * b_ati / (v_orbit/prf)
     # Subsample shift in azimuth
     for chind in range(proc_data.shape[0]):
         shift_dist = - inter_chan_shift_dist[chind]
@@ -215,6 +237,24 @@ def insar_process(cfg_file, proc_output_file, ocean_file, output_file):
         for ch in range(num_ch):
             flattening_phasor[ch, 0, 0, :] = np.exp(1j * k0 * b_xti[ch] * flatearth_dinc)
         proc_data = proc_data * flattening_phasor
+        if operation_mode == 'scansar':
+            # ScanSAR uses a common aperture center, so the along-track
+            # baseline phase varies systematically across output azimuth.
+            print(
+                "Applying ScanSAR azimuth flat-earth correction "
+                "in deramped coordinates")
+            if sin_az is None:
+                azimuth_position = (
+                    az0 + np.arange(az_size) * v_ground/prf)
+                sin_az = azimuth_position / np.sqrt(
+                    sr0**2 + azimuth_position**2)
+                print(
+                    "SLC has no sin_az metadata; using a small-angle "
+                    "ScanSAR flattening approximation")
+            for ch in range(num_ch):
+                proc_data[ch] *= np.exp(
+                    1j * k0 * b_ati[ch] * sin_az
+                )[np.newaxis, :, np.newaxis]
     # First dimension is number of channels, second is number of pols
     ch_dim = proc_data.shape[0:2]
     npol = ch_dim[1]
@@ -257,6 +297,7 @@ def insar_process(cfg_file, proc_output_file, ocean_file, output_file):
     l1b_file.set('num_ch', num_ch)
     l1b_file.set('az_sampling', prf)
     l1b_file.set('v_ground', v_ground)
+    l1b_file.set('v_orbit', v_orbit)
     l1b_file.set('orbit_alt', alt)
     l1b_file.set('sr0', sr0)
     l1b_file.set('rg_sampling', rg_sampling)

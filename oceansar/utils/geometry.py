@@ -43,6 +43,29 @@ def inc_to_sr(theta_i, orbit_alt, r_planet=const.r_earth):
                    (r_planet * np.sin(delta_theta))**2)
 
 
+def geohistory_ground_velocity(ghist, look_angle):
+    """Return the local speed of a GeoHistory ground intersection."""
+    look_angles = np.asarray(ghist._la_vector)
+    look_angle = np.asarray(look_angle).item()
+    if look_angle < look_angles[0] or look_angle > look_angles[-1]:
+        raise ValueError("Look angle is outside the GeoHistory grid")
+
+    upper = np.searchsorted(look_angles, look_angle)
+    upper = np.clip(upper, 1, look_angles.size - 1)
+    lower = upper - 1
+    weight = (
+        (look_angle - look_angles[lower])
+        / (look_angles[upper] - look_angles[lower])
+    )
+    ground_track = (
+        (1.0 - weight) * ghist.icps[:, lower, :]
+        + weight * ghist.icps[:, upper, :]
+    )
+    ground_velocity = interpolate.CubicSpline(
+        ghist.t, ground_track, axis=0).derivative()(0.0)
+    return np.linalg.norm(ground_velocity)
+
+
 def inc_to_gr(theta_i, orbit_alt, r_planet=const.r_earth):
     """ Calculates incidence angle given ground range
 

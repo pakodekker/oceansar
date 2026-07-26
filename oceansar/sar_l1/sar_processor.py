@@ -70,6 +70,21 @@ def estimate_effective_velocity(cfg, inc_angle, fit_half_span=1.0, ghist=None):
     return np.sqrt(2.0 * range_zero * curvature)
 
 
+def mean_orbital_velocity(ghist):
+    """Return the mean ECEF speed represented by a GeoHistory trajectory."""
+    return np.mean(np.linalg.norm(ghist.v_ecef, axis=1))
+
+
+def geohistory_azimuth_sine(ghist, look_angle, azimuth_position,
+                            v_ground):
+    """Return the raw-generator azimuth look sine on an image grid."""
+    target_time = -np.asarray(azimuth_position)/v_ground
+    return np.flip(
+        ghist.t2u_spl(look_angle, np.flip(target_time)),
+        axis=1,
+    ).T.ravel()
+
+
 def scene_coordinates(cfg):
     """Return the optimized raw-generator scene coordinates."""
     nx = int(cfg.ocean.Lx/cfg.ocean.dx)
@@ -674,15 +689,11 @@ def sar_focus(cfg_file, raw_output_file, output_file):
     prf = cfg.mode.prf
     num_ch = cfg.sar.num_ch
     alt = cfg.sar.alt
-    v_ground = cfg.sar.v_ground
     rg_bw = cfg.mode.rg_bw
     over_fs = cfg.mode.over_fs
 
     # CALCULATE PARAMETERS
     l0 = const.c / f0
-    if v_ground == 'auto':
-        v_ground = geo.orbit_to_vel(
-            alt, ground=True, inc=np.deg2rad(cfg.mode.inc_angle))
     rg_sampling = rg_bw * over_fs
 
     # RAW DATA
@@ -690,6 +701,7 @@ def sar_focus(cfg_file, raw_output_file, output_file):
     raw_data = raw_file.get('raw_data*')
     sr0 = raw_file.get('sr0')
     az0 = raw_file.get('az0')
+    v_ground = raw_file.get('v_ground')
     inc_angle = raw_file.get('inc_angle')
     b_ati = raw_file.get('b_ati')
     b_xti = raw_file.get('b_xti')
@@ -700,9 +712,12 @@ def sar_focus(cfg_file, raw_output_file, output_file):
     inc_angle_rad = np.asarray(np.deg2rad(inc_angle)).item()
     ghist = make_geohistory(cfg, inc_angle_rad)
     v_eff = estimate_effective_velocity(cfg, inc_angle_rad, ghist=ghist)
+    v_orbit = mean_orbital_velocity(ghist)
     _, look_focus, _ = reference_point_geometry(cfg, inc_angle_rad)
     point_targets = point_target_geometry(cfg, inc_angle_rad)
     print("Effective focusing velocity: %.3f m/s" % v_eff)
+    print("Mean GeoHistory orbital velocity: %.3f m/s" % v_orbit)
+    print("Ground velocity read from raw data: %.3f m/s" % v_ground)
     print("Range-dependent azimuth compression: %s" %
           range_dependent_azimuth)
     print("SAR operating mode: %s" % operation_mode)
@@ -895,6 +910,10 @@ def sar_focus(cfg_file, raw_output_file, output_file):
     # Save processed data
     slc = np.array(slc, dtype=complex)
     print("Shape of SLC: " + str(slc.shape), flush=True)
+    output_azimuth = (
+        output_az0 + np.arange(slc.shape[2]) * v_ground/prf)
+    output_sin_az = geohistory_azimuth_sine(
+        ghist, look_focus, output_azimuth, v_ground)
     proc_file = tpio.ProcFile(output_file, 'w', slc.shape)
     proc_file.set('slc*', slc)
     proc_file.set('inc_angle', inc_angle)
@@ -903,7 +922,10 @@ def sar_focus(cfg_file, raw_output_file, output_file):
     proc_file.set('ant_L', ant_l_tx)
     proc_file.set('prf', prf)
     proc_file.set('v_ground', v_ground)
+    proc_file.set('v_orbit', v_orbit)
     proc_file.set('az0', output_az0)
+    proc_file.set('reramp', reramp)
+    proc_file.set('sin_az', output_sin_az)
     proc_file.set('orbit_alt', alt)
     proc_file.set('sr0', sr0)
     proc_file.set('rg_sampling', rg_bw*over_fs)
@@ -945,15 +967,11 @@ def ross_focus(cfg_file, reconstruct_raw_output_file, output_file):
     f0 = cfg.sar.f0
     prf = cfg.mode.prf
     alt = cfg.sar.alt
-    v_ground = cfg.sar.v_ground
     rg_bw = cfg.mode.rg_bw
     over_fs = cfg.mode.over_fs
 
     # CALCULATE PARAMETERS
     l0 = const.c / f0
-    if v_ground == 'auto':
-        v_ground = geo.orbit_to_vel(
-            alt, ground=True, inc=np.deg2rad(cfg.mode.inc_angle))
     rg_sampling = rg_bw * over_fs
 
     # RAW DATA
@@ -961,12 +979,21 @@ def ross_focus(cfg_file, reconstruct_raw_output_file, output_file):
     raw_data = raw_file.get('raw_data*')
     sr0 = raw_file.get('sr0')
     az0 = raw_file.get('az0')
+    v_ground = raw_file.get('v_ground')
     inc_angle = raw_file.get('inc_angle')
     # b_ati = raw_file.get('b_ati')
     # b_xti = raw_file.get('b_xti')
     raw_file.close()
-    v_eff = estimate_effective_velocity(cfg, np.deg2rad(inc_angle))
+    ghist = make_geohistory(cfg, np.deg2rad(inc_angle))
+    v_eff = estimate_effective_velocity(
+        cfg, np.deg2rad(inc_angle), ghist=ghist)
+    v_orbit = mean_orbital_velocity(ghist)
+    _, look_focus, _ = reference_point_geometry(
+        cfg, np.deg2rad(inc_angle))
     print("Effective focusing velocity: %.3f m/s" % v_eff)
+    print("Mean GeoHistory orbital velocity: %.3f m/s" % v_orbit)
+    print("Ground velocity read from reconstructed raw data: %.3f m/s"
+          % v_ground)
 
     # OTHER INITIALIZATIONS
     # Create plots directory
@@ -1081,6 +1108,11 @@ def ross_focus(cfg_file, reconstruct_raw_output_file, output_file):
     # Save processed data
     slc = np.array(slc, dtype=complex)
     print("Shape of SLC: " + str(slc.shape), flush=True)
+    output_az0 = az0 + n_val_az_2*(v_ground/prf)
+    output_azimuth = (
+        output_az0 + np.arange(slc.shape[2]) * v_ground/prf)
+    output_sin_az = geohistory_azimuth_sine(
+        ghist, look_focus, output_azimuth, v_ground)
     proc_file = tpio.ProcFile(output_file, 'w', slc.shape)
     proc_file.set('slc*', slc)
     proc_file.set('inc_angle', inc_angle)
@@ -1088,7 +1120,11 @@ def ross_focus(cfg_file, reconstruct_raw_output_file, output_file):
     proc_file.set('ant_L', ant_l_tx)
     proc_file.set('prf', prf)
     proc_file.set('v_ground', v_ground)
-    proc_file.set('az0', az0+n_val_az_2*(v_ground/prf))
+    proc_file.set('v_orbit', v_orbit)
+    proc_file.set('az0', output_az0)
+    proc_file.set(
+        'reramp', getattr(cfg.processing, 'reramp', True))
+    proc_file.set('sin_az', output_sin_az)
     proc_file.set('orbit_alt', alt)
     proc_file.set('sr0', sr0)
     proc_file.set('rg_sampling', rg_bw*over_fs)

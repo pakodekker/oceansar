@@ -90,6 +90,13 @@ def ati_process(cfg_file, insar_output_file, ocean_file, output_file):
     rg_sampling = insar_data.get('rg_sampling')
     v_ground = insar_data.get('v_ground')
     alt = insar_data.get('orbit_alt')
+    if 'v_orbit' in insar_data.__file__.variables:
+        v_orbit = np.asarray(insar_data.get('v_orbit')).item()
+    else:
+        v_orbit = geosar.orbit_to_vel(alt, ground=False)
+        print(
+            "InSAR file has no v_orbit metadata; using circular-orbit "
+            "approximation: %.3f m/s" % v_orbit)
     # inc_angle = np.deg2rad(insar_data.get('inc_angle'))
     # print("Incidence angle: %f deg" % (np.rad2deg(inc_angle)))
     rg_ml = insar_data.get('rg_ml')
@@ -98,6 +105,7 @@ def ati_process(cfg_file, insar_output_file, ocean_file, output_file):
 
     # CALCULATE PARAMETERS
     k0 = 2.*np.pi*f0/const.c
+    print("Orbital velocity used for ATI timing: %.3f m/s" % v_orbit)
 
     # OCEAN SURFACE
     surface = OceanSurface()
@@ -236,7 +244,9 @@ def ati_process(cfg_file, insar_output_file, ocean_file, output_file):
 
     # ATI PHASE
 
-    tau_ati = b_ati/v_ground
+    # b_ati is the receive-antenna separation; the quasi-monostatic phase
+    # centers are separated by half that distance.
+    tau_ati = 0.5*b_ati/v_orbit
 
     ati_phases = []
     # Hack to avoid interferogram computation if there are no interferometric channels

@@ -40,7 +40,11 @@ from oceansar.radarsim import range_profile as raw
 
 from oceansar.surfaces import OceanSurface #, OceanSurfaceBalancer
 from oceansar.swell_spec import dir_swell_spec as s_spec
-from oceansar.radarsim.factorize_raw import factorize_raw_params, aggregate_factorized_raw
+from oceansar.radarsim.factorize_raw import (
+    aggregate_factorized_raw,
+    factorize_raw_params,
+    nominal_raw_time_span,
+)
 
 
 def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
@@ -301,13 +305,14 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
     simpar['b_xti'] = b_xti
     k0_b_xti = k0 * b_xti
 
-    if v_ground == 'auto':
-        v_ground = geosar.orbit_to_vel(alt, ground=True, inc=inc_angle)
-    simpar['v_ground'] = v_ground
-    # t_step = 1./prf
-    # t_span = (1.5*(sr0*l0/ant_l_tx) + surface.Ly)/v_ground
-    # az_steps = int(np.floor(t_span/t_step))
-    simpar = factorize_raw_params(cfg, simpar, surface, info)
+    derive_v_ground = v_ground == 'auto'
+    if derive_v_ground:
+        provisional_v_ground = geosar.orbit_to_vel(
+            alt, ground=True, inc=inc_angle)
+    else:
+        provisional_v_ground = v_ground
+    simpar['v_ground'] = provisional_v_ground
+    provisional_t_span = nominal_raw_time_span(cfg, simpar, surface)
     ghist = GeoHistory(
         cfg,
         #tilt=txcnf.tilt,
@@ -324,20 +329,32 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
         aei=None,
         #ellipsoid=ellipsoid,
         #orb_type=orb_type,
-        t_analysis = simpar["t_span"] + calc_analysis_time(cfg.orbit.Horb, inc_angle,
-                                                    cfg.sar.f0, cfg.mode.prf,
-                                                    n_amb=1)
+        # The extra two seconds make this conservative with respect to the
+        # provisional circular-orbit ground velocity.
+        t_analysis=provisional_t_span + 2.0 + calc_analysis_time(
+            cfg.orbit.Horb, inc_angle, cfg.sar.f0, cfg.mode.prf, n_amb=1)
 
     )
     # recompute sr using ghist
     sr = ghist.sr_spl(la, 0).flatten()
     simpar['sr0'] = sr[0]
+    sr0 = simpar['sr0']
     sr_near = sr[0] - wh_tol + const.c / 2 / (rg_sampling)
     simpar['sr_near'] = sr_near
     sr = sr - np.min(sr)
     sr = sr.reshape(1, sr.size)
-    #print("SR difference between geosar and geohistory: %f m" % (np.max(np.abs(sr.flatten()-sr.flatten()))))
-    #simpar['v_ground'] = ghist.v_ground
+    if derive_v_ground:
+        v_ground = geosar.geohistory_ground_velocity(
+            ghist, la[la.size // 2])
+        info.msg(
+            "GeoHistory ground velocity: %.3f m/s "
+            "(provisional value: %.3f m/s)"
+            % (v_ground, provisional_v_ground),
+            importance=2)
+    else:
+        v_ground = provisional_v_ground
+    simpar['v_ground'] = v_ground
+    simpar = factorize_raw_params(cfg, simpar, surface, info)
     # Get range of azimut angles to intialize Bragg model..
     # TODO 
     # angular range
@@ -411,6 +428,9 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
         info.msg("Surface grid coherence time: %f s" % (tau_c))
         rndscat_p = closure.randomscat_ts(tau_c, (surface.Ny, surface.Nx), 1/simpar["t_step"])
         rndscat_m = closure.randomscat_ts(tau_c, (surface.Ny, surface.Nx), 1/simpar["t_step"])
+        if cfg.ocean.frozen_ocean:
+            bragg_scats[0] = rndscat_m.scats(0.0)
+            bragg_scats[1] = rndscat_p.scats(0.0)
         # NOTE: This ignores slope, may be changed
         k_b = 2.*k0*sin_inc
         c_b = sin_inc*np.sqrt(const.g/k_b + 0.072e-3*k_b)
@@ -582,7 +602,14 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
 
         # Bragg
         if scat_bragg_enable:
-            if (t_now - t_last_rcs_bragg) > ocean_dt:
+            update_bragg_rcs = (
+                t_last_rcs_bragg < 0
+                or (
+                    not cfg.ocean.frozen_ocean
+                    and (t_now - t_last_rcs_bragg) > ocean_dt
+                )
+            )
+            if update_bragg_rcs:
 
                 if scat_bragg_model == 'romeiser97':
                     if pol == 'DP':
@@ -622,11 +649,17 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
 
             # Doppler phases (Note: Bragg radial velocity taken constant!)
             surf_phase = - (2 * k0) * sr_surface
-            cap_phase = (2 * k0) * simpar["t_step"] * c_b * (az_step + 1)
+            if cfg.ocean.frozen_ocean:
+                cap_phase = 0.0
+            else:
+                cap_phase = (
+                    (2 * k0) * simpar["t_step"] * c_b * (az_step + 1)
+                )
             phase_bragg[0] = surf_phase - cap_phase # + dop_phase_p
             phase_bragg[1] = surf_phase + cap_phase # + dop_phase_m
-            bragg_scats[0] = rndscat_m.scats(t_now)
-            bragg_scats[1] = rndscat_p.scats(t_now)
+            if not cfg.ocean.frozen_ocean:
+                bragg_scats[0] = rndscat_m.scats(t_now)
+                bragg_scats[1] = rndscat_p.scats(t_now)
             if do_hh:
                 scene_hh += ne.evaluate('sum(scat_bragg_hh * exp(1j*phase_bragg) * bragg_scats, axis=0)')
             if do_vv:
@@ -647,7 +680,11 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
             scene_hh *= beam_pattern
         if do_vv:
             scene_vv *= beam_pattern
-        for ch in np.arange(num_ch, dtype=int):   
+        for ch in np.arange(num_ch, dtype=int):
+            # Deliberately use a narrowband, phase-only baseline model. The
+            # corresponding sub-resolution range delay is omitted to control
+            # profile-generation cost. Revisit this approximation for large
+            # channel separations or wide bandwidths.
             if k0_b_xti[ch] == 0:
                 if k0_b_ati[ch] == 0:
                     chan_phase = 1.
@@ -756,6 +793,9 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
             np.arange(simpar["az_steps"]*simpar["n_pulses_b"])/simpar["n_pulses_b"],
             extrapolate=True)
         sr_pt_history = sr_pt_history + sr_surface_fct_full[:, sr_pt_block]
+        crop_start = simpar["az_crop_start"]
+        crop_stop = crop_start + simpar["output_az_steps"]
+        sr_pt_history = sr_pt_history[crop_start:crop_stop]
     info.msg('Processing and saving results...')
 
     # Filter and decimate
@@ -813,6 +853,17 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
         rshp = (1,) + NRCS_avg_vv.shape
         NRCS_avg = NRCS_avg_vv.reshape(rshp)
 
+    if cfg.srg.factorize:
+        full_az_steps = simpar["az_steps"] * simpar["n_pulses_b"]
+        NRCS_avg = drtls.linresample(
+            NRCS_avg,
+            np.arange(full_az_steps) / simpar["n_pulses_b"],
+            axis=1,
+            extrapolate=True)
+        crop_start = simpar["az_crop_start"]
+        crop_stop = crop_start + simpar["output_az_steps"]
+        NRCS_avg = NRCS_avg[:, crop_start:crop_stop]
+
     if do_vv:
         plt.figure()
         plt.imshow(np.abs(proc_raw_vv[0]),
@@ -842,7 +893,7 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
     raw_file.set('ant_L', ant_l_tx)
     raw_file.set('prf', prf)
     raw_file.set('v_ground', v_ground)
-    raw_file.set('az0', simpar['az0'])
+    raw_file.set('az0', simpar['output_az0'])
     raw_file.set('orbit_alt', alt)
     raw_file.set('sr0', sr_near)
     raw_file.set('rg_sampling', rg_bw*over_fs)
@@ -851,12 +902,9 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
         raise ValueError('sr_pt azimuth samples do not match raw az_dim')
     raw_file.set('sr_pt', sr_pt_history)
     raw_file.set('raw_data*', total_raw)
-    # abit of a hack
     if cfg.srg.factorize:
         info.msg(NRCS_avg.shape)
         info.msg(total_raw.shape)
-        NRCS_avg = drtls.linresample(NRCS_avg, np.arange(total_raw.shape[2])/simpar['n_pulses_b'], axis=1,
-                                     extrapolate=True)
     raw_file.set('NRCS_avg', NRCS_avg)
     raw_file.set('b_ati', b_ati)
     raw_file.set('b_xti', b_xti)

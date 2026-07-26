@@ -63,8 +63,15 @@ class ProcFile(NETCDFHandler):
             prf.units = '[Hz]'
             v_ground = self.__file__.createVariable('v_ground', 'f8')
             v_ground.units = '[m/s]'
+            v_orbit = self.__file__.createVariable('v_orbit', 'f8')
+            v_orbit.units = '[m/s]'
             az0 = self.__file__.createVariable('az0', 'f8')
             az0.units = '[m]'
+            reramp = self.__file__.createVariable('reramp', 'i1')
+            reramp.units = '[]'
+            sin_az = self.__file__.createVariable(
+                'sin_az', 'f8', ('az_dim',))
+            sin_az.units = '[]'
             orbit_alt = self.__file__.createVariable('orbit_alt', 'f8')
             orbit_alt.units = '[m]'
             sr0 = self.__file__.createVariable('sr0', 'f8')

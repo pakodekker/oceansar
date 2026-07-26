@@ -16,20 +16,29 @@ def _next_divisor_at_least(value, minimum):
     return value
 
 
-def factorize_raw_params(cfg, params, surface, info, internal_oversampling=8):
-    factorize = cfg.srg.factorize
-    prf = cfg.mode.prf
+def nominal_raw_time_span(cfg, params, surface):
+    """Return the requested acquisition duration before discretization."""
     operation_mode = getattr(cfg.mode, "mode", "stripmap").lower()
     if operation_mode == "scansar":
         t_span = getattr(cfg.mode, "t_burst", None)
         if t_span is None or t_span <= 0:
             raise ValueError("ScanSAR mode requires a positive t_burst")
+        return t_span
+
+    return (
+        1.5 * params["sr0"] * params["l0"] / params["ant_l_tx"]
+        + surface.Ly) / params["v_ground"]
+
+
+def factorize_raw_params(cfg, params, surface, info, internal_oversampling=8,
+                         scansar_guard_coarse_samples=2):
+    factorize = cfg.srg.factorize
+    prf = cfg.mode.prf
+    operation_mode = getattr(cfg.mode, "mode", "stripmap").lower()
+    t_span = nominal_raw_time_span(cfg, params, surface)
+    if operation_mode == "scansar":
         info.msg("Using ScanSAR burst duration: %f s" % t_span,
                  importance=2)
-    else:
-        t_span = (
-            1.5 * params["sr0"] * params["l0"] / params["ant_l_tx"]
-            + surface.Ly) / params["v_ground"]
 
     if factorize:
         info.msg("Factorizing raw data generation", importance=2)
@@ -43,10 +52,30 @@ def factorize_raw_params(cfg, params, surface, info, internal_oversampling=8):
         params["t_step"] = 1./prf
         params["t_span"] = t_span
         params["az_steps"] = int(np.floor(t_span/params["t_step"]))
-        az_steps = int(np.ceil(params["az_steps"] / n_pulses_b)) + 1
+        requested_az_steps = params["az_steps"]
+        if operation_mode == "scansar":
+            az_steps = (
+                int(np.ceil(requested_az_steps / n_pulses_b))
+                + 2 * scansar_guard_coarse_samples
+            )
+        else:
+            az_steps = int(np.ceil(requested_az_steps / n_pulses_b)) + 1
         az_steps = sp.fft.next_fast_len(az_steps)
-        params["t_span"] = az_steps * n_pulses_b * params["t_step"]
+        full_az_steps = az_steps * n_pulses_b
+        params["t_span"] = full_az_steps * params["t_step"]
         params["t_step"] *= n_pulses_b
+        if operation_mode == "scansar":
+            params["output_az_steps"] = requested_az_steps
+            params["az_crop_start"] = (
+                full_az_steps - requested_az_steps + 1) // 2
+            info.msg(
+                "ScanSAR factorization guard: %d internal pulses; "
+                "keeping %d centered pulses"
+                % (full_az_steps, requested_az_steps),
+                importance=2)
+        else:
+            params["output_az_steps"] = full_az_steps
+            params["az_crop_start"] = 0
         # Doppler bandwidth for a given block-length
         ly2dop = (2 * params["v_ground"] / params["l0"]
                   / params["sr0"])
@@ -68,7 +97,13 @@ def factorize_raw_params(cfg, params, surface, info, internal_oversampling=8):
         params["t_step"] = 1./prf
         params["t_span"] = t_span
         params["az_steps"] = int(np.floor(t_span/params["t_step"]))
+        params["output_az_steps"] = params["az_steps"]
+        params["az_crop_start"] = 0
     params["az0"] = -params["t_span"]*params["v_ground"]/2
+    params["output_az0"] = (
+        params["az0"]
+        + params["az_crop_start"] / prf * params["v_ground"]
+    )
     return params
 
 
@@ -141,8 +176,12 @@ def aggregate_factorized_raw(proc_raw_hh, proc_raw_vv,
                 proc_raw_vv_block *=  range_phasor_b
                 proc_raw_vv_block = sp.fft.ifft(proc_raw_vv_block, axis=2, workers=workers)
                 proc_raw_vv_full +=  proc_raw_vv_block
+    crop_start = params["az_crop_start"]
+    crop_stop = crop_start + params["output_az_steps"]
     if do_hh:
-        proc_raw_hh_full = proc_raw_hh_full[:, 0:az_steps_out, :rg_samp]
-    if do_vv:        
-        proc_raw_vv_full = proc_raw_vv_full[:, 0:az_steps_out, :rg_samp]    
+        proc_raw_hh_full = proc_raw_hh_full[
+            :, crop_start:crop_stop, :rg_samp]
+    if do_vv:
+        proc_raw_vv_full = proc_raw_vv_full[
+            :, crop_start:crop_stop, :rg_samp]
     return proc_raw_hh_full, proc_raw_vv_full
