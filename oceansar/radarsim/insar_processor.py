@@ -165,11 +165,30 @@ def insar_process(cfg_file, proc_output_file, ocean_file, output_file):
 
     # Note: RG is projected, so plots are Ground Range
     rg_min = 0
-    rg_max = int(rg_span/(const.c/2./rg_sampling/np.sin(inc_angle)))
-    az_min = int((-az0 -az_span/2. + avg_az_shift)/(v_ground/prf))
-    az_max = int((-az0 + az_span/2. + avg_az_shift)/(v_ground/prf))
+    rg_max = int(np.ceil(
+        rg_span/(const.c/2./rg_sampling/np.sin(inc_angle))))
+    az_min = int(np.floor(
+        (-az0 - az_span/2. + avg_az_shift)/(v_ground/prf)))
+    az_max = int(np.ceil(
+        (-az0 + az_span/2. + avg_az_shift)/(v_ground/prf)))
+    requested_roi = (az_min, az_max, rg_min, rg_max)
+    az_min = int(np.clip(az_min, 0, az_size))
+    az_max = int(np.clip(az_max, 0, az_size))
+    rg_min = int(np.clip(rg_min, 0, rg_size))
+    rg_max = int(np.clip(rg_max, 0, rg_size))
+    roi_az_size = az_max - az_min
+    roi_rg_size = rg_max - rg_min
+    if roi_az_size <= 0 or roi_rg_size <= 0:
+        raise ValueError(
+            "The requested InSAR region does not overlap the focused SLC")
+    clipped_roi = (az_min, az_max, rg_min, rg_max)
+    if clipped_roi != requested_roi:
+        print(
+            "Clipped InSAR ROI to focused SLC bounds: "
+            "azimuth [%d:%d], range [%d:%d]"
+            % clipped_roi)
     az_guard = int(std_az_shift / (v_ground / prf))
-    if (az_max - az_min) < (2 * az_guard - 10):
+    if roi_az_size < (2 * az_guard - 10):
         print('Not enough edge-effect free image')
         return
 
@@ -226,7 +245,7 @@ def insar_process(cfg_file, proc_output_file, ocean_file, output_file):
             cohs.append(t_interf[az_min:az_max, rg_min:rg_max] /
                         np.sqrt(i_all[chind1] * i_all[chind2]))
     # coh_lut = coh_lut.reshape((num_ch, npol, num_ch, npol))
-    i_all = i_all.reshape(ch_dim + (az_max - az_min, rg_max - rg_min))
+    i_all = i_all.reshape(ch_dim + (roi_az_size, roi_rg_size))
     cohs = np.array(cohs)
     l1b_file = tpio.L1bFile(output_file, 'w', i_all.shape)
     l1b_file.set('ml_intensity', i_all)
