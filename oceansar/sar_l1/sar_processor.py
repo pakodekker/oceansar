@@ -445,12 +445,14 @@ def check_reference_range_history(cfg, ghist, inc_angle, raw_sr0, az0,
             plot_path, 'plot_range_history_check.%s' % plot_format))
         plt.close(fig)
 
-def stripmap_azimuth_focus(data, ph_ac, fa, doppler_bw,
-                           az_weighting, beam_pattern):
-    """Apply stripmap azimuth matched filtering and return the focused SLC."""
+def azimuth_common_band_filter(fa, doppler_bw, az_weighting):
+    """Return the normalized azimuth weighting on the FFT frequency grid."""
     az_size = fa.size
     doppler_spacing = fa[1] - fa[0]
     n_samp = 2 * (int(doppler_bw / doppler_spacing) // 2)
+    n_samp = min(n_samp, az_size)
+    if n_samp < 2:
+        raise ValueError("doppler_bw is too narrow for the azimuth grid")
 
     weighting = (
         az_weighting
@@ -466,23 +468,171 @@ def stripmap_azimuth_focus(data, ph_ac, fa, doppler_bw,
         padded_weighting[:n_samp] = weighting
         weighting = np.roll(padded_weighting, -n_samp // 2)
 
-    weighting = np.where(
-        np.abs(beam_pattern) > 0,
-        weighting / beam_pattern,
-        0,
+    return weighting
+
+
+def compensate_azimuth_antenna(data, beam_pattern):
+    """Compensate the antenna response in the original Doppler domain."""
+    compensation = np.zeros_like(beam_pattern, dtype=complex)
+    valid = np.abs(beam_pattern) > 0
+    compensation[valid] = 1.0 / beam_pattern[valid]
+    return data * compensation[np.newaxis, :, np.newaxis]
+
+
+def scansar_deramp_phase(az_size, slant_range, az0, prf,
+                         v_ground, v_eff, wavelength):
+    """Return the quadratic ScanSAR deramp phase in focused coordinates."""
+    azimuth_time = az0/v_ground + np.arange(az_size)/prf
+    doppler_rate = (
+        2*v_eff**2 / (wavelength*slant_range)
     )
+    return (
+        np.pi * azimuth_time[:, np.newaxis]**2
+        * doppler_rate[np.newaxis, :]
+    )
+
+
+def stripmap_azimuth_focus(data, ph_ac, common_band_filter):
+    """Apply stripmap azimuth matched filtering and return the focused SLC."""
+    az_size = data.shape[1]
 
     if ph_ac.ndim == 1:
         azimuth_filter = (
-            np.exp(1j * ph_ac) * weighting
+            np.exp(1j * ph_ac) * common_band_filter
         ).reshape((1, az_size, 1))
     else:
         azimuth_filter = (
             np.exp(1j * ph_ac)[np.newaxis, :, :]
-            * weighting.reshape((1, az_size, 1))
+            * common_band_filter.reshape((1, az_size, 1))
         )
 
     return np.fft.ifft(data * azimuth_filter, axis=1)
+
+
+def scansar_azimuth_focus(
+    data,
+    ph_ac,
+    deramp_phase,
+    common_band_filter=None,
+    *,
+    reramp=True,
+):
+    """Focus ScanSAR data using deramp-filter-reramp processing.
+
+    The input data are assumed to have already undergone any desired
+    antenna-pattern compensation.
+
+    Parameters
+    ----------
+    data : ndarray
+        RCMC-corrected data in azimuth-Doppler/range coordinates.
+
+        Expected shape:
+        ``(channel, azimuth, range)``.
+
+    ph_ac : ndarray
+        Azimuth matched-filter phase in the original Doppler domain.
+
+        Supported shapes:
+        ``(azimuth,)`` or ``(azimuth, range)``.
+
+    deramp_phase : ndarray
+        Phase removed in the focused azimuth/range domain before
+        transforming to the common baseband Doppler domain.
+
+        Supported shapes:
+        ``(azimuth,)`` or ``(azimuth, range)``.
+
+    common_band_filter : ndarray or None, optional
+        Filter applied in the deramped baseband Doppler domain.
+
+        Supported shapes:
+        ``(azimuth,)`` or ``(azimuth, range)``.
+
+        If None, no baseband filtering is applied. This is useful while
+        testing the deramp-reramp operation, although in normal ScanSAR
+        processing a common-band selection will generally be required.
+
+    reramp : bool, optional
+        If True, restore the removed azimuth phase before returning.
+        If False, return the focused data in deramped coordinates.
+
+    Returns
+    -------
+    ndarray
+        Focused ScanSAR data with the same shape as ``data``.
+    """
+    data = np.asarray(data)
+    ph_ac = np.asarray(ph_ac)
+    deramp_phase = np.asarray(deramp_phase)
+
+    if data.ndim != 3:
+        raise ValueError(
+            "data must have shape (channel, azimuth, range)"
+        )
+
+    az_size = data.shape[1]
+    range_size = data.shape[2]
+
+    def _broadcast_azimuth_quantity(quantity, name):
+        """Convert an azimuth quantity to broadcastable 3-D form."""
+        if quantity.ndim == 1:
+            if quantity.shape[0] != az_size:
+                raise ValueError(
+                    f"{name} has azimuth size {quantity.shape[0]}, "
+                    f"expected {az_size}"
+                )
+            return quantity[None, :, None]
+
+        if quantity.ndim == 2:
+            if quantity.shape != (az_size, range_size):
+                raise ValueError(
+                    f"{name} has shape {quantity.shape}, expected "
+                    f"({az_size}, {range_size})"
+                )
+            return quantity[None, :, :]
+
+        raise ValueError(
+            f"{name} must have shape (azimuth,) "
+            f"or (azimuth, range)"
+        )
+
+    ph_ac = _broadcast_azimuth_quantity(ph_ac, "ph_ac")
+    deramp_phase = _broadcast_azimuth_quantity(
+        deramp_phase,
+        "deramp_phase",
+    )
+
+    # 1. Apply the azimuth matched filter in the original Doppler domain.
+    azimuth_filter = np.exp(1j * ph_ac)
+
+    # 2. Transform to focused azimuth/range coordinates.
+    focused = np.fft.ifft(data * azimuth_filter, axis=1)
+
+    # 3. Remove the azimuth-dependent phase modulation.
+    deramp = np.exp(-1j * deramp_phase)
+    deramped = focused * deramp
+
+    # 4. Transform to the common baseband Doppler domain.
+    baseband_spectrum = np.fft.fft(deramped, axis=1)
+
+    # 5. Select the desired common Doppler band.
+    if common_band_filter is not None:
+        common_band_filter = _broadcast_azimuth_quantity(
+            np.asarray(common_band_filter),
+            "common_band_filter",
+        )
+        baseband_spectrum *= common_band_filter
+
+    # 6. Return to deramped azimuth/range coordinates.
+    result = np.fft.ifft(baseband_spectrum, axis=1)
+
+    # 7. Optionally restore the removed phase.
+    if reramp:
+        result *= np.conj(deramp)
+
+    return result
+
 
 def sar_focus(cfg_file, raw_output_file, output_file):
 
@@ -511,6 +661,11 @@ def sar_focus(cfg_file, raw_output_file, output_file):
     range_dependent_azimuth = (
         cfg.processing.range_dependent_azimuth
         if hasattr(cfg.processing, 'range_dependent_azimuth') else True)
+    reramp = getattr(cfg.processing, 'reramp', True)
+    operation_mode = getattr(cfg.mode, 'mode', 'stripmap').lower()
+    if operation_mode not in ('stripmap', 'scansar'):
+        raise ValueError(
+            "Unsupported SAR operating mode: %s" % operation_mode)
     add_point_target = (cfg.sim.add_point_target
                         if hasattr(cfg.sim, 'add_point_target') else False)
 
@@ -550,6 +705,7 @@ def sar_focus(cfg_file, raw_output_file, output_file):
     print("Effective focusing velocity: %.3f m/s" % v_eff)
     print("Range-dependent azimuth compression: %s" %
           range_dependent_azimuth)
+    print("SAR operating mode: %s" % operation_mode)
 
     # OTHER INITIALIZATIONS
     # Create plots directory
@@ -560,33 +716,57 @@ def sar_focus(cfg_file, raw_output_file, output_file):
 
     slc = []
     filter_cache = {}
+    output_az0 = None
 
     ########################
     # PROCESSING MAIN LOOP #
     ########################
     for ch in np.arange(num_ch):
 
-        # Optimize matrix sizes
+        # Build the azimuth processing grid. ScanSAR acquisition duration and
+        # image extent are independent, so center the burst in a grid large
+        # enough for the requested scene at the original PRF.
         az_size_orig, rg_size_orig = raw_data[0, ch].shape
         if ch == 0 and sr_pt is not None:
             check_reference_range_history(
                 cfg, ghist, inc_angle_rad, sr0, az0, prf, v_ground, f0,
                 sr_pt, az_size_orig, v_eff, plot_path=plot_path,
                 plot_format=plot_format, plot_save=plot_save)
-        optsize = utils.optimize_fftsize(raw_data[0, ch].shape)
+        if operation_mode == 'scansar':
+            output_az_size = max(
+                1, int(np.ceil(cfg.ocean.Ly * prf / v_ground)))
+            minimum_az_size = max(az_size_orig, output_az_size)
+        else:
+            output_az_size = None
+            minimum_az_size = az_size_orig
+        optsize = utils.optimize_fftsize(
+            (minimum_az_size, rg_size_orig))
         optsize = [raw_data.shape[0], optsize[0], optsize[1]]
         data = np.zeros(optsize, dtype=complex)
-        data[:, :raw_data[0, ch].shape[0],
-             :raw_data[0, ch].shape[1]] = raw_data[:, ch, :, :]
-
         az_size, rg_size = data.shape[1:]
+        if operation_mode == 'scansar':
+            az_insert_start = (az_size - az_size_orig) // 2
+        else:
+            az_insert_start = 0
+        az_insert_stop = az_insert_start + az_size_orig
+        data[:, az_insert_start:az_insert_stop,
+             :rg_size_orig] = raw_data[:, ch, :, :]
+        processing_az0 = (
+            az0 - az_insert_start * v_ground / prf)
+        if ch == 0 and operation_mode == 'scansar':
+            print(
+                "ScanSAR azimuth grid: %d burst samples, "
+                "%d FFT samples, %d output samples"
+                % (az_size_orig, az_size, output_az_size))
 
         # RCMC Correction
         print('Applying RCMC correction... [Channel %d/%d]' % (ch + 1, num_ch))
         fr = np.fft.fftfreq(rg_size, 1/rg_sampling)
     
         fa = np.fft.fftfreq(az_size, 1/prf)
-        ## Compensation of ANTENNA PATTERN
+        slant_range = (sr0 + np.arange(rg_size)
+                       * const.c/(2*rg_sampling))
+        # Antenna response in the original azimuth-Doppler domain.
         ## FIXME this will not work for a long separation betwen Tx and Rx!!!
         sin_az = fa * l0 / (2 * v_eff)
         if hasattr(cfg.sar, 'ant_L'):
@@ -609,14 +789,23 @@ def sar_focus(cfg_file, raw_output_file, output_file):
                 ghist, look_focus, fa, fr, f0,
                 rcmc_fa, ph_ac_reference)
             if range_dependent_azimuth:
-                slant_range = (sr0 + np.arange(rg_size)
-                               * const.c/(2*rg_sampling))
                 ph_ac = geohistory_range_azimuth_filter(
                     ghist, slant_range, fa, f0)
             else:
                 ph_ac = ph_ac_reference
-            filter_cache[filter_key] = (rcmc_fa, ph_src, ph_ac)
-        rcmc_fa, ph_src, ph_ac = filter_cache[filter_key]
+            common_band_filter = azimuth_common_band_filter(
+                fa, doppler_bw, az_weighting)
+            if operation_mode == 'scansar':
+                deramp_phase = scansar_deramp_phase(
+                    az_size, slant_range, processing_az0, prf,
+                    v_ground, v_eff, l0)
+            else:
+                deramp_phase = None
+            filter_cache[filter_key] = (
+                rcmc_fa, ph_src, ph_ac,
+                common_band_filter, deramp_phase)
+        (rcmc_fa, ph_src, ph_ac,
+         common_band_filter, deramp_phase) = filter_cache[filter_key]
         #rcmc_fa[:]=0
         data = np.fft.fft(np.fft.fft(data, axis=-1), axis=-2)
 
@@ -634,7 +823,7 @@ def sar_focus(cfg_file, raw_output_file, output_file):
 
         if plot_rcmc_time:
             rcmc_time = np.fft.ifft(data[0], axis=0)[
-                :az_size_orig, :rg_size_orig]
+                az_insert_start:az_insert_stop, :rg_size_orig]
             rcmc_time_max = np.max(np.abs(rcmc_time))
             plt.figure()
             plt.imshow(np.real(rcmc_time), vmin=-rcmc_time_max, vmax=rcmc_time_max, cmap='gray',
@@ -644,51 +833,48 @@ def sar_focus(cfg_file, raw_output_file, output_file):
         # Azimuth compression
         print(
             'Applying azimuth compression... [Channel %d/%d]' % (ch + 1, num_ch))
-        data = stripmap_azimuth_focus(data,
-                                      ph_ac,
-                                      fa,
-                                      doppler_bw,
-                                      az_weighting,
-                                      beam_pattern,
-                                      )
-        # n_samp = 2 * (int(doppler_bw / (fa[1] - fa[0])) / 2)
-        # weighting = (az_weighting -
-        #              (1. - az_weighting) * np.cos(2 * np.pi * np.linspace(0, 1., int(n_samp))))
-        # # Compensate amplitude loss
-
-        # L_win = np.sum(np.abs(weighting)**2) / weighting.size
-        # weighting /= np.sqrt(L_win)
-        # if fa.size > n_samp:
-        #     zeros = np.zeros(az_size)
-        #     zeros[0:int(n_samp)] = weighting
-        #     weighting = np.roll(zeros, int(-n_samp / 2))
-        # weighting = np.where(np.abs(beam_pattern) > 0, weighting/beam_pattern, 0)
-
-        # if ph_ac.ndim == 1:
-        #     azimuth_filter = (
-        #         np.exp(1j*ph_ac)*weighting).reshape((1, az_size, 1))
-        # else:
-        #     azimuth_filter = (np.exp(1j*ph_ac)[np.newaxis, :, :]
-        #                       * weighting.reshape((1, az_size, 1)))
-        # data = data*azimuth_filter
-
-        # data = np.fft.ifft(data, axis=1)
+        data = compensate_azimuth_antenna(data, beam_pattern)
+        if operation_mode == 'scansar':
+            data = scansar_azimuth_focus(
+                data,
+                ph_ac,
+                deramp_phase,
+                common_band_filter=common_band_filter,
+                reramp=reramp,
+            )
+        else:
+            data = stripmap_azimuth_focus(
+                data, ph_ac, common_band_filter)
 
         print('Finishing... [Channel %d/%d]' % (ch + 1, num_ch))
-        # Reduce to initial dimension
-        data = data[:, :int(az_size_orig), :int(rg_size_orig)]
+        data = data[:, :, :rg_size_orig]
 
-        # Removal of non valid samples
-        n_val_az_2 = np.floor(
-            doppler_bw / 2. / (2. * v_eff**2. / l0 / sr0) * prf / 2.) * 2.
-        # data = raw_data[ch, n_val_az_2:(az_size_orig - n_val_az_2 - 1), :]
-        data = data[:, int(n_val_az_2):int(az_size_orig - n_val_az_2 - 1), :]
+        # Stripmap requires an aperture-length edge crop. ScanSAR retains the
+        # scene-sized portion of the centered processing grid.
+        if operation_mode == 'scansar':
+            n_val_az_2 = 0
+            output_start = (az_size - output_az_size) // 2
+            output_stop = output_start + output_az_size
+            data = data[:, output_start:output_stop, :]
+            output_az0 = (
+                processing_az0 + output_start * v_ground / prf)
+        else:
+            n_val_az_2 = np.floor(
+                doppler_bw / 2.
+                / (2. * v_eff**2. / l0 / sr0)
+                * prf / 2.) * 2.
+            data = data[
+                :,
+                int(n_val_az_2):int(az_size_orig - n_val_az_2 - 1),
+                :,
+            ]
+            output_az0 = az0 + n_val_az_2 * v_ground / prf
         if add_point_target and plot_save:
             expected_targets = []
             for target_name, target_look, target_y in point_targets:
                 target_sr = ghist.sr_spl(target_look, 0.0).item()
                 expected_az = (
-                    (target_y - az0)*prf/v_ground - n_val_az_2)
+                    (target_y - output_az0)*prf/v_ground)
                 expected_rg = (target_sr - sr0)*2*rg_sampling/const.c
                 expected_targets.append(
                     (target_name, expected_az, expected_rg))
@@ -697,7 +883,7 @@ def sar_focus(cfg_file, raw_output_file, output_file):
         if plot_image_valid:
             plt.figure()
             plt.imshow(np.abs(data[0]), origin='lower', vmin=0, vmax=np.max(np.abs(data)),
-                       aspect=float(rg_size_orig) / float(az_size_orig),
+                       aspect=float(rg_size_orig) / float(data.shape[1]),
                        cmap='gray')
             plt.xlabel("Range")
             plt.ylabel("Azimuth")
@@ -717,7 +903,7 @@ def sar_focus(cfg_file, raw_output_file, output_file):
     proc_file.set('ant_L', ant_l_tx)
     proc_file.set('prf', prf)
     proc_file.set('v_ground', v_ground)
-    proc_file.set('az0', az0+n_val_az_2*(v_ground/prf))
+    proc_file.set('az0', output_az0)
     proc_file.set('orbit_alt', alt)
     proc_file.set('sr0', sr0)
     proc_file.set('rg_sampling', rg_bw*over_fs)
