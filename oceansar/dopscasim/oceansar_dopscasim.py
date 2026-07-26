@@ -22,7 +22,7 @@ from oceansar import ocs_io as osrio
 from oceansar import utils
 from oceansar.dopscasim.dopsca_raw import dopsca_raw
 from oceansar.dopscasim.dopsca_sys import dopsca_syssim
-# from oceansar.radarsim.sar_processor import sar_focus
+# from oceansar.sar_l1 import sar_focus
 # from oceansar.radarsim.ati_processor import ati_process
 # from oceansar.radarsim.insar_processor import insar_process
 # from oceansar.radarsim.L2_wavespectrum import l2_wavespectrum
@@ -127,5 +127,4 @@ if __name__ == '__main__':
         dopscasim()
     else:
         dopscasim(sys.argv[1])
-
 

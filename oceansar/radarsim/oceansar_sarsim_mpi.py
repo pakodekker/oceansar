@@ -32,6 +32,7 @@ def sarsim(cfg_file=None):
     # Create output directory if it doesnt exist already
     os.makedirs(cfg.sim.path, exist_ok=True)
     src_path = os.path.dirname(os.path.abspath(__file__))
+    sar_l1_path = os.path.join(os.path.dirname(src_path), 'sar_l1')
 
     # RAW
     if cfg.sim.raw_run:
@@ -61,7 +62,7 @@ def sarsim(cfg_file=None):
         print('Launching SAR RAW Processor...')
 
         returncode = subprocess.call([sys.executable,
-                                      src_path + os.sep + 'sar_processor.py',
+                                      sar_l1_path + os.sep + 'sar_processor.py',
                                       '-c', cfg.cfg_file_name,
                                       '-r', cfg.sim.path + os.sep + cfg.sim.raw_file,
                                       '-o', cfg.sim.path + os.sep + cfg.sim.proc_file])

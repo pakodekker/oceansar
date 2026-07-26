@@ -445,6 +445,44 @@ def check_reference_range_history(cfg, ghist, inc_angle, raw_sr0, az0,
             plot_path, 'plot_range_history_check.%s' % plot_format))
         plt.close(fig)
 
+def stripmap_azimuth_focus(data, ph_ac, fa, doppler_bw,
+                           az_weighting, beam_pattern):
+    """Apply stripmap azimuth matched filtering and return the focused SLC."""
+    az_size = fa.size
+    doppler_spacing = fa[1] - fa[0]
+    n_samp = 2 * (int(doppler_bw / doppler_spacing) // 2)
+
+    weighting = (
+        az_weighting
+        - (1.0 - az_weighting)
+        * np.cos(2.0 * np.pi * np.linspace(0.0, 1.0, n_samp))
+    )
+
+    window_power = np.mean(np.abs(weighting) ** 2)
+    weighting /= np.sqrt(window_power)
+
+    if az_size > n_samp:
+        padded_weighting = np.zeros(az_size)
+        padded_weighting[:n_samp] = weighting
+        weighting = np.roll(padded_weighting, -n_samp // 2)
+
+    weighting = np.where(
+        np.abs(beam_pattern) > 0,
+        weighting / beam_pattern,
+        0,
+    )
+
+    if ph_ac.ndim == 1:
+        azimuth_filter = (
+            np.exp(1j * ph_ac) * weighting
+        ).reshape((1, az_size, 1))
+    else:
+        azimuth_filter = (
+            np.exp(1j * ph_ac)[np.newaxis, :, :]
+            * weighting.reshape((1, az_size, 1))
+        )
+
+    return np.fft.ifft(data * azimuth_filter, axis=1)
 
 def sar_focus(cfg_file, raw_output_file, output_file):
 
@@ -528,46 +566,6 @@ def sar_focus(cfg_file, raw_output_file, output_file):
     ########################
     for ch in np.arange(num_ch):
 
-        if plot_raw:
-            plt.figure()
-            plt.imshow(np.real(raw_data[0, ch]),
-                       vmin=-np.max(np.abs(raw_data[0, ch])),
-                       vmax=np.max(np.abs(raw_data[0, ch])), cmap='gray')
-            plt.savefig(plot_path + os.sep + ('plot_raw_real_%d.%s' % (ch, plot_format)))
-            plt.close()
-            # utils.image(np.real(raw_data[0, ch]), min=-np.max(np.abs(raw_data[0, ch])), max=np.max(np.abs(raw_data[0, ch])), cmap='gray',
-            #             aspect=np.float(
-            #                 raw_data[0, ch].shape[1]) / np.float(raw_data[0, ch].shape[0]),
-            #             title='Raw Data', xlabel='Range samples', ylabel='Azimuth samples',
-            #             usetex=plot_tex,
-            #             save=plot_save, save_path=plot_path + os.sep +
-            #             'plot_raw_real_%d.%s' % (ch, plot_format),
-            #             dpi=150)
-            # utils.image(np.imag(raw_data[0, ch]), min=-np.max(np.abs(raw_data[0, ch])), max=np.max(np.abs(raw_data[0, ch])), cmap='gray',
-            #             aspect=np.float(
-            #                 raw_data[0, ch].shape[1]) / np.float(raw_data[0, ch].shape[0]),
-            #             title='Raw Data', xlabel='Range samples', ylabel='Azimuth samples',
-            #             usetex=plot_tex,
-            #             save=plot_save, save_path=plot_path + os.sep +
-            #             'plot_raw_imag_%d.%s' % (ch, plot_format),
-            #             dpi=150)
-            # utils.image(np.abs(raw_data[0, ch]), min=0, max=np.max(np.abs(raw_data[0, ch])), cmap='gray',
-            #             aspect=np.float(
-            #                 raw_data[0, ch].shape[1]) / np.float(raw_data[0, ch].shape[0]),
-            #             title='Raw Data', xlabel='Range samples', ylabel='Azimuth samples',
-            #             usetex=plot_tex,
-            #             save=plot_save, save_path=plot_path + os.sep +
-            #             'plot_raw_amp_%d.%s' % (ch, plot_format),
-            #             dpi=150)
-            # utils.image(np.angle(raw_data[0, ch]), min=-np.pi, max=np.pi, cmap='gray',
-            #             aspect=np.float(
-            #                 raw_data[0, ch].shape[1]) / np.float(raw_data[0, ch].shape[0]),
-            #             title='Raw Data', xlabel='Range samples', ylabel='Azimuth samples',
-            #             usetex=plot_tex, save=plot_save,
-            #             save_path=plot_path + os.sep +
-            #             'plot_raw_phase_%d.%s' % (ch, plot_format),
-            #             dpi=150)
-
         # Optimize matrix sizes
         az_size_orig, rg_size_orig = raw_data[0, ch].shape
         if ch == 0 and sr_pt is not None:
@@ -585,13 +583,8 @@ def sar_focus(cfg_file, raw_output_file, output_file):
 
         # RCMC Correction
         print('Applying RCMC correction... [Channel %d/%d]' % (ch + 1, num_ch))
-
-        # fr = np.linspace(-rg_sampling/2., rg_sampling/2., rg_size)
-        # fr = (np.arange(rg_size) - rg_size / 2) * rg_sampling / rg_size
-        # fr = np.roll(fr, int(-rg_size / 2))
         fr = np.fft.fftfreq(rg_size, 1/rg_sampling)
-        # fa = (np.arange(az_size) - az_size / 2) * prf / az_size
-        # fa = np.roll(fa, int(-az_size / 2))
+    
         fa = np.fft.fftfreq(az_size, 1/prf)
         ## Compensation of ANTENNA PATTERN
         ## FIXME this will not work for a long separation betwen Tx and Rx!!!
@@ -627,8 +620,6 @@ def sar_focus(cfg_file, raw_output_file, output_file):
         #rcmc_fa[:]=0
         data = np.fft.fft(np.fft.fft(data, axis=-1), axis=-2)
 
-#        for i in np.arange(az_size):
-#            data[i,:] *= np.exp(1j*2*np.pi*2*rcmc_fa[i]/const.c*fr)
         range_doppler_phase = (
             4*np.pi/const.c * rcmc_fa[:, np.newaxis]
             * fr[np.newaxis, :] + ph_src)
@@ -653,32 +644,35 @@ def sar_focus(cfg_file, raw_output_file, output_file):
         # Azimuth compression
         print(
             'Applying azimuth compression... [Channel %d/%d]' % (ch + 1, num_ch))
+        data = stripmap_azimuth_focus(data,
+                                      ph_ac,
+                                      fa,
+                                      doppler_bw,
+                                      az_weighting,
+                                      beam_pattern,
+                                      )
+        # n_samp = 2 * (int(doppler_bw / (fa[1] - fa[0])) / 2)
+        # weighting = (az_weighting -
+        #              (1. - az_weighting) * np.cos(2 * np.pi * np.linspace(0, 1., int(n_samp))))
+        # # Compensate amplitude loss
 
-        n_samp = 2 * (int(doppler_bw / (fa[1] - fa[0])) / 2)
-        weighting = (az_weighting -
-                     (1. - az_weighting) * np.cos(2 * np.pi * np.linspace(0, 1., int(n_samp))))
-        # Compensate amplitude loss
+        # L_win = np.sum(np.abs(weighting)**2) / weighting.size
+        # weighting /= np.sqrt(L_win)
+        # if fa.size > n_samp:
+        #     zeros = np.zeros(az_size)
+        #     zeros[0:int(n_samp)] = weighting
+        #     weighting = np.roll(zeros, int(-n_samp / 2))
+        # weighting = np.where(np.abs(beam_pattern) > 0, weighting/beam_pattern, 0)
 
-        L_win = np.sum(np.abs(weighting)**2) / weighting.size
-        weighting /= np.sqrt(L_win)
-        if fa.size > n_samp:
-            zeros = np.zeros(az_size)
-            zeros[0:int(n_samp)] = weighting
-            # zeros[:n_samp/2] = weighting[:n_samp/2]
-            # zeros[-n_samp/2:] = weighting[-n_samp/2:]
-            weighting = np.roll(zeros, int(-n_samp / 2))
-        weighting = np.where(np.abs(beam_pattern) > 0, weighting/beam_pattern, 0)
-#        for i in np.arange(rg_size):
-#            data[:,i] *= np.exp(1j*ph_ac)*weighting
-        if ph_ac.ndim == 1:
-            azimuth_filter = (
-                np.exp(1j*ph_ac)*weighting).reshape((1, az_size, 1))
-        else:
-            azimuth_filter = (np.exp(1j*ph_ac)[np.newaxis, :, :]
-                              * weighting.reshape((1, az_size, 1)))
-        data = data*azimuth_filter
+        # if ph_ac.ndim == 1:
+        #     azimuth_filter = (
+        #         np.exp(1j*ph_ac)*weighting).reshape((1, az_size, 1))
+        # else:
+        #     azimuth_filter = (np.exp(1j*ph_ac)[np.newaxis, :, :]
+        #                       * weighting.reshape((1, az_size, 1)))
+        # data = data*azimuth_filter
 
-        data = np.fft.ifft(data, axis=1)
+        # data = np.fft.ifft(data, axis=1)
 
         print('Finishing... [Channel %d/%d]' % (ch + 1, num_ch))
         # Reduce to initial dimension
@@ -737,7 +731,7 @@ def sar_focus(cfg_file, raw_output_file, output_file):
         "Processing finished [%Y-%m-%d %H:%M:%S]", time.localtime()))
     print('-----------------------------------------')
 
-def ross_sar_focus(cfg_file, reconstruct_raw_output_file, output_file):
+def ross_focus(cfg_file, reconstruct_raw_output_file, output_file):
 
     ###################
     # INITIALIZATIONS #
@@ -919,6 +913,10 @@ def ross_sar_focus(cfg_file, reconstruct_raw_output_file, output_file):
     print(time.strftime(
         "Processing finished [%Y-%m-%d %H:%M:%S]", time.localtime()))
     print('-----------------------------------------')
+
+
+ross_sar_focus = ross_focus
+
 
 if __name__ == '__main__':
 

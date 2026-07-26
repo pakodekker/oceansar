@@ -20,8 +20,8 @@ from drama.io import cfg as drcfg
 #import stereoid.utils.config as st_config
 from oceansar import ocs_io as osrio
 from oceansar import utils
+from oceansar.sar_l1 import sar_focus
 from oceansar.radarsim.sar_raw_nompi import sar_raw
-from oceansar.radarsim.sar_processor import sar_focus
 from oceansar.radarsim.ati_processor import ati_process
 from oceansar.radarsim.insar_processor import insar_process
 from oceansar.radarsim.L2_wavespectrum import l2_wavespectrum

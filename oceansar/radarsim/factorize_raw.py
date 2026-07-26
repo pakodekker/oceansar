@@ -19,50 +19,55 @@ def _next_divisor_at_least(value, minimum):
 def factorize_raw_params(cfg, params, surface, info, internal_oversampling=8):
     factorize = cfg.srg.factorize
     prf = cfg.mode.prf
+    operation_mode = getattr(cfg.mode, "mode", "stripmap").lower()
+    if operation_mode == "scansar":
+        t_span = getattr(cfg.mode, "t_burst", None)
+        if t_span is None or t_span <= 0:
+            raise ValueError("ScanSAR mode requires a positive t_burst")
+        info.msg("Using ScanSAR burst duration: %f s" % t_span,
+                 importance=2)
+    else:
+        t_span = (
+            1.5 * params["sr0"] * params["l0"] / params["ant_l_tx"]
+            + surface.Ly) / params["v_ground"]
+
     if factorize:
-            info.msg("Factorizing raw data generation", importance=2)
-            # We will compute less surface realizations
-            # Coherence time of the surface, for a large area
-            tau_c = closure.grid_coherence(cfg.ocean.wind_U,500, params["f0"])
-            info.msg("Surface coherence time: %f s" % (tau_c))
-            n_pulses_b = sp.fft.next_fast_len(int(tau_c * prf/4))
-            info.msg("PRF down-sampling rate =%i" % (n_pulses_b))
-            # n_pulses_b = 4
-            params["t_step"] = 1./prf
-            params["t_span"] = (1.5*(params["sr0"] * params["l0"]/params["ant_l_tx"]) + surface.Ly)/params["v_ground"]  
-            
-
-            params["az_steps"] = int(np.floor(params["t_span"]/params["t_step"]))
-            az_steps_ = int(np.ceil(params["az_steps"] / n_pulses_b))+1
-            #az_steps_ = utils.optimize_fftsize(az_steps_)
-            az_steps_ = sp.fft.next_fast_len(az_steps_)
-            params["t_span"] = az_steps_ * n_pulses_b * params["t_step"]
-            params["t_step"] = params["t_step"] * n_pulses_b
-            # Doppler bandwidth for a given block-length
-            # length to Doppler bandwidth factor
-            ly2dop = 2 * params["v_ground"] / params["l0"] * 1 / params["sr0"]
-            # now I make sure this the block is small enough to this to be properly sampled
-            # ly2dop * ly < 1/params["t_step"]/internal_oversampling
-            block_ly = 1/(params["t_step"]*internal_oversampling*ly2dop)
-            info.msg("Block size in azimuth: %f m" % (block_ly))
-            # Now adjust the block size to be a divisor of the surface grid
-            # length, otherwise block_Ny truncates and the reshape/indexing
-            # path below loses the tail rows.
-            nblocks = _next_divisor_at_least(surface.Ny, np.ceil(surface.Ly/block_ly))
-            block_ly = surface.Ly/nblocks
-            info.msg("Adjusted block size in azimuth: %f m" % (block_ly))
-            info.msg("Number of blocks: %i" % nblocks)
-            params["az_steps"] = az_steps_
-            params["block_ly"] = block_ly
-            params["nblocks"] = nblocks
-            params["block_Ny"] = surface.Ny//nblocks
-            params["n_pulses_b"] = n_pulses_b
-
+        info.msg("Factorizing raw data generation", importance=2)
+        # We will compute less surface realizations
+        # Coherence time of the surface, for a large area
+        tau_c = closure.grid_coherence(
+            cfg.ocean.wind_U, 500, params["f0"])
+        info.msg("Surface coherence time: %f s" % tau_c)
+        n_pulses_b = sp.fft.next_fast_len(int(tau_c * prf/4))
+        info.msg("PRF down-sampling rate =%i" % n_pulses_b)
+        params["t_step"] = 1./prf
+        params["t_span"] = t_span
+        params["az_steps"] = int(np.floor(t_span/params["t_step"]))
+        az_steps = int(np.ceil(params["az_steps"] / n_pulses_b)) + 1
+        az_steps = sp.fft.next_fast_len(az_steps)
+        params["t_span"] = az_steps * n_pulses_b * params["t_step"]
+        params["t_step"] *= n_pulses_b
+        # Doppler bandwidth for a given block-length
+        ly2dop = (2 * params["v_ground"] / params["l0"]
+                  / params["sr0"])
+        block_ly = 1/(params["t_step"]*internal_oversampling*ly2dop)
+        info.msg("Block size in azimuth: %f m" % block_ly)
+        # Make the block size divide the surface grid exactly.
+        nblocks = _next_divisor_at_least(
+            surface.Ny, np.ceil(surface.Ly/block_ly))
+        block_ly = surface.Ly/nblocks
+        info.msg("Adjusted block size in azimuth: %f m" % block_ly)
+        info.msg("Number of blocks: %i" % nblocks)
+        params["az_steps"] = az_steps
+        params["block_ly"] = block_ly
+        params["nblocks"] = nblocks
+        params["block_Ny"] = surface.Ny//nblocks
+        params["n_pulses_b"] = n_pulses_b
     else:
         info.msg("Not factorizing raw data generation", importance=2)
         params["t_step"] = 1./prf
-        params["t_span"] = (1.5*(params["sr0"] * params["l0"]/params["ant_l_tx"]) + surface.Ly)/params["v_ground"]  
-        params["az_steps"] = int(np.floor(params["t_span"]/params["t_step"]))
+        params["t_span"] = t_span
+        params["az_steps"] = int(np.floor(t_span/params["t_step"]))
     params["az0"] = -params["t_span"]*params["v_ground"]/2
     return params
 
