@@ -296,6 +296,8 @@ class ReconstructedRawFile(NETCDFHandler):
             else:
                 raise ValueError('Recontructed raw data dimensions are 3!')
             # Variables
+            num_ch = self.__file__.createVariable('num_ch', 'i4')
+            num_ch.units = '[]'
             inc_angle = self.__file__.createVariable('inc_angle', 'f8')
             inc_angle.units = '[deg]'
             f0 = self.__file__.createVariable('f0', 'f8')
