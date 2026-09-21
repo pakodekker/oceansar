@@ -939,7 +939,7 @@ def sar_focus(cfg_file, raw_output_file, output_file):
         "Processing finished [%Y-%m-%d %H:%M:%S]", time.localtime()))
     print('-----------------------------------------')
 
-def ross_focus(cfg_file, reconstruct_raw_output_file, output_file):
+def ross_sar_focus(cfg_file, reconstruct_raw_output_file, output_file):
 
     ###################
     # INITIALIZATIONS #
@@ -956,16 +956,28 @@ def ross_focus(cfg_file, reconstruct_raw_output_file, output_file):
     az_weighting = cfg.processing.az_weighting
     doppler_bw = cfg.processing.doppler_bw
     plot_format = cfg.processing.plot_format
+    plot_tex = cfg.processing.plot_tex
     plot_save = cfg.processing.plot_save
     plot_path = cfg.processing.plot_path
     plot_raw = cfg.processing.plot_raw
     plot_rcmc_dopp = cfg.processing.plot_rcmc_dopp
     plot_rcmc_time = cfg.processing.plot_rcmc_time
     plot_image_valid = cfg.processing.plot_image_valid
+    range_dependent_azimuth = (
+        cfg.processing.range_dependent_azimuth
+        if hasattr(cfg.processing, 'range_dependent_azimuth') else True)
+    reramp = getattr(cfg.processing, 'reramp', True)
+    operation_mode = getattr(cfg.mode, 'mode', 'stripmap').lower()
+    if operation_mode not in ('stripmap', 'scansar'):
+        raise ValueError(
+            "Unsupported SAR operating mode: %s" % operation_mode)
+    add_point_target = (cfg.sim.add_point_target
+                        if hasattr(cfg.sim, 'add_point_target') else False)
 
     # SAR
     f0 = cfg.sar.f0
-    prf = cfg.mode.prf
+    num_ch = cfg.sar.num_ch
+    prf = cfg.mode.prf * num_ch
     alt = cfg.sar.alt
     rg_bw = cfg.mode.rg_bw
     over_fs = cfg.mode.over_fs
@@ -981,19 +993,22 @@ def ross_focus(cfg_file, reconstruct_raw_output_file, output_file):
     az0 = raw_file.get('az0')
     v_ground = raw_file.get('v_ground')
     inc_angle = raw_file.get('inc_angle')
-    # b_ati = raw_file.get('b_ati')
-    # b_xti = raw_file.get('b_xti')
+    sr_pt = None
+    if 'sr_pt' in raw_file.__file__.variables:
+        sr_pt = raw_file.get('sr_pt')
     raw_file.close()
-    ghist = make_geohistory(cfg, np.deg2rad(inc_angle))
-    v_eff = estimate_effective_velocity(
-        cfg, np.deg2rad(inc_angle), ghist=ghist)
+    inc_angle_rad = np.asarray(np.deg2rad(inc_angle)).item()
+    ghist = make_geohistory(cfg, inc_angle_rad)
+    v_eff = estimate_effective_velocity(cfg, inc_angle_rad, ghist=ghist)
     v_orbit = mean_orbital_velocity(ghist)
-    _, look_focus, _ = reference_point_geometry(
-        cfg, np.deg2rad(inc_angle))
+    _, look_focus, _ = reference_point_geometry(cfg, inc_angle_rad)
+    point_targets = point_target_geometry(cfg, inc_angle_rad)
     print("Effective focusing velocity: %.3f m/s" % v_eff)
     print("Mean GeoHistory orbital velocity: %.3f m/s" % v_orbit)
-    print("Ground velocity read from reconstructed raw data: %.3f m/s"
-          % v_ground)
+    print("Ground velocity read from raw data: %.3f m/s" % v_ground)
+    print("Range-dependent azimuth compression: %s" %
+          range_dependent_azimuth)
+    print("SAR operating mode: %s" % operation_mode)
 
     # OTHER INITIALIZATIONS
     # Create plots directory
@@ -1003,35 +1018,55 @@ def ross_focus(cfg_file, reconstruct_raw_output_file, output_file):
             os.makedirs(plot_path)
 
     slc = []
+    filter_cache = {}
+    output_az0 = None
 
     ########################
     # PROCESSING MAIN LOOP #
     ########################
-
-    if plot_raw:
-        plt.figure()
-        plt.imshow(np.real(raw_data),
-                    vmin=-np.max(np.abs(raw_data)),
-                    vmax=np.max(np.abs(raw_data)), cmap='gray')
-        plt.savefig(plot_path + os.sep + ('plot_raw_real.%s' % (plot_format)))
-        plt.close()
-        
-    # Optimize matrix sizes
+    # Build the azimuth processing grid. ScanSAR acquisition duration and
+    # image extent are independent, so center the burst in a grid large
+    # enough for the requested scene at the original PRF.
     az_size_orig, rg_size_orig = raw_data[0].shape
-    optsize = utils.optimize_fftsize(raw_data[0].shape)
-    optsize = [raw_data.shape[0], optsize[0], optsize[1]] # remove the hard coded number of 1
+    if sr_pt is not None:
+        check_reference_range_history(
+            cfg, ghist, inc_angle_rad, sr0, az0, prf, v_ground, f0,
+            sr_pt, az_size_orig, v_eff, plot_path=plot_path,
+            plot_format=plot_format, plot_save=plot_save)
+    if operation_mode == 'scansar':
+        output_az_size = max(
+            1, int(np.ceil(cfg.ocean.Ly * prf / v_ground)))
+        minimum_az_size = max(az_size_orig, output_az_size)
+    else:
+        output_az_size = None
+        minimum_az_size = az_size_orig
+    optsize = utils.optimize_fftsize(
+        (minimum_az_size, rg_size_orig))
+    optsize = [raw_data.shape[0], optsize[0], optsize[1]]
     data = np.zeros(optsize, dtype=complex)
-    data[:, :raw_data[0].shape[0],
-            :raw_data[0].shape[1]] = raw_data[:, :, :]
-
     az_size, rg_size = data.shape[1:]
+    if operation_mode == 'scansar':
+        az_insert_start = (az_size - az_size_orig) // 2
+    else:
+        az_insert_start = 0
+    az_insert_stop = az_insert_start + az_size_orig
+    data[:, az_insert_start:az_insert_stop,
+            :rg_size_orig] = raw_data[:, :, :]
+    processing_az0 = (
+        az0 - az_insert_start * v_ground / prf)
+    if operation_mode == 'scansar':
+        print(
+            "ScanSAR azimuth grid: %d burst samples, "
+            "%d FFT samples, %d output samples"
+            % (az_size_orig, az_size, output_az_size))
 
     # RCMC Correction
     print('Applying RCMC correction... ')
-    
     fr = np.fft.fftfreq(rg_size, 1/rg_sampling)
     fa = np.fft.fftfreq(az_size, 1/prf)
-    ## Compensation of ANTENNA PATTERN
+    slant_range = (sr0 + np.arange(rg_size)
+                    * const.c/(2*rg_sampling))
+    # Antenna response in the original azimuth-Doppler domain.
     ## FIXME this will not work for a long separation betwen Tx and Rx!!!
     sin_az = fa * l0 / (2 * v_eff)
     if hasattr(cfg.sar, 'ant_L'):
@@ -1042,73 +1077,119 @@ def ross_focus(cfg_file, reconstruct_raw_output_file, output_file):
         ant_l_rx = cfg.sar.ant_L_rx
         beam_pattern = (sinc_bp(sin_az, ant_l_tx, f0, field=True)
                         * sinc_bp(sin_az, ant_l_rx, f0, field=True))
-    rcmc_fa = sr0 / np.sqrt(1 - (fa * (l0 / 2.) / v_eff)**2.) - sr0
+    filter_key = (az_size, rg_size)
+    if filter_key not in filter_cache:
+        rcmc_fa, ph_ac_reference, _, _ = (
+            geohistory_reference_filter(ghist, look_focus, fa, f0))
+        ph_src = geohistory_src_filter(
+            ghist, look_focus, fa, fr, f0,
+            rcmc_fa, ph_ac_reference)
+        if range_dependent_azimuth:
+            ph_ac = geohistory_range_azimuth_filter(
+                ghist, slant_range, fa, f0)
+        else:
+            ph_ac = ph_ac_reference
+        common_band_filter = azimuth_common_band_filter(
+            fa, doppler_bw, az_weighting)
+        if operation_mode == 'scansar':
+            deramp_phase = scansar_deramp_phase(
+                az_size, slant_range, processing_az0, prf,
+                v_ground, v_eff, l0)
+        else:
+            deramp_phase = None
+        filter_cache[filter_key] = (
+            rcmc_fa, ph_src, ph_ac,
+            common_band_filter, deramp_phase)
+    (rcmc_fa, ph_src, ph_ac,
+        common_band_filter, deramp_phase) = filter_cache[filter_key]
     data = np.fft.fft(np.fft.fft(data, axis=-1), axis=-2)
-    data = (data * np.exp(4j * np.pi * rcmc_fa.reshape((1, az_size, 1)) /
-                            const.c * fr.reshape((1, 1, rg_size))))
+
+    range_doppler_phase = (
+        4*np.pi/const.c * rcmc_fa[:, np.newaxis]
+        * fr[np.newaxis, :] + ph_src)
+    data = data * np.exp(1j*range_doppler_phase[np.newaxis, :, :])
     data = np.fft.ifft(data, axis=2)
 
-    if plot_rcmc_dopp:
-        plt.figure()
-        plt.imshow(np.fft.fftshift(np.abs(data[0]), axes=0), vmax=np.max(np.abs(data)), cmap='gray',
-                    origin='lower')
-        plt.savefig(plot_path + os.sep + ('plot_rcmc_dopp.%s' % (plot_format)))
+    # if plot_rcmc_dopp:
+    #     plt.figure()
+    #     plt.imshow(np.fft.fftshift(np.abs(data[0]), axes=0), vmax=np.max(np.abs(data)), cmap='gray',
+    #                 origin='lower')
+    #     plt.savefig(plot_path + os.sep + ('plot_rcmc_dopp_%d.%s' % (ch, plot_format)))
 
-    if plot_rcmc_time:
-        rcmc_time = np.fft.ifft(data[0], axis=0)[
-            :az_size_orig, :rg_size_orig]
-        rcmc_time_max = np.max(np.abs(rcmc_time))
-        plt.figure()
-        plt.imshow(np.real(rcmc_time), vmin=-rcmc_time_max, vmax=rcmc_time_max, cmap='gray',
-                    origin='lower')
-        plt.savefig(plot_path + os.sep + ('plot_rcmc_time_real.%s' % (plot_format)))
+    # if plot_rcmc_time:
+    #     rcmc_time = np.fft.ifft(data[0], axis=0)[
+    #         az_insert_start:az_insert_stop, :rg_size_orig]
+    #     rcmc_time_max = np.max(np.abs(rcmc_time))
+    #     plt.figure()
+    #     plt.imshow(np.real(rcmc_time), vmin=-rcmc_time_max, vmax=rcmc_time_max, cmap='gray',
+    #                 origin='lower')
+    #     plt.savefig(plot_path + os.sep + ('plot_rcmc_time_real_%d.%s' % (ch, plot_format)))
 
     # Azimuth compression
     print(
         'Applying azimuth compression... ')
-
-    n_samp = 2 * (int(doppler_bw / (fa[1] - fa[0])) / 2)
-    weighting = (az_weighting -
-                    (1. - az_weighting) * np.cos(2 * np.pi * np.linspace(0, 1., int(n_samp))))
-    # Compensate amplitude loss
-
-    L_win = np.sum(np.abs(weighting)**2) / weighting.size
-    weighting /= np.sqrt(L_win)
-    if fa.size > n_samp:
-        zeros = np.zeros(az_size)
-        zeros[0:int(n_samp)] = weighting
-        weighting = np.roll(zeros, int(-n_samp / 2))
-    weighting = np.where(np.abs(beam_pattern) > 0, weighting/beam_pattern, 0)
-    ph_ac = 4. * np.pi / l0 * sr0 * \
-        (np.sqrt(1. - (fa * l0 / 2. / v_eff)**2.) - 1.)
-    data = data * (np.exp(1j * ph_ac) * weighting).reshape((1, az_size, 1))
-
-    data = np.fft.ifft(data, axis=1)
+    data = compensate_azimuth_antenna(data, beam_pattern)
+    if operation_mode == 'scansar':
+        data = scansar_azimuth_focus(
+            data,
+            ph_ac,
+            deramp_phase,
+            common_band_filter=common_band_filter,
+            reramp=reramp,
+        )
+    else:
+        data = stripmap_azimuth_focus(
+            data, ph_ac, common_band_filter)
 
     print('Finishing... ')
-    # Reduce to initial dimension
-    data = data[:, :int(az_size_orig), :int(rg_size_orig)]
+    data = data[:, :, :rg_size_orig]
 
-    # Removal of non valid samples
-    n_val_az_2 = np.floor(
-        doppler_bw / 2. / (2. * v_eff**2. / l0 / sr0) * prf / 2.) * 2.
-    data = data[:, int(n_val_az_2):int(az_size_orig - n_val_az_2 - 1), :]
-    if plot_image_valid:
-        plt.figure()
-        plt.imshow(np.abs(data[0]), origin='lower', vmin=0, vmax=np.max(np.abs(data)),
-                    aspect=float(rg_size_orig) / float(az_size_orig),
-                    cmap='gray')
-        plt.xlabel("Range")
-        plt.ylabel("Azimuth")
-        plt.savefig(os.path.join(
-            plot_path, ('plot_image_valid_.%s' % (plot_format))))
+    # Stripmap requires an aperture-length edge crop. ScanSAR retains the
+    # scene-sized portion of the centered processing grid.
+    if operation_mode == 'scansar':
+        n_val_az_2 = 0
+        output_start = (az_size - output_az_size) // 2
+        output_stop = output_start + output_az_size
+        data = data[:, output_start:output_stop, :]
+        output_az0 = (
+            processing_az0 + output_start * v_ground / prf)
+    else:
+        n_val_az_2 = np.floor(
+            doppler_bw / 2.
+            / (2. * v_eff**2. / l0 / sr0)
+            * prf / 2.) * 2.
+        data = data[
+            :,
+            int(n_val_az_2):int(az_size_orig - n_val_az_2 - 1),
+            :,
+        ]
+        output_az0 = az0 + n_val_az_2 * v_ground / prf
+    if add_point_target and plot_save:
+        expected_targets = []
+        for target_name, target_look, target_y in point_targets:
+            target_sr = ghist.sr_spl(target_look, 0.0).item()
+            expected_az = (
+                (target_y - output_az0)*prf/v_ground)
+            expected_rg = (target_sr - sr0)*2*rg_sampling/const.c
+            expected_targets.append(
+                (target_name, expected_az, expected_rg))
+    #     plot_point_target_azimuth_grid(
+    #         data, expected_targets, ch, prf, plot_path, plot_format)
+    # if plot_image_valid:
+    #     plt.figure()
+    #     plt.imshow(np.abs(data[0]), origin='lower', vmin=0, vmax=np.max(np.abs(data)),
+    #                 aspect=float(rg_size_orig) / float(data.shape[1]),
+    #                 cmap='gray')
+    #     plt.xlabel("Range")
+    #     plt.ylabel("Azimuth")
+    #     plt.savefig(os.path.join(
+    #         plot_path, ('plot_image_valid_%d.%s' % (ch, plot_format))))
 
     slc.append(data)
 
     # Save processed data
     slc = np.array(slc, dtype=complex)
     print("Shape of SLC: " + str(slc.shape), flush=True)
-    output_az0 = az0 + n_val_az_2*(v_ground/prf)
     output_azimuth = (
         output_az0 + np.arange(slc.shape[2]) * v_ground/prf)
     output_sin_az = geohistory_azimuth_sine(
@@ -1122,8 +1203,7 @@ def ross_focus(cfg_file, reconstruct_raw_output_file, output_file):
     proc_file.set('v_ground', v_ground)
     proc_file.set('v_orbit', v_orbit)
     proc_file.set('az0', output_az0)
-    proc_file.set(
-        'reramp', getattr(cfg.processing, 'reramp', True))
+    proc_file.set('reramp', reramp)
     proc_file.set('sin_az', output_sin_az)
     proc_file.set('orbit_alt', alt)
     proc_file.set('sr0', sr0)
@@ -1136,9 +1216,7 @@ def ross_focus(cfg_file, reconstruct_raw_output_file, output_file):
         "Processing finished [%Y-%m-%d %H:%M:%S]", time.localtime()))
     print('-----------------------------------------')
 
-
-ross_sar_focus = ross_focus
-
+ross_focus = ross_sar_focus
 
 if __name__ == '__main__':
 

@@ -33,37 +33,16 @@ def raw_reconstr(raw_output_file, reconstr_output_file):
 
     # let's start from following the paper
     N_ch = raw_data.shape[1] # number of channels
-    # construct transfer function in frequency domain, eq13
-    H_vec = np.zeros((N_ch, N_ch), dtype=complex)
-    for ii in np.arange(N_ch):
-        f = f0 + ii * prf
-        H_vec[ii, :] = np.exp(-1j * np.pi * (b_ati**2 / (2 * l0 * sr0) + b_ati * f / v_orbit)) 
+    # # construct transfer function in frequency domain, eq13 (Krieger et al, 2004)
+    # # let's start from following the paper
+    f_dop = np.fft.fftshift(np.fft.fftfreq(raw_data.shape[2], d=1./prf))
+    f_matrix = f_dop[:, None] + np.arange(int(-N_ch/2), int(N_ch/2)+1) * prf # (az_size * prf_band * N_ch)
+    H_vec = np.exp(-1j * np.pi * (b_ati**2 / (2 * l0 * sr0) + b_ati * f_matrix[:,:, None] / v_orbit)) 
+    # H_vec = np.exp(-1j * (v_ground/v_orbit) *np.pi * (b_ati**2 / (2 * l0 * sr0) + b_ati * f_matrix[:,:, None] / v_orbit)) 
     P_vec = np.linalg.inv(H_vec)
-
-    raw_data_fft = np.fft.fft(raw_data[0, :, :, :], axis=1)  # FFT along azimuth
-    raw_data_fft = np.fft.fftshift(raw_data_fft, axes=1)  # Shift zero frequency to center
-    freqs = np.fft.fftfreq(raw_data.shape[2], d=1./prf)
-    freqs = np.fft.fftshift(freqs)  # Shift frequencies to match the FFT shift
-    reconstr_signal = np.zeros_like(raw_data[0, :, :, :], dtype=complex)  # Single channel output
-    freqs_bin = prf
-    for ii in np.arange(N_ch):
-        for jj in np.arange(N_ch): # this is actually number of different frequency bands
-            freqs_array = np.where((freqs >= -num_ch * prf/2 + jj * freqs_bin) & (freqs < -num_ch * prf/2 + (jj + 1)* freqs_bin), 1, 0)
-            reconstr_signal[ii, :, :] = reconstr_signal[ii, :, :] + raw_data_fft[ii, :, :] * freqs_array[:, None] * P_vec[ii, jj]
-
-    # reconstr_signal = N_ch * np.fft.ifft(np.fft.ifftshift(reconstr_signal, axes=1), axis=1)  # IFFT to get back to time domain
-    # combination of muti-channel signals by simply suming up 
-    # reconstr_signal_sum = np.sum(reconstr_signal, axis=0)[None, :]
-    # apply other methods to combine all channels, e.g., weighted sum
-    print('Reconstruction completed!')  
-    # upsampling: placing the recovered ambiguity bands into their correct Doppler locations
-    Naz = reconstr_signal.shape[1]
-    Nrg = reconstr_signal.shape[2]
-    upsample_signal = np.zeros((N_ch * Naz, Nrg), dtype=complex)
-    for k in range(Naz):
-        upsample_signal[5*k:5*k+5, :] = reconstr_signal[:, k, :]
-
-    upsample_signal = N_ch * np.fft.ifft(np.fft.ifftshift(upsample_signal, axes=0), axis=0)  # IFFT to get back to time domain
+    raw_data_fft = np.fft.fftshift(np.fft.fft(raw_data[0, :, :, :], axis=1), axes = 1) # FFT along azimuth
+    reconstr_signal = np.einsum('car,acb->bar', raw_data_fft, P_vec)
+    upsample_signal = N_ch * np.fft.ifft(np.fft.ifftshift(reconstr_signal.reshape(N_ch * raw_data.shape[2], raw_data.shape[3]), axes = 0),axis = 0)
     # add the dimension of polarization
     upsample_signal = upsample_signal[None, :, :]
     print('Upsampling completed!')
@@ -72,6 +51,7 @@ def raw_reconstr(raw_output_file, reconstr_output_file):
     reconstr_file = tpio.ReconstructedRawFile(reconstr_output_file, 'w', upsample_signal.shape)
     reconstr_file.set('inc_angle', inc_angle)
     reconstr_file.set('f0', f0)
+    reconstr_file.set('num_ch', num_ch)
     reconstr_file.set('ant_L', ant_L)
     reconstr_file.set('prf', prf)
     reconstr_file.set('v_ground', v_ground)
