@@ -14,7 +14,7 @@ from scipy.integrate import trapezoid
 import numexpr as ne
 import datetime
 
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 from drama.io import cfg as drcfg
 

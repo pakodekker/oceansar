@@ -30,3 +30,11 @@ oceansar.egg-info/top_level.txt
 oceansar.egg-info/PKG-INFO
 oceansar/scatstats/__pycache__/radar_stats.cpython-314.pyc
 oceansar/scatstats/__pycache__/surface_stats.cpython-314.pyc
+oceansar/sar_l1/__pycache__/sar_processor.cpython-313.pyc
+oceansar/sar_l1/__pycache__/sar_processor.cpython-314.pyc
+oceansar/sar_l1/__pycache__/sar_reconstruction.cpython-314.pyc
+oceansar/sar_l1/__pycache__/__init__.cpython-314.pyc
+oceansar/dopscasim/__pycache__/__init__.cpython-313.pyc
+oceansar/dopscasim/__pycache__/oceansar_dopscasim.cpython-313.pyc
+oceansar/dopscasim/__pycache__/oceansar_dopscasim.cpython-314.pyc
+oceansar/dopscasim/__pycache__/dopsca_raw.cpython-313.pyc

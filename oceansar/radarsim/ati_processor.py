@@ -230,17 +230,27 @@ def ati_process(cfg_file, insar_output_file, ocean_file, output_file):
                          + polt[pind] + polt[pind]
                          + '.' + plot_format)
             coh_ind = coh_lut[0, pind, 1, pind]
+            coherence = np.abs(cohs[coh_ind])
+            finite_coherence = coherence[np.isfinite(coherence)]
+            if finite_coherence.size:
+                coherence_min = max(0.0, np.min(finite_coherence))
+                if coherence_min >= 1.0:
+                    coherence_min = 0.99
+            else:
+                coherence_min = 0.0
             plt.figure()
-            plt.imshow(np.abs(cohs[coh_ind]), aspect='equal',
-                       origin='lower',
-                       vmin=0, vmax=1,
-                       extent=[0., rg_span, 0., az_span],
-                       cmap='bone')
+            image = plt.imshow(
+                coherence, aspect='equal', origin='lower',
+                vmin=coherence_min, vmax=1,
+                extent=[0., rg_span, 0., az_span],
+                cmap='bone')
             plt.xlabel('Ground range [m]')
             plt.ylabel('Azimuth [m]')
             plt.title("ATI Coherence")
-            # plt.colorbar()
+            colorbar = plt.colorbar(image)
+            colorbar.set_label("Coherence")
             plt.savefig(save_path)
+            plt.close()
 
     # ATI PHASE
 
