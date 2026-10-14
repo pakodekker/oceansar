@@ -84,6 +84,12 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
     ## CONFIGURATION FILE
     # Note: variables are 'copied' to reduce code verbosity
     cfg = tpio.ConfigFile(cfg_file)
+    seed = utils.get_sim_seed(cfg)
+    surface_rng = utils.random_generator(seed, 'surface')
+    bragg_positive_rng = utils.random_generator(seed, 'bragg_positive')
+    bragg_negative_rng = utils.random_generator(seed, 'bragg_negative')
+    noise_hh_rng = utils.random_generator(seed, 'sar_noise_hh')
+    noise_vv_rng = utils.random_generator(seed, 'sar_noise_vv')
     info = utils.PrInfo(cfg.sim.verbosity, "SAR raw")
     # RAW
     wh_tol = cfg.srg.wh_tol
@@ -217,7 +223,8 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
                      depth=cfg.ocean.depth,
                      dirspectrum_func=dirspectrum_func,
                      dir_swell_spec=dir_swell_spec,
-                     workers=cfg.sim.nworkers)
+                     workers=cfg.sim.nworkers,
+                     rng=surface_rng)
 
         surface.save(ocean_file)
  
@@ -411,8 +418,6 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
         if scat_spec_mode == 'kodis':
             rcs_spec = rcs.RCSKodis(inc, k0, surface.dx, surface.dy)
         elif scat_spec_mode == 'fa' or scat_spec_mode == 'spa':
-            spec_ph0 = np.random.uniform(0., 2.*np.pi,
-                                         size=[surface.Ny, surface.Nx])
             rcs_spec = rcs.RCSKA(scat_spec_mode, k0, surface.x, surface.y,
                                  surface.dx, surface.dy)
         else:
@@ -426,11 +431,15 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
         # dop_phase_m = np.random.uniform(0., 2.*np.pi, size=[surface.Ny, surface.Nx])
         tau_c = closure.grid_coherence(cfg.ocean.wind_U,surface.dx, f0)
         info.msg("Surface grid coherence time: %f s" % (tau_c))
-        rndscat_p = closure.randomscat_ts(tau_c, (surface.Ny, surface.Nx), 1/simpar["t_step"])
-        rndscat_m = closure.randomscat_ts(tau_c, (surface.Ny, surface.Nx), 1/simpar["t_step"])
+        rndscat_p = closure.randomscat_ts(
+            tau_c, (surface.Ny, surface.Nx), 1/simpar["t_step"],
+            rng=bragg_positive_rng)
+        rndscat_m = closure.randomscat_ts(
+            tau_c, (surface.Ny, surface.Nx), 1/simpar["t_step"],
+            rng=bragg_negative_rng)
         if cfg.ocean.frozen_ocean:
-            bragg_scats[0] = rndscat_m.scats(0.0)
-            bragg_scats[1] = rndscat_p.scats(0.0)
+            rndscat_m.scats(0.0, out=bragg_scats[0])
+            rndscat_p.scats(0.0, out=bragg_scats[1])
         # NOTE: This ignores slope, may be changed
         k_b = 2.*k0*sin_inc
         c_b = sin_inc*np.sqrt(const.g/k_b + 0.072e-3*k_b)
@@ -497,8 +506,10 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
         az_now = simpar["az0"] + t_now * simpar["v_ground"]
         # az = np.repeat((surface.y - az_now)[:, np.newaxis], surface.Nx, axis=1)
         az = (surface.y - az_now).reshape((surface.Ny, 1))
-        #if az_step == 0 or (t_now - t_last_rcs_bragg) > ocean_dt:
-        if not cfg.ocean.frozen_ocean: ## or simpar["t_step"] == 0:
+        # Materialize the initial snapshot even when freezing the ocean:
+        # init/load only allocate displacement, slope and hMTF arrays with
+        # np.empty. Freezing skips subsequent evolution, not initialization.
+        if az_step == 0 or not cfg.ocean.frozen_ocean:
             surface.t = t_now
 
         ## COMPUTE RCS FOR EACH MODEL
@@ -658,8 +669,8 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
             phase_bragg[0] = surf_phase - cap_phase # + dop_phase_p
             phase_bragg[1] = surf_phase + cap_phase # + dop_phase_m
             if not cfg.ocean.frozen_ocean:
-                bragg_scats[0] = rndscat_m.scats(t_now)
-                bragg_scats[1] = rndscat_p.scats(t_now)
+                rndscat_m.scats(t_now, out=bragg_scats[0])
+                rndscat_p.scats(t_now, out=bragg_scats[1])
             if do_hh:
                 scene_hh += ne.evaluate('sum(scat_bragg_hh * exp(1j*phase_bragg) * bragg_scats, axis=0)')
             if do_vv:
@@ -818,13 +829,13 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
 
     if do_hh:
         noise = (utils.db2lin(nesz, amplitude=True) / np.sqrt(2.) *
-                 (np.random.normal(size=proc_raw_hh.shape) +
-                  1j*np.random.normal(size=proc_raw_hh.shape)))
+                 (noise_hh_rng.normal(size=proc_raw_hh.shape) +
+                  1j*noise_hh_rng.normal(size=proc_raw_hh.shape)))
         proc_raw_hh = proc_raw_hh * cal_factor + noise
     if do_vv:
         noise = (utils.db2lin(nesz, amplitude=True) / np.sqrt(2.) *
-                 (np.random.normal(size=proc_raw_vv.shape) +
-                  1j*np.random.normal(size=proc_raw_vv.shape)))
+                 (noise_vv_rng.normal(size=proc_raw_vv.shape) +
+                  1j*noise_vv_rng.normal(size=proc_raw_vv.shape)))
         proc_raw_vv = proc_raw_vv * cal_factor + noise
 
     # Add slow-time error

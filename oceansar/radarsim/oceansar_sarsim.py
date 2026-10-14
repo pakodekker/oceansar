@@ -9,12 +9,13 @@
     **Arguments**
         - Configuration file
 
-e.g. python oceansar_sarsim.py d:\data\configfile\20160708_NOS.cfg
+e.g. python oceansar_sarsim.py d:\\data\\configfile\\20160708_NOS.cfg
 
 """
 
 import sys
 import os
+import shutil
 import time
 from drama.io import cfg as drcfg
 #import stereoid.utils.config as st_config
@@ -36,6 +37,13 @@ def sarsim(cfg_file=None):
     cfg = drcfg.ConfigFile(cfg_file)
     # Create output directory if it doesnt exist already
     os.makedirs(cfg.sim.path, exist_ok=True)
+    cfg_source = os.path.abspath(cfg.cfg_file_name)
+    cfg_copy = os.path.abspath(
+        os.path.join(cfg.sim.path, os.path.basename(cfg_source)))
+    if not (os.path.exists(cfg_copy)
+            and os.path.samefile(cfg_source, cfg_copy)):
+        shutil.copy2(cfg_source, cfg_copy)
+    print('Configuration copied to %s' % cfg_copy, flush=True)
     src_path = os.path.dirname(os.path.abspath(__file__))
 
     # RAW

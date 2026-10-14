@@ -85,6 +85,20 @@ def geohistory_azimuth_sine(ghist, look_angle, azimuth_position,
     ).T.ravel()
 
 
+def geohistory_doppler_sine(ghist, look_angle, fa, f0):
+    """Return the raw-generator antenna look sine on a Doppler grid."""
+    # Antenna angle obeys f_D = 2*v_orbit*u/lambda. The effective focusing
+    # velocity describes range curvature and cannot replace orbital velocity
+    # in this projection. Use the same GeoHistory angle mapping as the raw
+    # generator, including its time-dependent orbital speed.
+    order = np.argsort(fa)[::-1]
+    _, sine_sorted, _, _, _ = ghist.Doppler2tuv(
+        look_angle, np.asarray(fa)[order], f0)
+    sine = np.empty(np.asarray(fa).shape, dtype=float)
+    sine[order] = np.asarray(sine_sorted).ravel()
+    return sine
+
+
 def scene_coordinates(cfg):
     """Return the optimized raw-generator scene coordinates."""
     nx = int(cfg.ocean.Lx/cfg.ocean.dx)
@@ -496,15 +510,18 @@ def compensate_azimuth_antenna(data, beam_pattern):
 
 def scansar_deramp_phase(az_size, slant_range, az0, prf,
                          v_ground, v_eff, wavelength):
-    """Return the quadratic ScanSAR deramp phase in focused coordinates."""
+    """Return the geometric ScanSAR deramp phase in radians on the focused grid."""
     azimuth_time = az0/v_ground + np.arange(az_size)/prf
-    doppler_rate = (
-        2*v_eff**2 / (wavelength*slant_range)
-    )
-    return (
-        np.pi * azimuth_time[:, np.newaxis]**2
-        * doppler_rate[np.newaxis, :]
-    )
+    slant_range = np.asarray(slant_range)[np.newaxis, :]
+    along_track_squared = (v_eff * azimuth_time[:, np.newaxis])**2
+    instantaneous_range = np.sqrt(slant_range**2 + along_track_squared)
+    # Within the effective-velocity hyperbolic range model, the phase removed
+    # by exp(-1j*phase) is 4*pi/lambda * (R(t)-R(0)). It is the integrated
+    # geometric phase, not its time derivative (a Doppler-related quantity).
+    # Near t=0 this reduces to the former 2*pi*v_eff**2*t**2/(lambda*R(0)).
+    # Rationalize the range difference to avoid cancellation near t=0.
+    return (4*np.pi / wavelength * along_track_squared
+            / (instantaneous_range + slant_range))
 
 
 def stripmap_azimuth_focus(data, ph_ac, common_band_filter):
@@ -783,7 +800,7 @@ def sar_focus(cfg_file, raw_output_file, output_file):
                        * const.c/(2*rg_sampling))
         # Antenna response in the original azimuth-Doppler domain.
         ## FIXME this will not work for a long separation betwen Tx and Rx!!!
-        sin_az = fa * l0 / (2 * v_eff)
+        sin_az = geohistory_doppler_sine(ghist, look_focus, fa, f0)
         if hasattr(cfg.sar, 'ant_L'):
             ant_L = cfg.sar.ant_L
             if cfg.sar.L_total:
@@ -1068,7 +1085,7 @@ def ross_sar_focus(cfg_file, reconstruct_raw_output_file, output_file):
                     * const.c/(2*rg_sampling))
     # Antenna response in the original azimuth-Doppler domain.
     ## FIXME this will not work for a long separation betwen Tx and Rx!!!
-    sin_az = fa * l0 / (2 * v_eff)
+    sin_az = geohistory_doppler_sine(ghist, look_focus, fa, f0)
     if hasattr(cfg.sar, 'ant_L'):
         ant_L = cfg.sar.ant_L
         beam_pattern = sinc_1tx_nrx(sin_az, ant_L, f0, 1, field=True)

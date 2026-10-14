@@ -38,3 +38,10 @@ oceansar/dopscasim/__pycache__/__init__.cpython-313.pyc
 oceansar/dopscasim/__pycache__/oceansar_dopscasim.cpython-313.pyc
 oceansar/dopscasim/__pycache__/oceansar_dopscasim.cpython-314.pyc
 oceansar/dopscasim/__pycache__/dopsca_raw.cpython-313.pyc
+tests/__pycache__/test_ati_pairs.cpython-314.pyc
+tests/__pycache__/test_dc_estimator.cpython-314.pyc
+tests/__pycache__/test_dc_processor.cpython-314.pyc
+tests/__pycache__/test_frozen_raw.cpython-314.pyc
+tests/__pycache__/test_multilook.cpython-314.pyc
+tests/__pycache__/test_random_scatterers.cpython-314.pyc
+tests/__pycache__/test_scansar_deramp.cpython-314.pyc

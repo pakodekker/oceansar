@@ -36,7 +36,7 @@ class OceanSurface(object):
              swell_enable=False, swell_ampl=0., swell_dir=0., swell_wl=0.,
              compute=[], opt_res=True, fft_max_prime=2, choppy_enable=False,
              dirspectrum_func=None, depth=None, dir_swell_spec=None,
-             workers=4):
+             workers=4, rng=None):
 
         """ Initialize surface with parameters
 
@@ -74,7 +74,11 @@ class OceanSurface(object):
             :param fft_max_prime: Maximum prime factor allowed in matrix sizes
             :param choppy_enable: EN/DIS Choppy waves
             :param dirspectrum_func: optional external directional wavespectrum
+            :param rng: optional NumPy-compatible random-number generator
         """
+
+        if rng is None:
+            rng = np.random
 
         ## INITIALIZE CLASS VARIABLES
         # Save surface properties
@@ -202,8 +206,8 @@ class OceanSurface(object):
             self.wave_dirspec *= sp.fft.fftshift(k_f)
 
         # Complex Gaussian to randomize spectrum coefficients
-        random_cg = (1./np.sqrt(2) * (np.random.normal(0., 1., size=[self.Ny, self.Nx]) +
-                                      1j * np.random.normal(0., 1., size=[self.Ny, self.Nx]))).astype(np.complex64)
+        random_cg = (1./np.sqrt(2) * (rng.normal(0., 1., size=[self.Ny, self.Nx]) +
+                                      1j * rng.normal(0., 1., size=[self.Ny, self.Nx]))).astype(np.complex64)
 
         # Swell spectrum
         # Swell directional spectrum
@@ -216,8 +220,8 @@ class OceanSurface(object):
                                                    self.sigs, self.Hs)
             self.swell_dirspec = (self.kinv) * swell_dirspec
             # Complex Gaussian to randomize spectrum coefficients
-            random_swell = (1./np.sqrt(2) * (np.random.normal(0., 1., size=[self.Ny, self.Nx]) +
-                                          1j * np.random.normal(0., 1., size=[self.Ny, self.Nx]))).astype(np.complex64)
+            random_swell = (1./np.sqrt(2) * (rng.normal(0., 1., size=[self.Ny, self.Nx]) +
+                                          1j * rng.normal(0., 1., size=[self.Ny, self.Nx]))).astype(np.complex64)
         # Swell spectrum (monochromatic)
         if self.swell_enable:
             # Swell K, Kx, Ky, omega
@@ -230,7 +234,7 @@ class OceanSurface(object):
             else:
                 self.swell_omega = np.float32(np.sqrt(self.swell_k*const.g * np.tanh(self.swell_k * depth)))
             # Swell initial phase (random)
-            self.swell_ph0 = np.float32(np.random.uniform(0., 2.*np.pi))
+            self.swell_ph0 = np.float32(rng.uniform(0., 2.*np.pi))
             # Swell in complex domain (monochromatic)
             self.swell_exp = (self.swell_ampl *
                               np.exp(1j*(self.swell_k*(np.cos(self.swell_dir)*x +

@@ -6,10 +6,13 @@ from drama import utils as drtls
 import drama.geo as drgeo
 import drama.performance.oscillators as drosc
 from oceansar import constants as const
+from oceansar import utils
 
 
 def dopsca_syssim(cfg_file, output_file='auto', add_noise=True, clock_errors=True,plots=False):
     cfg = drcfg.ConfigFile(cfg_file)
+    seed = utils.get_sim_seed(cfg)
+    noise_rng = utils.random_generator(seed, 'dopsca_thermal_noise')
     rawfile = os.path.join(cfg.sim.path, cfg.sim.ideal_raw_file)
     dtraw = xr.open_dataset(rawfile,engine='h5netcdf')
     dtraw.load()
@@ -23,7 +26,9 @@ def dopsca_syssim(cfg_file, output_file='auto', add_noise=True, clock_errors=Tru
     dshape = craw.shape
     if add_noise:
         nesz = cfg.sca.nesz
-        noise = (np.random.randn(*dshape) + 1j * np.random.randn(*dshape)) * 10**(nesz / 20) / np.sqrt(2)
+        noise = (noise_rng.standard_normal(dshape)
+                 + 1j*noise_rng.standard_normal(dshape))
+        noise *= 10**(nesz / 20)/np.sqrt(2)
         noise = noise * range_scaling[np.newaxis, np.newaxis, :]
         craw += noise
 
@@ -36,7 +41,9 @@ def dopsca_syssim(cfg_file, output_file='auto', add_noise=True, clock_errors=Tru
         fs_uso = 2/dtraw.subpulse_length.values
         uso_ovs = int(dtraw.rg_sampling.values / fs_uso)
         fs_uso = dtraw.rg_sampling.values / uso_ovs
-        pnoise, S2,f2 = drosc.phasenoise(Tuso, 1/fs_uso, osc_coef[0], osc_coef[1])
+        with utils.legacy_random_seed(seed, 'dopsca_phase_noise'):
+            pnoise, S2, f2 = drosc.phasenoise(
+                Tuso, 1/fs_uso, osc_coef[0], osc_coef[1])
         # Phase noise is implicitly filtered
         for pulse in range(dshape[1]):
             # Noise, make it long enough
