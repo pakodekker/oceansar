@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import matplotlib.mlab as mlab
-from scipy import linspace
+#from scipy import linspace
 from scipy import pi, sqrt, exp
 from scipy.special import erf, gamma
 from scipy import interpolate as interp

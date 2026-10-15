@@ -31,10 +31,13 @@ import argparse
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy import linalg
+from scipy.integrate import trapezoid
 import numexpr as ne
 import datetime
 
-from oceansar import utils
+from tqdm import tqdm
+
+from drama import utils
 from oceansar import ocs_io as tpio
 from oceansar.utils import geometry as geosar
 from oceansar.radarsim.antenna import sinc_1tx_nrx
@@ -83,9 +86,9 @@ def sarraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, reu
     scat_bragg_spread = cfg.srg.scat_bragg_spread
 
     # SAR
-    inc_angle = np.deg2rad(cfg.sar.inc_angle)
+    inc_angle = np.deg2rad(cfg.mode.inc_angle)
     f0 = cfg.sar.f0
-    pol = cfg.sar.pol
+    pol = cfg.mode.pol
     squint_r = np.degrees(cfg.sar.squint)
     if pol == 'DP':
         do_hh = True
@@ -97,13 +100,13 @@ def sarraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, reu
         do_hh = False
         do_vv = True
 
-    prf = cfg.sar.prf
+    prf = cfg.mode.prf
     num_ch = int(cfg.sar.num_ch)
     ant_L = cfg.sar.ant_L
     alt = cfg.sar.alt
     v_ground = cfg.sar.v_ground
-    rg_bw = cfg.sar.rg_bw
-    over_fs = cfg.sar.over_fs
+    rg_bw = cfg.mode.rg_bw
+    over_fs = cfg.mode.over_fs
     sigma_n_tx = cfg.sar.sigma_n_tx
     phase_n_tx = np.deg2rad(cfg.sar.phase_n_tx)
     sigma_beta_tx = cfg.sar.sigma_beta_tx
@@ -115,8 +118,11 @@ def sarraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, reu
 
     # OCEAN / OTHERS
     ocean_dt = cfg.ocean.dt
-
-    add_point_target = False
+    
+    if hasattr(cfg.sim, 'add_point_target'):
+        add_point_target = cfg.sim.add_point_target
+    else:
+        add_point_target = False
     use_numba = True
     n_sinc_samples = 8
     sinc_ovs = 20
@@ -341,7 +347,7 @@ def sarraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, reu
     if rank == 0:
         print('Computing profiles...')
 
-    for az_step in np.arange(az_steps, dtype=np.int):
+    for az_step in tqdm(range(az_steps), desc="Processing azimuth steps"):
 
         ## AZIMUTH & SURFACE UPDATE
         t_now = az_step*t_step
@@ -520,11 +526,11 @@ def sarraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, reu
                                            n_sinc_samples, sinc_ovs,
                                            proc_raw_vv[ch][az_step])
 
-        # SHOW PROGRESS (%)
-        current_progress = np.int((100*az_step)/az_steps)
-        if current_progress != last_progress:
-            last_progress = current_progress
-            print('SP,%d,%d,%d' % (rank, size, current_progress))
+        # # SHOW PROGRESS (%)
+        # current_progress = np.int((100*az_step)/az_steps)
+        # if current_progress != last_progress:
+        #     last_progress = current_progress
+        #     print('SP,%d,%d,%d' % (rank, size, current_progress))
 
 
     # MERGE RESULTS
@@ -541,7 +547,7 @@ def sarraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, reu
 
         # Filter and decimate
         #range_filter = np.ones_like(total_raw)
-        #range_filter[:, :, rg_samp/(2*2*cfg.sar.over_fs):-rg_samp/(2*2*cfg.sar.over_fs)] = 0
+        #range_filter[:, :, rg_samp/(2*2*cfg.mode.over_fs):-rg_samp/(2*2*cfg.mode.over_fs)] = 0
 
         #total_raw = np.fft.ifft(range_filter*np.fft.fft(total_raw))
         if do_hh:
@@ -558,7 +564,7 @@ def sarraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, reu
         else:
             pattern = sinc_1tx_nrx(az_axis/sr0, ant_L, f0, 1,
                                    field=True)
-        cal_factor = (1. / np.sqrt(np.trapz(np.abs(pattern)**2., az_axis) *
+        cal_factor = (1. / np.sqrt(trapezoid(np.abs(pattern)**2., az_axis) *
                       sr_res/np.sin(inc_angle)))
 
         if do_hh:

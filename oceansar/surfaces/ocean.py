@@ -1,5 +1,6 @@
 
 import numpy as np
+import scipy as sp
 from scipy import linalg
 import types
 
@@ -7,7 +8,7 @@ import types
 from oceansar import ocs_io as wsio
 from oceansar import spec
 from oceansar import spread
-from oceansar import utils
+from drama import utils
 from oceansar import constants as const
 
 
@@ -34,45 +35,91 @@ class OceanSurface(object):
              swell_dir_enable=False,
              swell_enable=False, swell_ampl=0., swell_dir=0., swell_wl=0.,
              compute=[], opt_res=True, fft_max_prime=2, choppy_enable=False,
-             dirspectrum_func=None, depth=None, dir_swell_spec=None):
+             dirspectrum_func=None, depth=None, dir_swell_spec=None,
+             workers=4, rng=None):
 
-        """ Initialize surface with parameters
+        """Initialize a random ocean Fourier realization and allocate requested fields.
 
-            :param Lx: Scene X size (m)
-            :param Ly: Scene Y size (m)
-            :param dx: Scene X resolution (m)
-            :param dy: Scene Y resolution (m)
-            :param cutoff_wl: Spectrum wavelength cut-off (m) - None/'auto' to set it automatically
-            :param spec_model: Omnidirectional Spectrum model
-            :param spread_model: Spreading function model
-            :param wind_dir: Wind direction (rad)
-            :param wind_fetch: Wind fetch (m)
-            :param wind_U: Wind speed (m/s)
-            :param current_mag: Current magnitude
-            :param current_dir: Current direction (rad)
-            :param swell_enable: EN/DIS Swell
-            :param swell_ampl: Swell amplitude (m)
-            :param swell_dir: Swell direction (rad)
-            :param swell_wl: Swell peak wavelength (m)
-            :param wave_dir: the dirction of the swell
-            :param dir_swell_dir: the direction of the directional swell
-            :param sigf: spread in frequency for the directional swell
-            :param freq_r: related to the wavelength of swell for the directional swell
-            :param sigs: spread in direction for the directional swell
-            :param Hs: significant wave height for the directional swell
-            :param dir_swell_spec: it is the spectrum for the directional swell
-            :param compute: List with values to compute
-                            - 'D': EN/DIS Computation of Wavefield (Dx,Dy,Dz)
-                            - 'Diff': EN/DIS Computation of space 1st derivatives (slopes)
-                            - 'Diff2': EN/DIS Computation of space 2nd derivatives
-                            - 'V': EN/DIS Computation of time 1st derivative (velocities)
-                            - 'A': EN/DIS Computation of time 2nd derivative (accelerations)
-                            - 'hMTF': EN/DIS Computation of Hydrodynamic MTF
-            :param opt_res: Automatically adjust resolution to have optimal matrix sizes
-            :param fft_max_prime: Maximum prime factor allowed in matrix sizes
-            :param choppy_enable: EN/DIS Choppy waves
-            :param dirspectrum_func: optional external directional wavespectrum
+        Parameters
+        ----------
+        Lx, Ly : float
+            Scene dimensions in metres, along x (range) and y (azimuth).
+        dx, dy : float
+            Requested grid spacing in metres. FFT-size optimization can adjust
+            the actual spacing while preserving Lx and Ly.
+        cutoff_wl : float, 'auto' or None
+            Spectral cutoff wavelength in metres. None or 'auto' leaves the
+            spectrum limited by the grid sampling.
+        spec_model, spread_model : str
+            Keys in the OceanSAR omnidirectional-spectrum and spreading registries.
+            Used when dirspectrum_func is not supplied.
+        wind_dir : float
+            Wind direction in radians in the surface x/y coordinate system.
+        wind_fetch : float
+            Wind fetch in metres.
+        wind_U : float
+            Wind speed in m/s; the current is subtracted to obtain relative wind.
+        current_mag : float
+            Surface-current speed in m/s.
+        current_dir : float
+            Surface-current direction in radians.
+        dir_swell_dir : float, optional
+            Mean directional-swell direction passed to dir_swell_spec. The bundled
+            directional-swell model expects degrees.
+        freq_r, sigf : float, optional
+            Directional-swell peak frequency and frequency spread in Hz, using
+            the convention of the supplied dir_swell_spec callable.
+        sigs : float, optional
+            Directional-swell angular spread; degrees for the bundled model.
+        Hs : float, optional
+            Directional-swell significant wave height in metres.
+        swell_dir_enable : bool, optional
+            Add a random directional-swell spectrum using dir_swell_spec.
+        swell_enable : bool, optional
+            Add a monochromatic swell with random initial phase.
+        swell_ampl : float, optional
+            Monochromatic-swell displacement amplitude in metres.
+        swell_dir : float, optional
+            Monochromatic-swell direction in radians.
+        swell_wl : float, optional
+            Monochromatic-swell wavelength in metres; must be positive when enabled.
+        compute : sequence of str, optional
+            Fields to allocate: 'D' displacements (m), 'Diff' slopes (dimensionless),
+            'Diff2' second spatial derivatives (1/m), 'V' velocities (m/s), 'A'
+            accelerations (m/s**2), or 'hMTF' hydrodynamic modulation (dimensionless).
+            'Diff2' also enables 'Diff'.
+        opt_res : bool, optional
+            Adjust grid dimensions to efficient FFT sizes; default True.
+        fft_max_prime : int, optional
+            Largest allowed prime factor in optimized FFT sizes; default 2.
+        choppy_enable : bool, optional
+            Include choppy-wave corrections when evaluating surface fields.
+        dirspectrum_func : callable, optional
+            External directional spectrum callable accepting kx, ky arrays in
+            rad/m and returning spectral density in m**4 (height variance per
+            two-dimensional wavenumber area). Replaces the wind-spectrum models.
+        depth : float, optional
+            Water depth in metres for finite-depth dispersion. None uses deep water.
+        dir_swell_spec : callable, optional
+            Required when swell_dir_enable=True. Called with
+            (k, theta, dir_swell_dir, freq_r, sigf, sigs, Hs), with k in rad/m and
+            theta in radians, returning the directional swell spectrum before
+            conversion from polar to Cartesian wavenumber density.
+        workers : int, optional
+            Worker count passed to SciPy FFT operations; default 4.
+        rng : NumPy-compatible random generator, optional
+            Source of normal and uniform draws. None uses numpy.random.
+
+        Returns
+        -------
+        None
+            Populate this object and mark it initialized. wave_coefs and allocated
+            surface fields have shape (Ny, Nx); x/y axes are in metres and kx/ky
+            grids in rad/m. Set surface.t in seconds to evaluate requested fields.
         """
+
+        if rng is None:
+            rng = np.random
 
         ## INITIALIZE CLASS VARIABLES
         # Save surface properties
@@ -89,14 +136,17 @@ class OceanSurface(object):
         self.swell_ampl = swell_ampl
         self.swell_dir = swell_dir
         self.swell_wl = swell_wl
-        self.compute = compute
+        self.compute = list(compute)
+        if 'Diff2' in self.compute and 'Diff' not in self.compute:
+            self.compute.append('Diff')
         self.choppy_enable = choppy_enable
         self.dir_swell_dir = dir_swell_dir
         self.freq_r = freq_r
         self.sigf = sigf
         self.sigs = sigs
         self.Hs = Hs
-
+        self.workers = workers
+        self.depth = depth
         ## INITIALIZE MESHGRIDS, SPECTRUM, ETC.
         # Grid dimensions
         self.Nx = int(self.Lx/self.dx)
@@ -128,9 +178,9 @@ class OceanSurface(object):
 
         # Kx-Ky meshgrid (0:N/2, -N/2:-1)
         #kx_o = np.linspace(-kmax_x, kmax_x, self.Nx)
-        kx_s = (2*np.pi*np.fft.fftfreq(self.Nx, self.dx)).astype(np.float32)
+        kx_s = (2*np.pi*sp.fft.fftfreq(self.Nx, self.dx)).astype(np.float32)
         #ky_o = np.linspace(-kmax_y, kmax_y, self.Ny)
-        ky_s = (2*np.pi*np.fft.fftfreq(self.Ny, self.dy)).astype(np.float32)
+        ky_s = (2*np.pi*sp.fft.fftfreq(self.Ny, self.dy)).astype(np.float32)
         self.kx, self.ky = np.meshgrid(kx_s, ky_s)
 
         # Kx-Ky resolution
@@ -195,11 +245,11 @@ class OceanSurface(object):
             k_f[(k_f.shape[0]/2 - ky_sample):(k_f.shape[0]/2 + ky_sample),
                 (k_f.shape[1]/2 - kx_sample):(k_f.shape[1]/2 + kx_sample)] = 1.
 
-            self.wave_dirspec *= np.fft.fftshift(k_f)
+            self.wave_dirspec *= sp.fft.fftshift(k_f)
 
         # Complex Gaussian to randomize spectrum coefficients
-        random_cg = (1./np.sqrt(2) * (np.random.normal(0., 1., size=[self.Ny, self.Nx]) +
-                                      1j * np.random.normal(0., 1., size=[self.Ny, self.Nx]))).astype(np.complex64)
+        random_cg = (1./np.sqrt(2) * (rng.normal(0., 1., size=[self.Ny, self.Nx]) +
+                                      1j * rng.normal(0., 1., size=[self.Ny, self.Nx]))).astype(np.complex64)
 
         # Swell spectrum
         # Swell directional spectrum
@@ -212,8 +262,8 @@ class OceanSurface(object):
                                                    self.sigs, self.Hs)
             self.swell_dirspec = (self.kinv) * swell_dirspec
             # Complex Gaussian to randomize spectrum coefficients
-            random_swell = (1./np.sqrt(2) * (np.random.normal(0., 1., size=[self.Ny, self.Nx]) +
-                                          1j * np.random.normal(0., 1., size=[self.Ny, self.Nx]))).astype(np.complex64)
+            random_swell = (1./np.sqrt(2) * (rng.normal(0., 1., size=[self.Ny, self.Nx]) +
+                                          1j * rng.normal(0., 1., size=[self.Ny, self.Nx]))).astype(np.complex64)
         # Swell spectrum (monochromatic)
         if self.swell_enable:
             # Swell K, Kx, Ky, omega
@@ -226,7 +276,7 @@ class OceanSurface(object):
             else:
                 self.swell_omega = np.float32(np.sqrt(self.swell_k*const.g * np.tanh(self.swell_k * depth)))
             # Swell initial phase (random)
-            self.swell_ph0 = np.float32(np.random.uniform(0., 2.*np.pi))
+            self.swell_ph0 = np.float32(rng.uniform(0., 2.*np.pi))
             # Swell in complex domain (monochromatic)
             self.swell_exp = (self.swell_ampl *
                               np.exp(1j*(self.swell_k*(np.cos(self.swell_dir)*x +
@@ -243,16 +293,28 @@ class OceanSurface(object):
 
     def load(self, state_file, compute=[]):
 
-        """ Initialize surface from OTGI File
+        """Initialize this surface from saved native-complex Fourier initial conditions.
 
-            :param state_file: OTGI file path
-            :param compute: List with values to compute
-                            - 'D': EN/DIS Computation of Wavefield (Dx,Dy,Dz)
-                            - 'Diff': EN/DIS Computation of space 1st derivatives (slopes)
-                            - 'Diff2': EN/DIS Computation of space 2nd derivatives
-                            - 'V': EN/DIS Computation of time 1st derivative (velocities)
-                            - 'A': EN/DIS Computation of time 2nd derivative (accelerations)
-                            - 'hMTF': EN/DIS Computation of Hydrodynamic MTF
+        Parameters
+        ----------
+        state_file : str or path-like
+            OceanStateFile in the current complex-v1 HDF5 format. Contains full
+            complex wave coefficients, 1D wavenumber axes and initialization
+            metadata, including depth, RMS slopes and monochromatic swell phase.
+            Older split-component files must be regenerated.
+        compute : sequence of str, optional
+            Fields to allocate: 'D' for displacements in m, 'Diff' for dimensionless
+            slopes, 'Diff2' for second spatial derivatives in 1/m, 'V' for velocity
+            in m/s, 'A' for acceleration in m/s**2, and 'hMTF' for the dimensionless
+            hydrodynamic modulation. 'Diff2' also enables 'Diff'.
+
+        Returns
+        -------
+        None
+            Populate this object's grid, coefficients and model parameters and
+            mark it initialized. Field arrays have shape (Ny, Nx). Set surface.t
+            in seconds after loading to evaluate the requested fields at that time;
+            loading does not itself compute a surface snapshot.
         """
 
         # Open file
@@ -262,12 +324,17 @@ class OceanSurface(object):
             raise RuntimeError('Error loading OTGI File')
 
         # Load content
-        self.Nx = state.get('Nx')
-        self.Ny = state.get('Ny')
+        self.Nx = int(state.get('Nx'))
+        self.Ny = int(state.get('Ny'))
         self.Lx = state.get('Lx')
         self.Ly = state.get('Ly')
         self.dx = state.get('dx')
         self.dy = state.get('dy')
+        self.workers = int(state.get('workers'))
+        depth = float(state.get('water_depth'))
+        self.depth = depth if np.isfinite(depth) else None
+        self.rmss_x = state.get('rmss_x')
+        self.rmss_y = state.get('rmss_y')
         self.wind_dir = np.deg2rad(state.get('wind_dir'))
         self.wind_dir_eff = np.deg2rad(state.get('wind_dir_eff'))
         self.wind_fetch = state.get('wind_fetch')
@@ -275,20 +342,21 @@ class OceanSurface(object):
         self.wind_U_eff = state.get('wind_U_eff')
         self.current_mag = state.get('current_mag')
         self.current_dir = np.deg2rad(state.get('current_dir'))
+        print("current_mag: %f; current_dir: %f" % (self.current_mag, np.rad2deg(self.current_dir)))
         self.swell_enable = True if state.get('swell_enable') == 1 else False
         self.swell_ampl = state.get('swell_ampl')
         self.swell_dir = np.deg2rad(state.get('swell_dir'))
         self.swell_wl = state.get('swell_wl')
         self.swell_ph0 = state.get('swell_ph0')
-        self.kx = state.get('kx')
-        self.ky = state.get('ky')
-        self.wave_coefs = state.get('wave_coefs*')
+        self.kx, self.ky = np.meshgrid(state.get('kx'), state.get('ky'))
+        self.wave_coefs = state.get('wave_coefs')
         self.choppy_enable = True if state.get('choppy_enable') == 1 else False
+        
 
         state.close()
         self.k = np.sqrt(self.kx**2 + self.ky**2)
-        kx_res = self.kx[0, 1] - self.kx[0, 0]
-        ky_res = self.ky[1, 0] - self.ky[0, 0]
+        self.kx_res = kx_res = self.kx[0, 1] - self.kx[0, 0]
+        self.ky_res = ky_res = self.ky[1, 0] - self.ky[0, 0]
 
         # K-theta meshgrid (Polar, wind direction shifted)
 
@@ -303,10 +371,10 @@ class OceanSurface(object):
         ## Calculate derivated parameters
         # Current
         self.current = self.current_mag*np.array([np.cos(self.current_dir), np.sin(self.current_dir)])
-
+        #print("current vector: %f, %f" % (self.current[0], self.current[1]))
         # X-Y vector
-        self.x = np.linspace(-self.Lx/2, self.Lx/2., self.Nx)
-        self.y = np.linspace(-self.Ly/2., self.Ly/2., self.Ny)
+        self.x = np.linspace(-self.Lx/2, self.Lx/2., self.Nx, dtype=np.float32)
+        self.y = np.linspace(-self.Ly/2., self.Ly/2., self.Ny, dtype=np.float32)
 
         # K-theta meshgrid (Polar, wind direction shifted)
         self.k = np.sqrt(self.kx**2 + self.ky**2)
@@ -314,29 +382,53 @@ class OceanSurface(object):
                                            self.wind_dir_eff)))
 
         # omega (Deep water: w(k)^2 = g*k)
-        self.omega = np.sqrt(const.g*self.k)
+        self.omega = np.sqrt(np.float32(const.g)*self.k)
+        if self.depth is not None:
+            self.omega = np.sqrt(np.float32(const.g)*self.k
+                                 * np.tanh(self.k*np.float32(self.depth)))
 
         # Swell (NOTE: Maybe X-Y should be directly a meshgrid...)
         x, y = np.meshgrid(self.x, self.y)
-        self.swell_k = 2.*np.pi/self.swell_wl
-        self.swell_kx = self.swell_k*np.cos(self.swell_dir)
-        self.swell_ky = self.swell_k*np.sin(self.swell_dir)
-        self.swell_omega = np.sqrt(self.swell_k*const.g)
-        self.swell_exp = self.swell_ampl*np.exp(1j*(self.swell_k*(np.cos(self.swell_dir)*x +
-                                                                 np.sin(self.swell_dir)*y) + self.swell_ph0))
+        self.swell_k = np.float32(2.*np.pi/self.swell_wl)
+        self.swell_kx = np.float32(self.swell_k*np.cos(self.swell_dir))
+        self.swell_ky = np.float32(self.swell_k*np.sin(self.swell_dir))
+        self.swell_omega = np.float32(np.sqrt(self.swell_k*const.g))
+        if self.depth is not None:
+            self.swell_omega = np.float32(np.sqrt(self.swell_k*const.g
+                                                 * np.tanh(self.swell_k*self.depth)))
+        self.swell_exp = (self.swell_ampl*np.exp(1j*(self.swell_k*(np.cos(self.swell_dir)*x +
+                                                                 np.sin(self.swell_dir)*y) + self.swell_ph0))).astype(np.complex64)
 
         # Set compute, allocate memory & mark as initialized
-        self.compute = compute
+        self.compute = list(compute)
+        if 'Diff2' in self.compute and 'Diff' not in self.compute:
+            self.compute.append('Diff')
 
         self.__allocate()
         self.initialized = True
 
     def save(self, state_file):
-        """ Save surface initialization parameters.
-            This lets to simulate later exactly the same surface if needed
+        """Save the initialized surface's Fourier realization and model parameters.
 
-            :param state_file: State file path
+        Parameters
+        ----------
+        state_file : str or path-like
+            Destination HDF5-backed OceanStateFile, overwritten if it exists.
+            Stores full native-complex wave_coefs with shape (Ny, Nx), 1D kx/ky
+            axes in rad/m and scalar initialization metadata. Coefficient dtype
+            is preserved; no Hermitian symmetry is assumed.
 
+        Returns
+        -------
+        None
+            Write initial conditions for later load and propagation. Time-dependent
+            surface rasters are excluded; depth, RMS slopes and monochromatic
+            swell phase are retained.
+
+        Raises
+        ------
+        Exception
+            The surface has not been initialized.
         """
 
         if not self.initialized:
@@ -346,6 +438,10 @@ class OceanSurface(object):
         state = wsio.OceanStateFile(state_file, 'w', [self.Ny, self.Nx])
 
         # Save content
+        state.set('workers', self.workers)
+        state.set('water_depth', self.depth if self.depth is not None else np.inf)
+        state.set('rmss_x', self.rmss_x)
+        state.set('rmss_y', self.rmss_y)
         state.set('Nx', self.Nx)
         state.set('Ny', self.Ny)
         state.set('Lx', self.Lx)
@@ -363,11 +459,10 @@ class OceanSurface(object):
         state.set('swell_ampl', self.swell_ampl)
         state.set('swell_dir', np.rad2deg(self.swell_dir))
         state.set('swell_wl', self.swell_wl)
-        if self.swell_enable:
-            state.set('swell_ph0', self.swell_ph0)
-        state.set('kx', self.kx)
-        state.set('ky', self.ky)
-        state.set('wave_coefs*', self.wave_coefs)
+        state.set('swell_ph0', self.swell_ph0 if self.swell_enable else 0.)
+        state.set('kx', self.kx[0, :])
+        state.set('ky', self.ky[:, 0])
+        state.set('wave_coefs', self.wave_coefs)
         state.set('choppy_enable', 1 if self.choppy_enable else 0)
 
         state.close()
@@ -379,6 +474,60 @@ class OceanSurface(object):
             .. note::
                 Internal use only
         """
+
+        # Indices used to pack an arbitrary complex spectrum into the
+        # Hermitian half-spectrum consumed by irfft2.
+        self._neg_y = (-np.arange(self.Ny)) % self.Ny
+        self._rfft_x = np.arange(self.Nx // 2 + 1)
+        self._neg_rfft_x = (-self._rfft_x) % self.Nx
+        self._wave_coefs_pos = self.wave_coefs[:, :self.Nx//2 + 1]
+        self._wave_coefs_neg_conj = np.conj(self.wave_coefs[
+            self._neg_y[:, np.newaxis],
+            self._neg_rfft_x[np.newaxis, :]
+        ])
+        half_shape = (self.Ny, self.Nx//2 + 1)
+        self._phase_pos = np.empty(half_shape, dtype=np.complex64)
+        self._phase_neg_conj = np.empty(half_shape, dtype=np.complex64)
+        self._wave_phased_pos = np.empty(half_shape, dtype=np.complex64)
+        self._wave_phased_neg_conj = np.empty(half_shape, dtype=np.complex64)
+        self._wave_phased = np.empty(half_shape, dtype=np.complex64)
+        self._ifft_scratch = np.empty(half_shape, dtype=np.complex64)
+
+        self._omega_pos = self.omega[:, :self.Nx//2 + 1]
+        if 'V' in self.compute:
+            self._iomega_pos = 1j*self._omega_pos
+            self._wave_diff_t_phased = np.empty(half_shape, dtype=np.complex64)
+            self._wave_diff_t_phased_neg_conj = np.empty(
+                half_shape, dtype=np.complex64
+            )
+        if 'A' in self.compute:
+            self._neg_omega2_pos = -(self._omega_pos**2)
+            self._wave_diff2_t_phased = np.empty(
+                half_shape, dtype=np.complex64
+            )
+            self._wave_diff2_t_phased_neg_conj = np.empty(
+                half_shape, dtype=np.complex64
+            )
+        if 'Diff2' in self.compute or (
+                'Diff' in self.compute and self.choppy_enable):
+            self._neg_kx2 = -(self.kx*self.kx)
+            self._neg_ky2 = -(self.ky*self.ky)
+        if 'Diff2' in self.compute:
+            self._neg_kxky = -(self.kx*self.ky)
+        if 'hMTF' in self.compute:
+            k_max = np.float32(2.*np.pi/20.)
+            mu = np.float32(0.04/16.)
+            dlnS_dlnk = np.float32(-3.)
+            Vg_c = np.float32(0.5)
+            M_h = (1j*self.k*self.omega*(self.omega + 1j*mu)
+                   / (self.omega**2 + mu**2)
+                   * (dlnS_dlnk - Vg_c)).astype(np.complex64)
+            M_h[self.k > k_max] = 0.
+            self._hmtf_pos = M_h[:, :self.Nx//2 + 1].copy()
+            self._hmtf_pos_conj = np.conj(self._hmtf_pos)
+            self._wave_hmtf_phased = np.empty(
+                half_shape, dtype=np.complex64
+            )
 
         if 'D' in self.compute:
             self.Dx = np.empty([self.Ny, self.Nx], dtype=np.float32)
@@ -402,6 +551,41 @@ class OceanSurface(object):
         if 'hMTF' in self.compute:
             self.hMTF = np.empty([self.Ny, self.Nx], dtype=np.float32)
 
+    def _ifft2_real(self, hermitian_half, multiplier=1.,
+                    spectrum_neg_conj=None):
+        """Transform a packed Hermitian spectrum into a real field."""
+        if not np.isscalar(multiplier):
+            multiplier_full = multiplier
+            multiplier = multiplier_full[:, :self.Nx//2 + 1]
+            np.multiply(
+                multiplier, hermitian_half, out=self._ifft_scratch
+            )
+
+            # fftfreq represents an even-sized Nyquist bin with its negative
+            # frequency. Correct those self-paired rows/columns explicitly so
+            # odd derivative multipliers remain identical to the full ifft2.
+            if spectrum_neg_conj is not None and self.Nx % 2 == 0:
+                self._ifft_scratch[:, -1] += 0.5*(
+                    np.conj(multiplier_full[self._neg_y, self.Nx//2])
+                    - multiplier[:, -1]
+                )*spectrum_neg_conj[:, -1]
+            if spectrum_neg_conj is not None and self.Ny % 2 == 0:
+                x_stop = -1 if self.Nx % 2 == 0 else None
+                self._ifft_scratch[self.Ny//2, :x_stop] += 0.5*(
+                    np.conj(multiplier_full[
+                        self.Ny//2, self._neg_rfft_x[:x_stop]
+                    ]) - multiplier[self.Ny//2, :x_stop]
+                )*spectrum_neg_conj[self.Ny//2, :x_stop]
+        else:
+            np.multiply(
+                multiplier, hermitian_half, out=self._ifft_scratch
+            )
+        return sp.fft.irfft2(
+            self._ifft_scratch,
+            s=(self.Ny, self.Nx),
+            workers=self.workers
+        )
+
 
     @property
     def t(self):
@@ -424,103 +608,136 @@ class OceanSurface(object):
         self._t = np.float32(value)
 
         # Propagate
-        wave_coefs_phased = (self.wave_coefs*np.exp(-1j*self.omega*self._t)).astype(np.complex64)
+        np.exp(
+            -1j*self._omega_pos*self._t, out=self._phase_pos
+        )
+        np.conjugate(self._phase_pos, out=self._phase_neg_conj)
+        np.multiply(
+            self._wave_coefs_pos, self._phase_pos,
+            out=self._wave_phased_pos
+        )
+        np.multiply(
+            self._wave_coefs_neg_conj, self._phase_neg_conj,
+            out=self._wave_phased_neg_conj
+        )
+        np.add(
+            self._wave_phased_pos, self._wave_phased_neg_conj,
+            out=self._wave_phased
+        )
+        self._wave_phased *= 0.5
         if self.swell_enable:
             swell_phased = (self.swell_exp*np.exp(-1j*self.swell_omega*self._t)).astype(np.complex64)
 
         # HORIZ. DISPL. & HEIGHT FIELD (Dx, Dy, Dz)
         if 'D' in self.compute:
-            #self.Dx[:] = np.real(np.fft.ifft2(1j*self.kx*self.kinv*wave_coefs_phased)) + self.current[0]*self._t
-            #self.Dy[:] = np.real(np.fft.ifft2(1j*self.ky*self.kinv*wave_coefs_phased)) + self.current[1]*self._t
-            self.Dx[:] = - np.imag(np.fft.ifft2(self.kxn * wave_coefs_phased)) + self.current[0] * self._t
-            self.Dy[:] = - np.imag(np.fft.ifft2(self.kyn * wave_coefs_phased)) + self.current[1] * self._t
-            self.Dz[:] = np.real(np.fft.ifft2(wave_coefs_phased))
+            self.Dx[:] = self._ifft2_real(self._wave_phased, 1j*self.kxn, self._wave_phased_neg_conj) + self.current[0]*self._t
+            self.Dy[:] = self._ifft2_real(self._wave_phased, 1j*self.kyn, self._wave_phased_neg_conj) + self.current[1]*self._t
+            self.Dz[:] = self._ifft2_real(self._wave_phased)
             if self.swell_enable:
-                self.Dx[:] = self.Dx[:] + np.real(1j*self.swell_kx/self.swell_k*swell_phased).astype(np.float32)
-                self.Dy[:] = self.Dy[:] + np.real(1j*self.swell_ky/self.swell_k*swell_phased).astype(np.float32)
-                self.Dz[:] = self.Dz[:] + np.real(swell_phased).astype(np.float32)
+                self.Dx += np.real(1j*self.swell_kx/self.swell_k*swell_phased).astype(np.float32)
+                self.Dy += np.real(1j*self.swell_ky/self.swell_k*swell_phased).astype(np.float32)
+                self.Dz += np.real(swell_phased).astype(np.float32)
 
         # FIRST SPATIAL DERIVATIVES - SLOPES (Diffx, Diffy)
         if 'Diff' in self.compute:
             if not self.choppy_enable:
-                self.Diffx[:] = np.real(np.fft.ifft2(1j*self.kx*wave_coefs_phased))
-                self.Diffy[:] = np.real(np.fft.ifft2(1j*self.ky*wave_coefs_phased))
+                self.Diffx[:] = self._ifft2_real(self._wave_phased, 1j*self.kx, self._wave_phased_neg_conj)
+                self.Diffy[:] = self._ifft2_real(self._wave_phased, 1j*self.ky, self._wave_phased_neg_conj)
                 if self.swell_enable:
-                    self.Diffx[:] = self.Diffx[:] + np.real(1j*self.swell_kx*swell_phased)
-                    self.Diffy[:] = self.Diffy[:] + np.real(1j*self.swell_ky*swell_phased)
+                    self.Diffx += np.real(1j*self.swell_kx*swell_phased)
+                    self.Diffy += np.real(1j*self.swell_ky*swell_phased)
             else:
-                self.Diffx[:] = np.real(np.fft.ifft2(1j*self.kx*wave_coefs_phased))/(1.+np.real(np.fft.ifft2(-self.kx**2.*self.kinv*wave_coefs_phased)))
-                self.Diffy[:] = np.real(np.fft.ifft2(1j*self.ky*wave_coefs_phased))/(1.+np.real(np.fft.ifft2(-self.ky**2.*self.kinv*wave_coefs_phased)))
+                aux_x = self._ifft2_real(
+                    self._wave_phased, 1j*self.kx,
+                    self._wave_phased_neg_conj
+                )
+                aux_y = self._ifft2_real(
+                    self._wave_phased, 1j*self.ky,
+                    self._wave_phased_neg_conj
+                )
+                aux_xx = self._ifft2_real(
+                    self._wave_phased, self._neg_kx2*self.kinv
+                )
+                aux_yy = self._ifft2_real(
+                    self._wave_phased, self._neg_ky2*self.kinv
+                )
+                self.Diffx[:] = aux_x/(1.+aux_xx)
+                self.Diffy[:] = aux_y/(1.+aux_yy)
                 if self.swell_enable:
-                    self.Diffx[:] = self.Diffx[:] + np.real(1j*self.swell_kx*swell_phased)
-                    self.Diffy[:] = self.Diffy[:] + np.real(1j*self.swell_ky*swell_phased)
+                    self.Diffx += np.real(1j*self.swell_kx*swell_phased)
+                    self.Diffy += np.real(1j*self.swell_ky*swell_phased)
 
         # SECOND SPATIAL DERIVATIVES (Diffxx, Diffyy, Diffxy)
         if 'Diff2' in self.compute:
             if not self.choppy_enable:
-                self.Diffxx[:] = np.real(np.fft.ifft2(-self.kx**2.*wave_coefs_phased))
-                self.Diffyy[:] = np.real(np.fft.ifft2(-self.ky**2.*wave_coefs_phased))
-                self.Diffxy[:] = np.real(np.fft.ifft2(-self.kx*self.ky*wave_coefs_phased))
+                self.Diffxx[:] = self._ifft2_real(self._wave_phased, self._neg_kx2)
+                self.Diffyy[:] = self._ifft2_real(self._wave_phased, self._neg_ky2)
+                self.Diffxy[:] = self._ifft2_real(self._wave_phased, self._neg_kxky, self._wave_phased_neg_conj)
                 if self.swell_enable:
-                    self.Diffxx[:] = self.Diffxx[:] + np.real(-self.swell_kx**2.*swell_phased)
-                    self.Diffyy[:] = self.Diffyy[:] + np.real(-self.swell_ky**2.*swell_phased)
-                    self.Diffxy[:] = self.Diffxy[:] + np.real(-self.swell_kx*self.swell_ky*swell_phased)
+                    self.Diffxx += np.real(-self.swell_kx**2.*swell_phased)
+                    self.Diffyy += np.real(-self.swell_ky**2.*swell_phased)
+                    self.Diffxy += np.real(-self.swell_kx*self.swell_ky*swell_phased)
             else:
-                aux_x = np.real(np.fft.ifft2(1j*self.kx*wave_coefs_phased))
-                aux_y = np.real(np.fft.ifft2(1j*self.ky*wave_coefs_phased))
-                aux_xx = np.real(np.fft.ifft2(-self.kx**2.*self.kinv*wave_coefs_phased))
-                aux_yy = np.real(np.fft.ifft2(-self.ky**2.*self.kinv*wave_coefs_phased))
-                aux_xxx = np.real(np.fft.ifft2(-1j*self.kx**3.*self.kinv*wave_coefs_phased))
-                aux_yyy = np.real(np.fft.ifft2(-1j*self.ky**3.*self.kinv*wave_coefs_phased))
-                aux_xxy = np.real(np.fft.ifft2(-1j*self.kx**2.*self.ky*self.kinv*wave_coefs_phased))
-                self.Diffxx[:] = ((1.+aux_xx)*np.real(np.fft.ifft2(-self.kx**2.*wave_coefs_phased)) - aux_xxx*aux_x)/((1+aux_xx)**3.)
-                self.Diffyy[:] = ((1.+aux_yy)*np.real(np.fft.ifft2(-self.ky**2.*wave_coefs_phased)) - aux_yyy*aux_y)/((1+aux_yy)**3.)
-                self.Diffxy[:] = ((1.+aux_xx)*np.real(np.fft.ifft2(-self.kx*self.ky*wave_coefs_phased)) - aux_xxy*aux_x)/((1+aux_xx)**2.*(1+aux_yy))
+                aux_xxx = self._ifft2_real(self._wave_phased, 1j*self._neg_kx2*self.kx*self.kinv, self._wave_phased_neg_conj)
+                aux_yyy = self._ifft2_real(self._wave_phased, 1j*self._neg_ky2*self.ky*self.kinv, self._wave_phased_neg_conj)
+                aux_xxy = self._ifft2_real(self._wave_phased, 1j*self._neg_kx2*self.ky*self.kinv, self._wave_phased_neg_conj)
+                self.Diffxx[:] = ((1.+aux_xx)*self._ifft2_real(self._wave_phased, self._neg_kx2) - aux_xxx*aux_x)/((1+aux_xx)**3.)
+                self.Diffyy[:] = ((1.+aux_yy)*self._ifft2_real(self._wave_phased, self._neg_ky2) - aux_yyy*aux_y)/((1+aux_yy)**3.)
+                self.Diffxy[:] = ((1.+aux_xx)*self._ifft2_real(self._wave_phased, self._neg_kxky, self._wave_phased_neg_conj) - aux_xxy*aux_x)/((1+aux_xx)**2.*(1+aux_yy))
                 if self.swell_enable:
-                    self.Diffxx[:] = self.Diffxx[:] + np.real(-self.swell_kx**2.*swell_phased)
-                    self.Diffyy[:] = self.Diffyy[:] + np.real(-self.swell_ky**2.*swell_phased)
-                    self.Diffxy[:] = self.Diffxy[:] + np.real(-self.swell_kx*self.swell_ky*swell_phased)
+                    self.Diffxx += np.real(-self.swell_kx**2.*swell_phased)
+                    self.Diffyy += np.real(-self.swell_ky**2.*swell_phased)
+                    self.Diffxy += np.real(-self.swell_kx*self.swell_ky*swell_phased)
 
         # FIRST TIME DERIVATIVES - VELOCITY (Vx, Vy, Vz)
         if 'V' in self.compute:
-            wave_coefs_diff_t_phased = -1j*self.omega*wave_coefs_phased
-            self.Vx[:] = - np.imag(np.fft.ifft2(self.kxn * wave_coefs_diff_t_phased)) + self.current[0]
-            self.Vy[:] = - np.imag(np.fft.ifft2(self.kyn * wave_coefs_diff_t_phased)) + self.current[1]
-            self.Vz[:] = np.real(np.fft.ifft2(wave_coefs_diff_t_phased))
+            np.subtract(
+                self._wave_phased_neg_conj, self._wave_phased_pos,
+                out=self._wave_diff_t_phased
+            )
+            self._wave_diff_t_phased *= 0.5*self._iomega_pos
+            np.multiply(
+                self._iomega_pos, self._wave_phased_neg_conj,
+                out=self._wave_diff_t_phased_neg_conj
+            )
+            self.Vx[:] = self._ifft2_real(self._wave_diff_t_phased, 1j*self.kxn, self._wave_diff_t_phased_neg_conj) + self.current[0]
+            self.Vy[:] = self._ifft2_real(self._wave_diff_t_phased, 1j*self.kyn, self._wave_diff_t_phased_neg_conj) + self.current[1]
+            self.Vz[:] = self._ifft2_real(self._wave_diff_t_phased)
             if self.swell_enable:
                 swell_diff_t_phased = -1j*self.swell_omega*swell_phased
-                self.Vx[:] = self.Vx[:] + np.real(1j*self.swell_kx/self.swell_k*swell_diff_t_phased)
-                self.Vy[:] = self.Vy[:] + np.real(1j*self.swell_ky/self.swell_k*swell_diff_t_phased)
-                self.Vz[:] = self.Vz[:] + np.real(swell_diff_t_phased)
+                self.Vx += np.real(1j*self.swell_kx/self.swell_k*swell_diff_t_phased)
+                self.Vy += np.real(1j*self.swell_ky/self.swell_k*swell_diff_t_phased)
+                self.Vz += np.real(swell_diff_t_phased)
 
         # SECOND TIME DERIVATIVES - ACCELERATION (Ax, Ay, Az)
         if 'A' in self.compute:
-            wave_coefs_diff2_t_phased = -self.omega**2.*wave_coefs_phased
-            self.Ax[:] = np.real(np.fft.ifft2(1j*self.kx*self.kinv*wave_coefs_diff2_t_phased))
-            self.Ay[:] = np.real(np.fft.ifft2(1j*self.ky*self.kinv*wave_coefs_diff2_t_phased))
-            self.Az[:] = np.real(np.fft.ifft2(wave_coefs_diff2_t_phased))
+            np.multiply(
+                self._neg_omega2_pos, self._wave_phased,
+                out=self._wave_diff2_t_phased
+            )
+            np.multiply(
+                self._neg_omega2_pos, self._wave_phased_neg_conj,
+                out=self._wave_diff2_t_phased_neg_conj
+            )
+            self.Ax[:] = self._ifft2_real(self._wave_diff2_t_phased, 1j*self.kx*self.kinv, self._wave_diff2_t_phased_neg_conj)
+            self.Ay[:] = self._ifft2_real(self._wave_diff2_t_phased, 1j*self.ky*self.kinv, self._wave_diff2_t_phased_neg_conj)
+            self.Az[:] = self._ifft2_real(self._wave_diff2_t_phased)
             if self.swell_enable:
                 swell_diff2_t_phased = -self.swell_omega**2.*swell_phased
-                self.Ax[:] = self.Ax[:] + np.real(1j*self.swell_kx/self.swell_k*swell_diff2_t_phased)
-                self.Ay[:] = self.Ay[:] + np.real(1j*self.swell_ky/self.swell_k*swell_diff2_t_phased)
-                self.Az[:] = self.Az[:] + np.real(swell_diff2_t_phased)
+                self.Ax += np.real(1j*self.swell_kx/self.swell_k*swell_diff2_t_phased)
+                self.Ay += np.real(1j*self.swell_ky/self.swell_k*swell_diff2_t_phased)
+                self.Az += np.real(swell_diff2_t_phased)
 
         # HYDRODYNAMIC MTF (Bertrand Chapron, personal communication)
         # TODO: Stefan Sauer should check this is correct.
         # TODO: What happens with swell?
         if 'hMTF' in self.compute:
-
-            k_max = 2.*np.pi/20.
-            mu = 0.04/16.
-            dlnS_dlnk = -3.
-            Vg_c = 0.5
-            # FIXME: I am changig the sign of M_h so that down-wind slopes have
-            # a positive modulation
-            M_h = 1j * self.k*self.omega*(self.omega + 1j*mu)/(self.omega**2. + mu**2.)*(dlnS_dlnk - Vg_c)
-
-            # Calculate coefficients & filter
-            wave_coefs_hmtf_phased = M_h*wave_coefs_phased
-            #wave_coefs_hmtf_phased[np.where((np.abs(self.kx) > k_max) & (np.abs(self.ky) > k_max))] = 0.
-            wave_coefs_hmtf_phased[np.where(self.k > k_max) ] = 0.
-            # Compute hMTF
-            self.hMTF[:] = np.real(np.fft.ifft2(wave_coefs_hmtf_phased))
+            np.multiply(
+                self._hmtf_pos, self._wave_phased_pos,
+                out=self._wave_hmtf_phased
+            )
+            self._wave_hmtf_phased += (
+                self._hmtf_pos_conj*self._wave_phased_neg_conj
+            )
+            self._wave_hmtf_phased *= 0.5
+            self.hMTF[:] = self._ifft2_real(self._wave_hmtf_phased)

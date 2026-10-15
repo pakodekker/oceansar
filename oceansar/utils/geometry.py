@@ -1,28 +1,28 @@
 import numpy as np
 from scipy import interpolate
 from collections import namedtuple
-#from drama.geo import orbit_to_vel
+from drama.orbits.velocity import orbit_to_vel
 from oceansar import constants as const
 #import drama.utils.gohlke_transf as trans
 #from drama.utils.coord_trans import (rot_z, rot_z_prime)
 
-def orbit_to_vel(orbit_alt, ground=False,
-                 r_planet=const.r_earth,
-                 m_planet=const.m_earth):
-    """ Calculates orbital/ground velocity assuming circular orbit
+# def orbit_to_vel(orbit_alt, ground=False,
+#                  r_planet=const.r_earth,
+#                  m_planet=const.m_earth):
+#     """ Calculates orbital/ground velocity assuming circular orbit
 
-        :param orbit_alt: Satellite orbit altitude
-        :param ground: If true, returned value will be ground velocity
+#         :param orbit_alt: Satellite orbit altitude
+#         :param ground: If true, returned value will be ground velocity
 
-        :returns: Orbital or Ground velocity
-    """
-    v = np.sqrt(const.G * m_planet/(r_planet + orbit_alt))
+#         :returns: Orbital or Ground velocity
+#     """
+#     v = np.sqrt(const.G * m_planet/(r_planet + orbit_alt))
 
-    # Convert to ground velocity if needed
-    if ground:
-        v = r_planet / (r_planet + orbit_alt) * v
+#     # Convert to ground velocity if needed
+#     if ground:
+#         v = r_planet / (r_planet + orbit_alt) * v
 
-    return v
+#     return v
 
 
 def inc_to_sr(theta_i, orbit_alt, r_planet=const.r_earth):
@@ -41,6 +41,29 @@ def inc_to_sr(theta_i, orbit_alt, r_planet=const.r_earth):
     return np.sqrt((orbit_alt + r_planet -
                     r_planet * np.cos(delta_theta))**2 +
                    (r_planet * np.sin(delta_theta))**2)
+
+
+def geohistory_ground_velocity(ghist, look_angle):
+    """Return the local speed of a GeoHistory ground intersection."""
+    look_angles = np.asarray(ghist._la_vector)
+    look_angle = np.asarray(look_angle).item()
+    if look_angle < look_angles[0] or look_angle > look_angles[-1]:
+        raise ValueError("Look angle is outside the GeoHistory grid")
+
+    upper = np.searchsorted(look_angles, look_angle)
+    upper = np.clip(upper, 1, look_angles.size - 1)
+    lower = upper - 1
+    weight = (
+        (look_angle - look_angles[lower])
+        / (look_angles[upper] - look_angles[lower])
+    )
+    ground_track = (
+        (1.0 - weight) * ghist.icps[:, lower, :]
+        + weight * ghist.icps[:, upper, :]
+    )
+    ground_velocity = interpolate.CubicSpline(
+        ghist.t, ground_track, axis=0).derivative()(0.0)
+    return np.linalg.norm(ground_velocity)
 
 
 def inc_to_gr(theta_i, orbit_alt, r_planet=const.r_earth):
@@ -117,7 +140,8 @@ def sr_to_geo(slant_range, orbit_alt,
     theta_i = look_to_inc(theta_l, orbit_alt, r_planet=r_planet)
     delta_theta = theta_i - theta_l
     r_track = np.cos(delta_theta) * r_planet
-    v_orb = orbit_to_vel(orbit_alt, r_planet=r_planet, m_planet=m_planet)
+    v_orb = orbit_to_vel(
+        orbit_alt, r_planet=r_planet, gm_planet=const.G * m_planet)
     b = v_orb**2 * r_track / (r_planet + orbit_alt)
 
     # Calculate Ground Range and Slant Range

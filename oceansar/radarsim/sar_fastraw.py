@@ -6,10 +6,11 @@ import argparse
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy import linalg
+from scipy.integrate import trapezoid
 import numexpr as ne
 import datetime
 
-from oceansar import utils
+from drama import utils
 from oceansar import ocs_io as tpio
 from oceansar.utils import geometry as geosar
 from oceansar.radarsim.antenna import sinc_1tx_nrx
@@ -84,9 +85,9 @@ def fastraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
     scat_bragg_spread = cfg.srg.scat_bragg_spread
 
     # SAR
-    inc_angle = np.deg2rad(cfg.sar.inc_angle)
+    inc_angle = np.deg2rad(cfg.mode.inc_angle)
     f0 = cfg.sar.f0
-    pol = cfg.sar.pol
+    pol = cfg.mode.pol
     squint_r = np.degrees(cfg.sar.squint)
     if pol == 'DP':
         do_hh = True
@@ -98,13 +99,13 @@ def fastraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
         do_hh = False
         do_vv = True
 
-    prf = cfg.sar.prf
+    prf = cfg.mode.prf
     num_ch = int(cfg.sar.num_ch)
     ant_l = cfg.sar.ant_L
     alt = cfg.sar.alt
     v_ground = cfg.sar.v_ground
-    rg_bw = cfg.sar.rg_bw
-    over_fs = cfg.sar.over_fs
+    rg_bw = cfg.mode.rg_bw
+    over_fs = cfg.mode.over_fs
     sigma_n_tx = cfg.sar.sigma_n_tx
     phase_n_tx = np.deg2rad(cfg.sar.phase_n_tx)
     sigma_beta_tx = cfg.sar.sigma_beta_tx
@@ -508,7 +509,7 @@ def fastraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
 
         # Filter and decimate
         #range_filter = np.ones_like(total_raw)
-        #range_filter[:, :, rg_samp/(2*2*cfg.sar.over_fs):-rg_samp/(2*2*cfg.sar.over_fs)] = 0
+        #range_filter[:, :, rg_samp/(2*2*cfg.mode.over_fs):-rg_samp/(2*2*cfg.mode.over_fs)] = 0
 
         #total_raw = np.fft.ifft(range_filter*np.fft.fft(total_raw))
         if do_hh:
@@ -525,7 +526,7 @@ def fastraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
         else:
             pattern = sinc_1tx_nrx(az_axis/sr0, ant_l, f0, 1,
                                    field=True)
-        cal_factor = (1. / np.sqrt(np.trapz(np.abs(pattern)**2., az_axis) *
+        cal_factor = (1. / np.sqrt(trapezoid(np.abs(pattern)**2., az_axis) *
                       sr_res/np.sin(inc_angle)))
 
         if do_hh:

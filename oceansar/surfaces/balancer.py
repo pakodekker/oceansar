@@ -2,7 +2,7 @@
 from mpi4py import MPI
 import numpy as np
 
-from oceansar import utils
+from drama import utils
 
 
 class OceanSurfaceBalancer(object):

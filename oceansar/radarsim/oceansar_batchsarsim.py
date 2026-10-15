@@ -19,7 +19,7 @@ import time
 import subprocess
 import numpy as np
 from oceansar import ocs_io as osrio
-from oceansar import utils
+from drama import utils
 from matplotlib import pyplot as plt
 import matplotlib as mpl
 
@@ -40,7 +40,7 @@ n_rep = 1
 cfg_file_name = 'config.cfg'
 
 def batch_sarsim(template_file):
-    cfg_file = utils.get_parFile(parfile=template_file)
+    cfg_file = utils.get_par_file(parfile=template_file)
     ref_cfg = osrio.ConfigFile(cfg_file)
     step = 0
     sim_path_ref = ref_cfg.sim.path + os.sep + 'sim_U%d_wdir%d_smag%d_sdir%d_inc%d_i%i'
@@ -71,7 +71,7 @@ def batch_sarsim(template_file):
                             cfg.ocean.wind_dir = wind_dir
                             cfg.ocean.current_mag = current_mag
                             cfg.ocean.current_dir = current_dir
-                            cfg.sar.inc_angle = inc_angle
+                            cfg.mode.inc_angle = inc_angle
 
                             if not os.path.exists(cfg.sim.path):
                                 os.makedirs(cfg.sim.path)
@@ -84,10 +84,10 @@ def batch_sarsim(template_file):
 
 
 def postprocess_batch_sim(template_file, plots=True, fontsize=14, pltsymb = ['o', 'D', 's', '^', 'p']):
-    cfg_file = utils.get_parFile(parfile=template_file)
+    cfg_file = utils.get_par_file(parfile=template_file)
     ref_cfg = osrio.ConfigFile(cfg_file)
     step = 0
-    npol = (2 if ref_cfg.sar.pol == 'DP' else 1)
+    npol = (2 if ref_cfg.mode.pol == 'DP' else 1)
     nch = int(ref_cfg.sar.num_ch)
     nim = nch * npol
 
