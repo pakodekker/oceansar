@@ -17,3 +17,4 @@ Ocean surfaces
 
 """
 from .misc import factorize, balance_elements, optimize_fftsize, get_parFile, smooth, db, db2lin, PrInfo, linresample
+from .random import get_sim_seed, legacy_random_seed, random_generator

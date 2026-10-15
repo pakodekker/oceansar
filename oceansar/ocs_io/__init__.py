@@ -24,7 +24,7 @@ State Files
 
 from .state import OceanStateFile
 from .cfg import ConfigFile
-from .raw import RawFile, SkimRawFile, DopscaRawFile
+from .raw import RawFile, SkimRawFile, DopscaRawFile, ReconstructedRawFile
 from .netcdf import NETCDFHandler
 from .processed import ProcFile
 from .insar_l1b import L1bFile

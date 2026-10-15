@@ -9,20 +9,21 @@
     **Arguments**
         - Configuration file
 
-e.g. python oceansar_sarsim.py d:\data\configfile\20160708_NOS.cfg
+e.g. python oceansar_sarsim.py d:\\data\\configfile\\20160708_NOS.cfg
 
 """
 
 import sys
 import os
+import shutil
 import time
 import subprocess
 from drama.io import cfg as drcfg
 from oceansar import ocs_io as osrio
-from oceansar import utils
+from drama import utils
 from oceansar.dopscasim.dopsca_raw import dopsca_raw
 from oceansar.dopscasim.dopsca_sys import dopsca_syssim
-# from oceansar.radarsim.sar_processor import sar_focus
+# from oceansar.sar_l1 import sar_focus
 # from oceansar.radarsim.ati_processor import ati_process
 # from oceansar.radarsim.insar_processor import insar_process
 # from oceansar.radarsim.L2_wavespectrum import l2_wavespectrum
@@ -33,7 +34,7 @@ from oceansar.dopscasim.dopsca_sys import dopsca_syssim
 #     print('-------------------------------------------------------------------', flush=True)
 #     print(time.strftime("OCEANSAR DOPSCA Simulator [%Y-%m-%d %H:%M:%S]", time.localtime()), flush=True)
 #     print('-------------------------------------------------------------------', flush=True)
-#     cfg_file = utils.get_parFile(parfile=cfg_file)
+#     cfg_file = utils.get_par_file(parfile=cfg_file)
 #     cfg = osrio.ConfigFile(cfg_file)
 #     # Create output directory if it doesnt exist already
 #     os.makedirs(cfg.sim.path, exist_ok=True)
@@ -89,10 +90,17 @@ def dopscasim(cfg_file=None):
     print(time.strftime("OCEANSAR SAR Simulator [%Y-%m-%d %H:%M:%S]", time.localtime()), flush=True)
     # print('Copyright (c) Gerard Marull Paretas, Paco López-Dekker')
     print('-------------------------------------------------------------------', flush=True)
-    cfg_file = utils.get_parFile(parfile=cfg_file)
+    cfg_file = utils.get_par_file(parfile=cfg_file)
     cfg = drcfg.ConfigFile(cfg_file)
     # Create output directory if it doesnt exist already
     os.makedirs(cfg.sim.path, exist_ok=True)
+    cfg_source = os.path.abspath(cfg.cfg_file_name)
+    cfg_copy = os.path.abspath(
+        os.path.join(cfg.sim.path, os.path.basename(cfg_source)))
+    if not (os.path.exists(cfg_copy)
+            and os.path.samefile(cfg_source, cfg_copy)):
+        shutil.copy2(cfg_source, cfg_copy)
+    print('Configuration copied to %s' % cfg_copy, flush=True)
     src_path = os.path.dirname(os.path.abspath(__file__))
 
     # RAW
@@ -127,5 +135,3 @@ if __name__ == '__main__':
         dopscasim()
     else:
         dopscasim(sys.argv[1])
-
-

@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from scipy import linalg
 import numexpr as ne
 from oceansar import ocs_io
-from oceansar import utils
+from drama import utils
 import oceansar.utils.geometry as geosar
 from oceansar import constants as const
 
@@ -40,7 +40,7 @@ class RadarSurface():
                 :returns: a tuple with the configuration object, the surfaces, the radial velocities for each grid point,
                       and the complex scattering coefficients
         """
-        cfg_file = utils.get_parFile(parfile=cfg_file)
+        cfg_file = utils.get_par_file(parfile=cfg_file)
         cfg = ocs_io.ConfigFile(cfg_file)
         self.cfg = cfg
         self.use_hmtf = cfg.srg.use_hmtf
@@ -579,9 +579,10 @@ if __name__ == '__main__':
     U = 8
     radsurf_U8 = RadarSurface(cfg_file, winddir=0, U10=U, t_step=1e-3)
     gmf = radsurf_U8.gmf([35,40], 36)
+# %%
+
 #%%
     plt.figure()
-
 
     plt.plot(gmf.azimuth, 10 * np.log10(gmf.NRCS_vv[0]), label='35')
     plt.plot(gmf.azimuth, 10 * np.log10(gmf.NRCS_vv[1]), label='40')
@@ -612,7 +613,7 @@ if __name__ == '__main__':
     plt.legend()
 
     plt.figure()
-    v2dop = radsurf_U8.f0/3e8 * 2
+    v2dop = radsurf_U8.f0/const.c * 2
     plt.plot(gmf.azimuth, v2dop * gmf.v_r_wvv[0], 'b--', label='35')
     plt.plot(gmf.azimuth, v2dop * gmf.v_r_wvv[1], 'g--', label='40')
     # plt.plot(gmf.azimuth, gmf.v_r_wvv[2], 'r--', label='45')

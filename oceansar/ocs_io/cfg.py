@@ -142,6 +142,11 @@ class ConfigFile():
 
         file.close()
 
+        # Legacy parameter files kept operating-mode values under [sar].
+        # Keep those files readable while consumers migrate to cfg.mode.
+        if not hasattr(self, 'mode') and hasattr(self, 'sar'):
+            self.mode = self.sar
+
     def save(self, alternate_file=None, blank_lines=True):
         """ Saves configuration file
 

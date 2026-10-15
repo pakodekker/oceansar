@@ -19,7 +19,7 @@ import time
 import subprocess
 import numpy as np
 from oceansar import io as osrio
-from oceansar import utils
+from drama import utils
 from matplotlib import pyplot as plt
 import matplotlib as mpl
 
@@ -50,7 +50,7 @@ cfg_file_name = 'config.cfg'
 def batch_skimsim(template_file):
 
     for iii in range(np.size(No)):
-        cfg_file = utils.get_parFile(parfile=template_file)
+        cfg_file = utils.get_par_file(parfile=template_file)
         ref_cfg = osrio.ConfigFile(cfg_file)
         path_m = ref_cfg.sim.path + os.sep + 'SKIM_12deg_rar_%d'%(No[iii])
         sim_path_ref = path_m + os.sep + 'Time%d_inc_s%d_azimuth_s%d'
@@ -75,7 +75,7 @@ def batch_skimsim(template_file):
                     # Save configuration file into an alternate file
                     cfg.save(cfg.sim.path + os.sep + cfg_file_name)
 
-    cfg_file = utils.get_parFile(parfile=template_file)
+    cfg_file = utils.get_par_file(parfile=template_file)
     ref_cfg = osrio.ConfigFile(cfg_file)
     step = 0
     sim_path_ref = ref_cfg.sim.path + os.sep + 'Time%d_inc_s%d_azimuth_s%d_wavelength%1f'
@@ -112,7 +112,7 @@ def batch_skimsim(template_file):
 
 
 def postprocess_batch_sim(template_file, plots=True):
-    cfg_file = utils.get_parFile(parfile=template_file)
+    cfg_file = utils.get_par_file(parfile=template_file)
     ref_cfg = osrio.ConfigFile(cfg_file)
 
     if cfg.processing.Azi_img:
@@ -204,7 +204,7 @@ def postprocess_batch_sim(template_file, plots=True):
 
 def postprocess_batch_read(template_file, plots=True):
 
-    cfg_file = utils.get_parFile(parfile=template_file)
+    cfg_file = utils.get_par_file(parfile=template_file)
     ref_cfg = osrio.ConfigFile(cfg_file)
     wave_scale = ref_cfg.processing.wave_scale
     path_m = ref_cfg.sim.path + os.sep + 'SKIM_12deg_rar_%d'%(No[0])
@@ -270,7 +270,7 @@ def postprocess_batch_read(template_file, plots=True):
 
 def postprocess_batch_read_fd(template_file, plots=True):
 
-    cfg_file = utils.get_parFile(parfile=template_file)
+    cfg_file = utils.get_par_file(parfile=template_file)
     ref_cfg = osrio.ConfigFile(cfg_file)
 
     num = ref_cfg.radar.n_pulses - 1

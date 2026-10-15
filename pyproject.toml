@@ -24,6 +24,7 @@ dependencies = [
     "numba",
     "numpy",
     "scipy",
+    "h5py",
     "numexpr>=2.7",
     "xarray",
     "NetCDF4",

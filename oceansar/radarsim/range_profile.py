@@ -8,8 +8,13 @@ Created on Fri Mar 14 09:12:51 2014
 
 import numpy as np
 # from scipy import weave
-from numba import jit
+from numba import jit, prange
 import matplotlib.pyplot as plt
+
+C8_PROFILE_SIGNATURE = "void(c8[:],i4[:],i4[:],f4[:],i4,i4,c8[:])"
+C16_PROFILE_SIGNATURE = "void(c16[:],i4[:],i4[:],f4[:],i4,i4,c16[:])"
+C8_PROFILE_1D_SIGNATURE = "void(c8[:, :],i4[:, :],i4[:, :],f4[:],i4,i4,c8[:, :])"
+C16_PROFILE_1D_SIGNATURE = "void(c16[:, :],i4[:, :],i4[:, :],f4[:],i4,i4,c16[:, :])"
 
 
 def calc_sinc_vec(n_sinc_samples=6, sinc_ovs=10, Fs=1.0):
@@ -19,7 +24,7 @@ def calc_sinc_vec(n_sinc_samples=6, sinc_ovs=10, Fs=1.0):
     return sinc_vec
 
 
-@jit("void(c16[:],i4[:],i4[:],f4[:],i4,i4,c16[:])", nopython=True)
+@jit([C8_PROFILE_SIGNATURE, C16_PROFILE_SIGNATURE], nopython=True)
 def profile_integrator(scat, bin_i, bin_f, pulse, n_samp, over_samp, output):
     """Integrates contributions of all points to range profile
 
@@ -49,7 +54,7 @@ def profile_integrator(scat, bin_i, bin_f, pulse, n_samp, over_samp, output):
                 bin_now += 1
 
 
-@jit("void(c16[:, :],i4[:, :],i4[:, :],f4[:],i4,i4,c16[:, :])", nopython=True)
+@jit([C8_PROFILE_1D_SIGNATURE, C16_PROFILE_1D_SIGNATURE], nopython=True, parallel=True)
 def profile_integrator_1d(scat, bin_i, bin_f, pulse, n_samp, over_samp, output):
     """Integrates contributions of all points to range profile
 
@@ -64,7 +69,7 @@ def profile_integrator_1d(scat, bin_i, bin_f, pulse, n_samp, over_samp, output):
     (naz, npts) = scat.shape
     nbins = output.shape[1]
     rnbins = nbins - n_samp - 1
-    for ia in range(naz):
+    for ia in prange(naz):
         for i in range(npts):
             bin_now = bin_i[ia, i] - int(n_samp/2)
             sbin = bin_f[ia, i]
@@ -107,7 +112,7 @@ def chan_profile_numba(srg, scene, binsize, min_sr,
     bin_d = np.int32(np.floor(bin_f))
     bin_f = np.int32(np.round(sinc_ovs * (1 - (bin_f - bin_d))))
     #n_lobes = 2*n_sinc_lobes
-    outtmp = np.zeros(output.size, dtype=np.complex64)
+    #outtmp = np.zeros(output.size, dtype=np.complex64)
     if rg_only:
         profile_integrator_1d(scene, bin_d, bin_f, sinc_vec, n_sinc_samples,
                               sinc_ovs, output)
