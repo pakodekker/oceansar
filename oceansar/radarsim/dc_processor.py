@@ -12,7 +12,7 @@ import xarray as xr
 
 from oceansar import constants
 from oceansar import ocs_io
-from oceansar.radarsim.dc_estimator import estimate_dc
+from oceansar.l2_processing_core import estimate_dc
 
 
 def _scalar(reader, name, default=None):

@@ -27,7 +27,7 @@ from drama import utils
 from oceansar import ocs_io as tpio
 from oceansar import constants as const
 from oceansar.surfaces import OceanSurface
-from oceansar.radarsim.multilook import multilook_window, multilook_report
+from oceansar.l2_processing_core import multilook_window, multilook_report
 from oceansar.radarsim.ati_pairs import estimate_ati_pairs, uwphase
 
 

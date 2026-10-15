@@ -31,6 +31,9 @@ from drama.orbits.velocity import orbit_to_vel
 from oceansar import ocs_io as tpio
 from oceansar import constants as const
 from oceansar.radarsim.xspec_compression import save_compressed_xspec
+from oceansar.l2_processing_core.cross_spectrum import (
+    outlier_removal, welch_xspec as _welch_xspec,
+)
 from oceansar.surfaces import OceanSurface
 
 __author__ = "Paco Lopez Dekker"
@@ -74,91 +77,50 @@ def generate_sublook_data(proc_data, sublook_filter, rg_ml, az_ml,
 
     return sublook_data[:, az_slice, rg_slice]
 
-def outlier_removal(int_img, thresh=3.0, lp_scale=2e3,
-                    pixel_spacing=5.0, second=False):
-    """Remove bright outliers using a low-pass intensity reference."""
-    window_len = max(1, int(lp_scale / pixel_spacing))
-    int_lp = drtls.smooth(int_img, window_len)
-    aux = int_lp.copy()
-    aux[int_lp == 0] = 1e-6
-    res = np.where((int_img-int_lp)/aux > thresh, 1e-6, int_img)
-    if second:
-        int_lp = drtls.smooth(res, window_len)
-        res = np.where((res-int_lp)/int_lp > thresh, 1e-6, res)
-    return res
 
 def welch_xspec(int_fwd, int_bwd, imgpar, remove_outliers=True,
                 window_size=(2e3, 2e3), lp_scale=1e3, thresh=100.0,
                 tile_normalization=True, tile_outlier_threshold=3,
                 win_func=None, verbose=False):
-    """Estimate a cross-spectrum from overlapping intensity-image tiles."""
-    dx = imgpar['grg_spacing']
-    dy = imgpar['az_spacing']
-    shape = int_fwd.shape
-    if int_bwd.shape != shape:
-        raise ValueError("Sublook intensity images must have equal shapes")
+    """Adapt OceanSAR intensity images to the shared Welch estimator.
 
-    window_size = np.atleast_1d(window_size)
-    if window_size.size == 1:
-        window_size = np.repeat(window_size, 2)
-    nx = min(drtls.optimize_fftsize(
-        max(2, int(window_size[1] / dx)), 3), shape[1])
-    ny = min(drtls.optimize_fftsize(
-        max(2, int(window_size[0] / dy)), 3), shape[0])
-    x_starts = np.arange(0, shape[1] - nx + 1, max(1, nx // 2))
-    y_starts = np.arange(0, shape[0] - ny + 1, max(1, ny // 2))
-    nwx = x_starts.size
-    nwy = y_starts.size
-    if verbose:
-        print(f"Number of windows: {nwx} x {nwy}")
-    xspecs = np.zeros((nwy, nwx, ny, nx), dtype=np.complex64)
-    if win_func is None:
-        win_func = np.hamming
-    win_x = win_func(nx)[np.newaxis, :]
-    win_y = win_func(ny)[:, np.newaxis]
-    int_fwd = np.asarray(int_fwd)
-    int_bwd = np.asarray(int_bwd)
-    if remove_outliers:
-        pixel_spacing = np.sqrt(dx * dy)
-        int_fwd = outlier_removal(
-            int_fwd, thresh=thresh, lp_scale=lp_scale,
-            pixel_spacing=pixel_spacing)
-        int_bwd = outlier_removal(
-            int_bwd, thresh=thresh, lp_scale=lp_scale,
-            pixel_spacing=pixel_spacing)
-    da = dx * dy
-    fwd_mean = int_fwd.mean()
-    bwd_mean = int_bwd.mean()
-    int_means = np.zeros((nwy, nwx))
-    window = win_x * win_y
-    win_norm = np.sum(window**2 * da**2)
-    for ix, x_start in enumerate(x_starts):
-        for iy, y_start in enumerate(y_starts):
-            fwdi = int_fwd[y_start:y_start+ny, x_start:x_start+nx]
-            bwdi = int_bwd[y_start:y_start+ny, x_start:x_start+nx]
-            fwd_tile_mean = fwdi.mean()
-            bwd_tile_mean = bwdi.mean()
-            int_means[iy, ix] = (fwd_tile_mean + bwd_tile_mean) / 2
-            if tile_normalization:
-                fwdi = (fwdi - fwd_tile_mean) * window / fwd_tile_mean
-                bwdi = (bwdi - bwd_tile_mean) * window / bwd_tile_mean
-            else:
-                fwdi = (fwdi - fwd_tile_mean) * window / fwd_mean
-                bwdi = (bwdi - bwd_tile_mean) * window / bwd_mean
-            F_fwd = sp.fft.fft2(fwdi) * da
-            F_bwd = sp.fft.fft2(bwdi) * da
-            xspec = F_fwd * np.conj(F_bwd)
-            xspec = sp.fft.fftshift(xspec) / win_norm
-            xspecs[iy, ix] = xspec
+    Parameters
+    ----------
+    int_fwd, int_bwd : 2D real array
+        Detected intensities ordered (azimuth, ground range). These inputs
+        are already detected and must not be squared again.
+    imgpar : dict
+        Input geometry: az_spacing and grg_spacing, both in metres.
+    remove_outliers : bool, optional
+        Remove bright intensity outliers before estimating; default True.
+    window_size : float or pair of float, optional
+        Tile support in metres (azimuth, ground range), default (2000, 2000).
+    lp_scale, thresh : float, optional
+        Outlier smoothing support in metres and relative-excess threshold.
+    tile_normalization : bool, optional
+        Divide centered tiles by their own means (default True), otherwise
+        by the corresponding full-image means.
+    tile_outlier_threshold : float, optional
+        Maximum excess tile brightness in population standard deviations.
+    win_func : callable, optional
+        1D taper taking a sample count; default numpy.hamming.
+    verbose : bool, optional
+        Print tile counts.
 
-    int_means = int_means.ravel()
-    mask = (int_means <= int_means.mean() +
-            np.std(int_means) * tile_outlier_threshold)
-    avg_xspecs = xspecs.reshape((-1, ny, nx))[mask].mean(axis=0)
-
-    kx = sp.fft.fftshift(sp.fft.fftfreq(nx, dx))
-    ky = sp.fft.fftshift(sp.fft.fftfreq(ny, dy))
-    return kx, ky, avg_xspecs, xspecs
+    Returns
+    -------
+    kx, ky, average, tiles : numpy.ndarray
+        Range/azimuth axes in cycles/m, complex mean spectrum (ky, kx),
+        and individual spectra (azimuth_tile, range_tile, ky, kx).
+        See l2_processing_core.cross_spectrum.welch_xspec for normalization,
+        tile rejection and handling of zero normalization means.
+    """
+    return _welch_xspec(
+        int_fwd, int_bwd, pixel_spacing=(imgpar['az_spacing'], imgpar['grg_spacing']),
+        remove_outliers=remove_outliers, window_size=window_size,
+        lp_scale=lp_scale, thresh=thresh, tile_normalization=tile_normalization,
+        tile_outlier_threshold=tile_outlier_threshold, win_func=win_func,
+        verbose=verbose)
 
 
 def add_polar_grid(ax, center=None, max_radius=None, radii=None, angles=None,
