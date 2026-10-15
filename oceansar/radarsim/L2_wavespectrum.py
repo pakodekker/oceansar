@@ -309,6 +309,44 @@ def plot_xspec(kx, ky, xspec, ref_xspec=None, vmax=10, vmin=None, avg=3, imag=Tr
 
 def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file, xvmax=10, xvmin=None, xivmax=None, kymax=0.05, kxmax=0.075):
 
+    """Estimate wave cross-spectra from multilooked Doppler sublook intensities.
+
+    Parameters
+    ----------
+    cfg_file : str or path-like
+        Configuration supplying radar geometry and L2_wavespectrum sublook,
+        multilook, Welch averaging, outlier-removal and plotting controls.
+    proc_output_file : str or path-like
+        Complex ProcFile SLC with axes (channel, polarization, azimuth, range).
+    ocean_file : str or path-like
+        Current-format ocean initial conditions used for reference spectra.
+    output_file : str or path-like
+        Destination compressed NetCDF dataset; a non-.nc extension is replaced
+        by .nc. wxspec is complex with axes (sublook_pair, channel,
+        polarization, ky, kx); sublook_mean stores mean intensities with axes
+        (sublook, channel, polarization). kx/ky coordinates are cycles/m and
+        channel baselines are in metres.
+    xvmax : float, optional
+        Upper display limit in dB for cross-spectrum magnitude; default 10.
+    xvmin : float, optional
+        Lower magnitude display limit in dB. None uses the plotting helper's
+        noise-floor estimate.
+    xivmax : float, optional
+        Symmetric display limit for the imaginary cross-spectrum in linear
+        cross-spectrum units. None selects limits automatically.
+    kymax : float, optional
+        Reserved y-wavenumber display limit in cycles/m. Currently not
+        forwarded to the plotting helper.
+    kxmax : float, optional
+        Reserved x-wavenumber display limit in cycles/m. Currently not
+        forwarded to the plotting helper.
+
+    Returns
+    -------
+    None
+        Write the cross-spectrum dataset and configured figures. If no valid
+        multilook region remains after trimming, return without a dataset.
+    """
     print('-------------------------------------------------------------------')
     print(time.strftime("- OCEANSAR L2 Wavespectra: [%Y-%m-%d %H:%M:%S]", time.localtime()))
     print('-------------------------------------------------------------------')

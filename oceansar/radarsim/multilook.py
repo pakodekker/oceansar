@@ -4,11 +4,36 @@ import numpy as np
 
 def multilook_window(pixel_spacing, window='hanning', *, resolution=None,
                      window_samples=None, image_shape=None):
-    """Return sample counts and effective widths (azimuth, ground range).
+    """Choose multilook sample counts and report their effective spatial widths.
 
-    Width is sqrt(12 * weighted spatial variance + pixel_spacing**2).
-    It describes the averaging kernel, not the combined SAR impulse response.
-    Legacy sample counts are supported when no target resolution is supplied.
+    Parameters
+    ----------
+    pixel_spacing : pair of float
+        Input sample spacing in metres (azimuth, ground range).
+    window : {'flat', 'hanning', 'hamming', 'bartlett', 'blackman'}, optional
+        Separable averaging-window shape; default 'hanning'.
+    resolution : float or pair of float, optional
+        Target effective widths in metres (azimuth, ground range). Select the
+        smallest integer support that meets each requested width.
+    window_samples : pair of int, optional
+        Explicit support (azimuth, range), used when resolution is None.
+    image_shape : pair of int, optional
+        Maximum support counts (azimuth, range). Without a shape, each axis
+        is limited to one million samples.
+
+    Returns
+    -------
+    counts : numpy.ndarray
+        Integer averaging support counts, shape (2,), in axis order.
+    effective : numpy.ndarray
+        Realized widths in metres, shape (2,), computed as
+        sqrt(12 * weighted_spatial_variance + pixel_spacing**2). These describe
+        the averaging kernel, not the combined SAR impulse response.
+
+    Raises
+    ------
+    ValueError
+        Controls are invalid or the requested support cannot fit the image.
     """
     spacing = np.asarray(pixel_spacing, dtype=float)
     if spacing.shape != (2,) or not np.all(np.isfinite(spacing)) or np.any(spacing <= 0):
@@ -61,7 +86,25 @@ def multilook_window(pixel_spacing, window='hanning', *, resolution=None,
 
 
 def multilook_report(counts, spacing, effective, window):
-    """Human-readable report shared by InSAR and ATI."""
+    """Format the realized multilook support for logs and statistics reports.
+
+    Parameters
+    ----------
+    counts : pair of int
+        Window sample counts (azimuth, ground range).
+    spacing : pair of float
+        Input sample spacing in metres, in the same axis order.
+    effective : pair of float
+        Effective second-moment averaging widths in metres.
+    window : str
+        Averaging-window name included in the report.
+
+    Returns
+    -------
+    str
+        Multiline report of sample counts, input spacing, physical support
+        (counts * spacing) and effective resolution, ending with a newline.
+    """
     support = np.asarray(counts) * spacing
     return (f'Multilooking ({window}; azimuth, ground range):\n'
             f'  Window samples: {int(counts[0])}, {int(counts[1])}\n'

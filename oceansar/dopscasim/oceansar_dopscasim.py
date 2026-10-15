@@ -20,7 +20,7 @@ import time
 import subprocess
 from drama.io import cfg as drcfg
 from oceansar import ocs_io as osrio
-from oceansar import utils
+from drama import utils
 from oceansar.dopscasim.dopsca_raw import dopsca_raw
 from oceansar.dopscasim.dopsca_sys import dopsca_syssim
 # from oceansar.sar_l1 import sar_focus
@@ -34,7 +34,7 @@ from oceansar.dopscasim.dopsca_sys import dopsca_syssim
 #     print('-------------------------------------------------------------------', flush=True)
 #     print(time.strftime("OCEANSAR DOPSCA Simulator [%Y-%m-%d %H:%M:%S]", time.localtime()), flush=True)
 #     print('-------------------------------------------------------------------', flush=True)
-#     cfg_file = utils.get_parFile(parfile=cfg_file)
+#     cfg_file = utils.get_par_file(parfile=cfg_file)
 #     cfg = osrio.ConfigFile(cfg_file)
 #     # Create output directory if it doesnt exist already
 #     os.makedirs(cfg.sim.path, exist_ok=True)
@@ -90,7 +90,7 @@ def dopscasim(cfg_file=None):
     print(time.strftime("OCEANSAR SAR Simulator [%Y-%m-%d %H:%M:%S]", time.localtime()), flush=True)
     # print('Copyright (c) Gerard Marull Paretas, Paco López-Dekker')
     print('-------------------------------------------------------------------', flush=True)
-    cfg_file = utils.get_parFile(parfile=cfg_file)
+    cfg_file = utils.get_par_file(parfile=cfg_file)
     cfg = drcfg.ConfigFile(cfg_file)
     # Create output directory if it doesnt exist already
     os.makedirs(cfg.sim.path, exist_ok=True)

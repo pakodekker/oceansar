@@ -10,7 +10,7 @@ from scipy.integrate import trapezoid
 import numexpr as ne
 import datetime
 
-from oceansar import utils
+from drama import utils
 from oceansar import ocs_io as tpio
 from oceansar.utils import geometry as geosar
 from oceansar.radarsim.antenna import sinc_1tx_nrx

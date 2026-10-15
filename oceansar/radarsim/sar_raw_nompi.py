@@ -47,32 +47,46 @@ from oceansar.radarsim.factorize_raw import (
 )
 
 
-def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
-            reuse_errors_file, plot_save=True, bistatic=False, dau=0):
-    """Short summary.
+def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file=False,
+            plot_save=True, bistatic=False, dau=0):
+    """Generate ideal SAR raw samples and store their amplitude calibration factor.
 
     Parameters
     ----------
-    cfg_file : type
-        Description of parameter `cfg_file`.
-    output_file : type
-        Description of parameter `output_file`.
-    ocean_file : type
-        Description of parameter `ocean_file`.
-    reuse_ocean_file : type
-        Description of parameter `reuse_ocean_file`.
-    errors_file : type
-        Description of parameter `errors_file`.
-    reuse_errors_file : type
-        Description of parameter `reuse_errors_file`.
-    plot_save : type
-        Description of parameter `plot_save`.
+    cfg_file : str or path-like
+        Simulator configuration defining the orbit, radar, acquisition mode,
+        ocean surface and scattering model.
+    output_file : str or path-like
+        Destination RawFile. Complex samples are stored as raw_data_r/raw_data_i
+        with axes (polarization, channel, azimuth, range), in simulator field
+        units. The scalar cal_factor is an amplitude multiplier; it is saved
+        without applying it. Geometry, baselines and reference range history
+        are also written.
+    ocean_file : str or path-like
+        Ocean initial-condition file to load or create, containing native
+        complex Fourier coefficients and scalar surface metadata.
+    reuse_ocean_file : bool, optional
+        Load ocean_file when possible instead of generating a new realization.
+    plot_save : bool, optional
+        Create the raw_plots diagnostic directory beside output_file. The
+        current implementation still writes diagnostic images when False.
+    bistatic : bool, optional
+        Enable bistatic geometry in the orbit history. The scattering and
+        antenna models retain their quasi-monostatic approximation.
+    dau : float, optional
+        Along-track spacecraft displacement in metres, passed to the geometry
+        model. Default is zero.
 
     Returns
     -------
-    type
-        Description of returned object.
+    None
+        Products are written to disk; no raw array is returned.
 
+    Notes
+    -----
+    The output is marked raw_data_state='ideal' and calibration_applied=0.
+    Call sar_system_errors separately to apply cal_factor and add NESZ noise
+    before focusing. A configured sim.seed controls the random streams.
     """
 
 
@@ -88,12 +102,9 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
     surface_rng = utils.random_generator(seed, 'surface')
     bragg_positive_rng = utils.random_generator(seed, 'bragg_positive')
     bragg_negative_rng = utils.random_generator(seed, 'bragg_negative')
-    noise_hh_rng = utils.random_generator(seed, 'sar_noise_hh')
-    noise_vv_rng = utils.random_generator(seed, 'sar_noise_vv')
-    info = utils.PrInfo(cfg.sim.verbosity, "SAR raw")
+    info = drtls.PrInfo(cfg.sim.verbosity, "SAR raw")
     # RAW
     wh_tol = cfg.srg.wh_tol
-    nesz = cfg.srg.nesz
     use_hmtf = cfg.srg.use_hmtf
     scat_spec_enable = cfg.srg.scat_spec_enable
     scat_spec_mode = cfg.srg.scat_spec_mode
@@ -130,14 +141,6 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
     rg_bw = cfg.mode.rg_bw
     over_fs = cfg.mode.over_fs
     simpar['Fs'] = rg_bw * over_fs
-    sigma_n_tx = cfg.sar.sigma_n_tx
-    phase_n_tx = np.deg2rad(cfg.sar.phase_n_tx)
-    sigma_beta_tx = cfg.sar.sigma_beta_tx
-    phase_beta_tx = np.deg2rad(cfg.sar.phase_beta_tx)
-    sigma_n_rx = cfg.sar.sigma_n_rx
-    phase_n_rx = np.deg2rad(cfg.sar.phase_n_rx)
-    sigma_beta_rx = cfg.sar.sigma_beta_rx
-    phase_beta_rx = np.deg2rad(cfg.sar.phase_beta_rx)
 
     # OCEAN / OTHERS
     ocean_dt = cfg.ocean.dt
@@ -371,7 +374,7 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
     max_sr = np.max(sr) + wh_tol + (np.max(surface.y) + (simpar["t_span"]/2.)*v_ground)**2./(2.*sr0)
     min_sr = np.min(sr) - wh_tol
     rg_samp_orig = int(np.ceil(((max_sr - min_sr)/sr_res)*over_fs))
-    rg_samp = int(utils.optimize_fftsize(rg_samp_orig))
+    rg_samp = int(drtls.optimize_fftsize(rg_samp_orig))
 
     # Other initializations
     proc_raw_vv = None # Just to avoid errors in the code, these will be initialized later
@@ -819,31 +822,15 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
     if do_vv:
         proc_raw_vv = proc_raw_vv[:, :, :rg_samp_orig]
 
-    # Calibration factor (projected antenna pattern integrated in azimuth)
+    # Store the amplitude calibration without applying it to ideal samples.
+    # The system-errors stage currently calibrates before adding NESZ noise,
+    # keeping that unit conversion beside the receiver model for future changes.
     az_axis = np.arange(-simpar["t_span"]/2.*v_ground, simpar["t_span"]/2.*v_ground, sr0*const.c/(np.pi*f0*ant_l_tx*10.))
 
     pattern = (sinc_bp(az_axis/sr0, ant_l_tx, f0, field=True)
                * sinc_bp(az_axis/sr0, ant_l_rx, f0, field=True))
     cal_factor = (1. / np.sqrt(trapezoid(np.abs(pattern)**2., az_axis)
                   * sr_res/np.sin(inc_angle)))
-
-    if do_hh:
-        noise = (utils.db2lin(nesz, amplitude=True) / np.sqrt(2.) *
-                 (noise_hh_rng.normal(size=proc_raw_hh.shape) +
-                  1j*noise_hh_rng.normal(size=proc_raw_hh.shape)))
-        proc_raw_hh = proc_raw_hh * cal_factor + noise
-    if do_vv:
-        noise = (utils.db2lin(nesz, amplitude=True) / np.sqrt(2.) *
-                 (noise_vv_rng.normal(size=proc_raw_vv.shape) +
-                  1j*noise_vv_rng.normal(size=proc_raw_vv.shape)))
-        proc_raw_vv = proc_raw_vv * cal_factor + noise
-
-    # Add slow-time error
-    # if use_errors:
-    #     if do_hh:
-    #         proc_raw_hh *= errors.beta_noise
-    #     if do_vv:
-    #         proc_raw_vv *= errors.beta_noise
 
     # Save RAW data (and other properties, used by 3rd party software)
     if do_hh and do_vv:
@@ -898,6 +885,11 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
         plt.close()
 
     raw_file = tpio.RawFile(output_file, 'w', total_raw.shape)
+    raw_file.__file__.raw_data_state = 'ideal'
+    raw_file.__file__.calibration_applied = 0
+    raw_file.__file__.createVariable('cal_factor', 'f8')
+    raw_file.__file__['cal_factor'].long_name = 'Amplitude scale from simulator field units to calibrated raw data'
+    raw_file.set('cal_factor', cal_factor)
     raw_file.set('inc_angle', np.rad2deg(inc_angle))
     raw_file.set('f0', f0)
     raw_file.set('num_ch', num_ch)

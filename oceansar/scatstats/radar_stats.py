@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from scipy import linalg
 import numexpr as ne
 from oceansar import ocs_io
-from oceansar import utils
+from drama import utils
 import oceansar.utils.geometry as geosar
 from oceansar import constants as const
 
@@ -40,7 +40,7 @@ class RadarSurface():
                 :returns: a tuple with the configuration object, the surfaces, the radial velocities for each grid point,
                       and the complex scattering coefficients
         """
-        cfg_file = utils.get_parFile(parfile=cfg_file)
+        cfg_file = utils.get_par_file(parfile=cfg_file)
         cfg = ocs_io.ConfigFile(cfg_file)
         self.cfg = cfg
         self.use_hmtf = cfg.srg.use_hmtf

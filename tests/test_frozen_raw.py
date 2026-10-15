@@ -37,7 +37,7 @@ class FrozenRawTests(unittest.TestCase):
             cfg = ocs_io.ConfigFile(str(example))
             cfg.sim.seed = 12
             cfg.sim.nworkers = 1
-            cfg.sim.add_point_target = True
+            cfg.sim.add_point_target = False
             cfg.sar.num_ch = 1
             cfg.mode.t_burst = .1
             cfg.ocean.Lx = cfg.ocean.Ly = 256.
@@ -46,6 +46,7 @@ class FrozenRawTests(unittest.TestCase):
             cfg.srg.factorize = False
             cfg.srg.scat_bragg_enable = False
             cfg.srg.scat_spec_enable = False
+            cfg.srg.nesz = -5.  # Raw generation must stay noise-free even at high NESZ.
             cfg.save(str(root/'cfg.cfg'))
             for reuse in (False, True):
                 with self.subTest(reuse_ocean=reuse):
@@ -54,12 +55,14 @@ class FrozenRawTests(unittest.TestCase):
                          contextlib.redirect_stdout(io.StringIO()), \
                          contextlib.redirect_stderr(io.StringIO()):
                         sar_raw(str(root/'cfg.cfg'), str(root/'raw.nc'),
-                                str(root/'ocean.nc'), reuse, str(root/'errors.nc'),
-                                False, plot_save=True)
+                                str(root/'ocean.nc'), reuse, plot_save=True)
                     self.assertEqual(updates, [0.])
                     with Dataset(root/'raw.nc') as saved:
-                        self.assertTrue(np.isfinite(saved['raw_data_r'][:]).all())
-                        self.assertTrue(np.isfinite(saved['raw_data_i'][:]).all())
+                        self.assertEqual(saved.raw_data_state, 'ideal')
+                        self.assertEqual(saved.calibration_applied, 0)
+                        self.assertGreater(float(saved['cal_factor'][...]), 0.)
+                        np.testing.assert_array_equal(saved['raw_data_r'][:], 0.)
+                        np.testing.assert_array_equal(saved['raw_data_i'][:], 0.)
 
 
 if __name__ == '__main__':

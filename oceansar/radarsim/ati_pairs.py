@@ -20,11 +20,49 @@ def uwphase(phasor):
 
 def estimate_ati_pairs(coherences, coh_lut, baselines, v_orbit, f0,
                        polarizations, azimuth, ground_range):
-    """Convert each pair using its actual time separation, then average by lag.
+    """Convert all same-polarization antenna pairs to Doppler and average by lag.
 
-    Lag is the channel-index difference. At each pixel, lag maps average finite
-    pair estimates with equal weights. Spatial means are over the valid map.
-    The primary dc/radial_velocity/phase variables retain pair 0-1 compatibility.
+    Parameters
+    ----------
+    coherences : complex array
+        Complex normalized InSAR coherences, shape (interferogram, azimuth,
+        range). Their phases carry the input phase reference.
+    coh_lut : integer array
+        Lookup table with shape (channel, polarization, channel, polarization),
+        mapping each non-redundant pair to its index in coherences.
+    baselines : 1D array
+        Along-track receive-antenna positions in metres, one per channel.
+    v_orbit : float
+        Positive orbital speed in m/s.
+    f0 : float
+        Positive carrier frequency in Hz.
+    polarizations : sequence of str
+        Polarization labels in lookup-table order.
+    azimuth, ground_range : 1D array
+        Output pixel-centre coordinates in metres, matching the final two
+        dimensions of coherences.
+
+    Returns
+    -------
+    xarray.Dataset
+        pair_dc and pair_radial_velocity maps with axes (pair, polarization,
+        azimuth, range), in Hz and m/s. Also includes pair_phase (radians),
+        pair_coherence (dimensionless), signed baseline/time separations,
+        lag averages, and finite-map spatial means and population standard
+        deviations. dc/radial_velocity/phase aliases select pair 0-1.
+
+    Raises
+    ------
+    ValueError
+        Baselines, carrier, speed or lookup table are invalid, or a required
+        pair is absent or has zero time separation.
+
+    Notes
+    -----
+    Each pair uses time separation (baseline_j - baseline_i)/(2*v_orbit).
+    Local modal phase unwrapping does not resolve ambiguities across lags.
+    Velocity is -c * Doppler / (2*f0). Lag is the channel-index difference;
+    lag maps equally average finite pair estimates after conversion to Hz.
     """
     baselines = np.asarray(baselines, dtype=float)
     if baselines.ndim != 1 or len(baselines) < 2 or not np.all(np.isfinite(baselines)):

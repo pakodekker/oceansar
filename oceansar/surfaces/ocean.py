@@ -8,7 +8,7 @@ import types
 from oceansar import ocs_io as wsio
 from oceansar import spec
 from oceansar import spread
-from oceansar import utils
+from drama import utils
 from oceansar import constants as const
 
 
@@ -38,43 +38,84 @@ class OceanSurface(object):
              dirspectrum_func=None, depth=None, dir_swell_spec=None,
              workers=4, rng=None):
 
-        """ Initialize surface with parameters
+        """Initialize a random ocean Fourier realization and allocate requested fields.
 
-            :param Lx: Scene X size (m)
-            :param Ly: Scene Y size (m)
-            :param dx: Scene X resolution (m)
-            :param dy: Scene Y resolution (m)
-            :param cutoff_wl: Spectrum wavelength cut-off (m) - None/'auto' to set it automatically
-            :param spec_model: Omnidirectional Spectrum model
-            :param spread_model: Spreading function model
-            :param wind_dir: Wind direction (rad)
-            :param wind_fetch: Wind fetch (m)
-            :param wind_U: Wind speed (m/s)
-            :param current_mag: Current magnitude
-            :param current_dir: Current direction (rad)
-            :param swell_enable: EN/DIS Swell
-            :param swell_ampl: Swell amplitude (m)
-            :param swell_dir: Swell direction (rad)
-            :param swell_wl: Swell peak wavelength (m)
-            :param wave_dir: the dirction of the swell
-            :param dir_swell_dir: the direction of the directional swell
-            :param sigf: spread in frequency for the directional swell
-            :param freq_r: related to the wavelength of swell for the directional swell
-            :param sigs: spread in direction for the directional swell
-            :param Hs: significant wave height for the directional swell
-            :param dir_swell_spec: it is the spectrum for the directional swell
-            :param compute: List with values to compute
-                            - 'D': EN/DIS Computation of Wavefield (Dx,Dy,Dz)
-                            - 'Diff': EN/DIS Computation of space 1st derivatives (slopes)
-                            - 'Diff2': EN/DIS Computation of space 2nd derivatives
-                            - 'V': EN/DIS Computation of time 1st derivative (velocities)
-                            - 'A': EN/DIS Computation of time 2nd derivative (accelerations)
-                            - 'hMTF': EN/DIS Computation of Hydrodynamic MTF
-            :param opt_res: Automatically adjust resolution to have optimal matrix sizes
-            :param fft_max_prime: Maximum prime factor allowed in matrix sizes
-            :param choppy_enable: EN/DIS Choppy waves
-            :param dirspectrum_func: optional external directional wavespectrum
-            :param rng: optional NumPy-compatible random-number generator
+        Parameters
+        ----------
+        Lx, Ly : float
+            Scene dimensions in metres, along x (range) and y (azimuth).
+        dx, dy : float
+            Requested grid spacing in metres. FFT-size optimization can adjust
+            the actual spacing while preserving Lx and Ly.
+        cutoff_wl : float, 'auto' or None
+            Spectral cutoff wavelength in metres. None or 'auto' leaves the
+            spectrum limited by the grid sampling.
+        spec_model, spread_model : str
+            Keys in the OceanSAR omnidirectional-spectrum and spreading registries.
+            Used when dirspectrum_func is not supplied.
+        wind_dir : float
+            Wind direction in radians in the surface x/y coordinate system.
+        wind_fetch : float
+            Wind fetch in metres.
+        wind_U : float
+            Wind speed in m/s; the current is subtracted to obtain relative wind.
+        current_mag : float
+            Surface-current speed in m/s.
+        current_dir : float
+            Surface-current direction in radians.
+        dir_swell_dir : float, optional
+            Mean directional-swell direction passed to dir_swell_spec. The bundled
+            directional-swell model expects degrees.
+        freq_r, sigf : float, optional
+            Directional-swell peak frequency and frequency spread in Hz, using
+            the convention of the supplied dir_swell_spec callable.
+        sigs : float, optional
+            Directional-swell angular spread; degrees for the bundled model.
+        Hs : float, optional
+            Directional-swell significant wave height in metres.
+        swell_dir_enable : bool, optional
+            Add a random directional-swell spectrum using dir_swell_spec.
+        swell_enable : bool, optional
+            Add a monochromatic swell with random initial phase.
+        swell_ampl : float, optional
+            Monochromatic-swell displacement amplitude in metres.
+        swell_dir : float, optional
+            Monochromatic-swell direction in radians.
+        swell_wl : float, optional
+            Monochromatic-swell wavelength in metres; must be positive when enabled.
+        compute : sequence of str, optional
+            Fields to allocate: 'D' displacements (m), 'Diff' slopes (dimensionless),
+            'Diff2' second spatial derivatives (1/m), 'V' velocities (m/s), 'A'
+            accelerations (m/s**2), or 'hMTF' hydrodynamic modulation (dimensionless).
+            'Diff2' also enables 'Diff'.
+        opt_res : bool, optional
+            Adjust grid dimensions to efficient FFT sizes; default True.
+        fft_max_prime : int, optional
+            Largest allowed prime factor in optimized FFT sizes; default 2.
+        choppy_enable : bool, optional
+            Include choppy-wave corrections when evaluating surface fields.
+        dirspectrum_func : callable, optional
+            External directional spectrum callable accepting kx, ky arrays in
+            rad/m and returning spectral density in m**4 (height variance per
+            two-dimensional wavenumber area). Replaces the wind-spectrum models.
+        depth : float, optional
+            Water depth in metres for finite-depth dispersion. None uses deep water.
+        dir_swell_spec : callable, optional
+            Required when swell_dir_enable=True. Called with
+            (k, theta, dir_swell_dir, freq_r, sigf, sigs, Hs), with k in rad/m and
+            theta in radians, returning the directional swell spectrum before
+            conversion from polar to Cartesian wavenumber density.
+        workers : int, optional
+            Worker count passed to SciPy FFT operations; default 4.
+        rng : NumPy-compatible random generator, optional
+            Source of normal and uniform draws. None uses numpy.random.
+
+        Returns
+        -------
+        None
+            Populate this object and mark it initialized. wave_coefs and allocated
+            surface fields have shape (Ny, Nx); x/y axes are in metres and kx/ky
+            grids in rad/m. Set surface.t in seconds to evaluate requested fields.
         """
 
         if rng is None:
@@ -105,6 +146,7 @@ class OceanSurface(object):
         self.sigs = sigs
         self.Hs = Hs
         self.workers = workers
+        self.depth = depth
         ## INITIALIZE MESHGRIDS, SPECTRUM, ETC.
         # Grid dimensions
         self.Nx = int(self.Lx/self.dx)
@@ -251,16 +293,28 @@ class OceanSurface(object):
 
     def load(self, state_file, compute=[]):
 
-        """ Initialize surface from OTGI File
+        """Initialize this surface from saved native-complex Fourier initial conditions.
 
-            :param state_file: OTGI file path
-            :param compute: List with values to compute
-                            - 'D': EN/DIS Computation of Wavefield (Dx,Dy,Dz)
-                            - 'Diff': EN/DIS Computation of space 1st derivatives (slopes)
-                            - 'Diff2': EN/DIS Computation of space 2nd derivatives
-                            - 'V': EN/DIS Computation of time 1st derivative (velocities)
-                            - 'A': EN/DIS Computation of time 2nd derivative (accelerations)
-                            - 'hMTF': EN/DIS Computation of Hydrodynamic MTF
+        Parameters
+        ----------
+        state_file : str or path-like
+            OceanStateFile in the current complex-v1 HDF5 format. Contains full
+            complex wave coefficients, 1D wavenumber axes and initialization
+            metadata, including depth, RMS slopes and monochromatic swell phase.
+            Older split-component files must be regenerated.
+        compute : sequence of str, optional
+            Fields to allocate: 'D' for displacements in m, 'Diff' for dimensionless
+            slopes, 'Diff2' for second spatial derivatives in 1/m, 'V' for velocity
+            in m/s, 'A' for acceleration in m/s**2, and 'hMTF' for the dimensionless
+            hydrodynamic modulation. 'Diff2' also enables 'Diff'.
+
+        Returns
+        -------
+        None
+            Populate this object's grid, coefficients and model parameters and
+            mark it initialized. Field arrays have shape (Ny, Nx). Set surface.t
+            in seconds after loading to evaluate the requested fields at that time;
+            loading does not itself compute a surface snapshot.
         """
 
         # Open file
@@ -270,13 +324,17 @@ class OceanSurface(object):
             raise RuntimeError('Error loading OTGI File')
 
         # Load content
-        self.Nx = state.get('Nx')
-        self.Ny = state.get('Ny')
+        self.Nx = int(state.get('Nx'))
+        self.Ny = int(state.get('Ny'))
         self.Lx = state.get('Lx')
         self.Ly = state.get('Ly')
         self.dx = state.get('dx')
         self.dy = state.get('dy')
-        self.workers =state.get('workers') 
+        self.workers = int(state.get('workers'))
+        depth = float(state.get('water_depth'))
+        self.depth = depth if np.isfinite(depth) else None
+        self.rmss_x = state.get('rmss_x')
+        self.rmss_y = state.get('rmss_y')
         self.wind_dir = np.deg2rad(state.get('wind_dir'))
         self.wind_dir_eff = np.deg2rad(state.get('wind_dir_eff'))
         self.wind_fetch = state.get('wind_fetch')
@@ -290,16 +348,15 @@ class OceanSurface(object):
         self.swell_dir = np.deg2rad(state.get('swell_dir'))
         self.swell_wl = state.get('swell_wl')
         self.swell_ph0 = state.get('swell_ph0')
-        self.kx = state.get('kx')
-        self.ky = state.get('ky')
-        self.wave_coefs = state.get('wave_coefs*')
+        self.kx, self.ky = np.meshgrid(state.get('kx'), state.get('ky'))
+        self.wave_coefs = state.get('wave_coefs')
         self.choppy_enable = True if state.get('choppy_enable') == 1 else False
         
 
         state.close()
         self.k = np.sqrt(self.kx**2 + self.ky**2)
-        kx_res = self.kx[0, 1] - self.kx[0, 0]
-        ky_res = self.ky[1, 0] - self.ky[0, 0]
+        self.kx_res = kx_res = self.kx[0, 1] - self.kx[0, 0]
+        self.ky_res = ky_res = self.ky[1, 0] - self.ky[0, 0]
 
         # K-theta meshgrid (Polar, wind direction shifted)
 
@@ -316,8 +373,8 @@ class OceanSurface(object):
         self.current = self.current_mag*np.array([np.cos(self.current_dir), np.sin(self.current_dir)])
         #print("current vector: %f, %f" % (self.current[0], self.current[1]))
         # X-Y vector
-        self.x = np.linspace(-self.Lx/2, self.Lx/2., self.Nx)
-        self.y = np.linspace(-self.Ly/2., self.Ly/2., self.Ny)
+        self.x = np.linspace(-self.Lx/2, self.Lx/2., self.Nx, dtype=np.float32)
+        self.y = np.linspace(-self.Ly/2., self.Ly/2., self.Ny, dtype=np.float32)
 
         # K-theta meshgrid (Polar, wind direction shifted)
         self.k = np.sqrt(self.kx**2 + self.ky**2)
@@ -325,16 +382,22 @@ class OceanSurface(object):
                                            self.wind_dir_eff)))
 
         # omega (Deep water: w(k)^2 = g*k)
-        self.omega = np.sqrt(const.g*self.k)
+        self.omega = np.sqrt(np.float32(const.g)*self.k)
+        if self.depth is not None:
+            self.omega = np.sqrt(np.float32(const.g)*self.k
+                                 * np.tanh(self.k*np.float32(self.depth)))
 
         # Swell (NOTE: Maybe X-Y should be directly a meshgrid...)
         x, y = np.meshgrid(self.x, self.y)
-        self.swell_k = 2.*np.pi/self.swell_wl
-        self.swell_kx = self.swell_k*np.cos(self.swell_dir)
-        self.swell_ky = self.swell_k*np.sin(self.swell_dir)
-        self.swell_omega = np.sqrt(self.swell_k*const.g)
-        self.swell_exp = self.swell_ampl*np.exp(1j*(self.swell_k*(np.cos(self.swell_dir)*x +
-                                                                 np.sin(self.swell_dir)*y) + self.swell_ph0))
+        self.swell_k = np.float32(2.*np.pi/self.swell_wl)
+        self.swell_kx = np.float32(self.swell_k*np.cos(self.swell_dir))
+        self.swell_ky = np.float32(self.swell_k*np.sin(self.swell_dir))
+        self.swell_omega = np.float32(np.sqrt(self.swell_k*const.g))
+        if self.depth is not None:
+            self.swell_omega = np.float32(np.sqrt(self.swell_k*const.g
+                                                 * np.tanh(self.swell_k*self.depth)))
+        self.swell_exp = (self.swell_ampl*np.exp(1j*(self.swell_k*(np.cos(self.swell_dir)*x +
+                                                                 np.sin(self.swell_dir)*y) + self.swell_ph0))).astype(np.complex64)
 
         # Set compute, allocate memory & mark as initialized
         self.compute = list(compute)
@@ -345,11 +408,27 @@ class OceanSurface(object):
         self.initialized = True
 
     def save(self, state_file):
-        """ Save surface initialization parameters.
-            This lets to simulate later exactly the same surface if needed
+        """Save the initialized surface's Fourier realization and model parameters.
 
-            :param state_file: State file path
+        Parameters
+        ----------
+        state_file : str or path-like
+            Destination HDF5-backed OceanStateFile, overwritten if it exists.
+            Stores full native-complex wave_coefs with shape (Ny, Nx), 1D kx/ky
+            axes in rad/m and scalar initialization metadata. Coefficient dtype
+            is preserved; no Hermitian symmetry is assumed.
 
+        Returns
+        -------
+        None
+            Write initial conditions for later load and propagation. Time-dependent
+            surface rasters are excluded; depth, RMS slopes and monochromatic
+            swell phase are retained.
+
+        Raises
+        ------
+        Exception
+            The surface has not been initialized.
         """
 
         if not self.initialized:
@@ -360,6 +439,9 @@ class OceanSurface(object):
 
         # Save content
         state.set('workers', self.workers)
+        state.set('water_depth', self.depth if self.depth is not None else np.inf)
+        state.set('rmss_x', self.rmss_x)
+        state.set('rmss_y', self.rmss_y)
         state.set('Nx', self.Nx)
         state.set('Ny', self.Ny)
         state.set('Lx', self.Lx)
@@ -377,11 +459,10 @@ class OceanSurface(object):
         state.set('swell_ampl', self.swell_ampl)
         state.set('swell_dir', np.rad2deg(self.swell_dir))
         state.set('swell_wl', self.swell_wl)
-        if self.swell_enable:
-            state.set('swell_ph0', self.swell_ph0)
-        state.set('kx', self.kx)
-        state.set('ky', self.ky)
-        state.set('wave_coefs*', self.wave_coefs)
+        state.set('swell_ph0', self.swell_ph0 if self.swell_enable else 0.)
+        state.set('kx', self.kx[0, :])
+        state.set('ky', self.ky[:, 0])
+        state.set('wave_coefs', self.wave_coefs)
         state.set('choppy_enable', 1 if self.choppy_enable else 0)
 
         state.close()

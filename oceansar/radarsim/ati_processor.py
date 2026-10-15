@@ -23,7 +23,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from oceansar.utils import geometry as geosar
-from oceansar import utils
+from drama import utils
 from oceansar import ocs_io as tpio
 from oceansar import constants as const
 from oceansar.surfaces import OceanSurface
@@ -33,10 +33,51 @@ from oceansar.radarsim.ati_pairs import estimate_ati_pairs, uwphase
 
 def ati_process(cfg_file, insar_output_file, ocean_file, output_file, *,
                 result_file=None, plot_show=False, plot_bounds=None):
-    """Return and save window-limited ATI frequency (Hz) and radial velocity (m/s).
+    """Estimate ATI Doppler and radial velocity for all non-redundant antenna pairs.
 
-    plot_show=True displays all enabled ATI diagnostics, including when plot_save
-    is enabled. Each figure is closed after saving and optional display.
+    Parameters
+    ----------
+    cfg_file : str or path-like
+        Configuration defining radar geometry, ati multilook resolution in
+        metres (azimuth, ground range), report paths and diagnostic switches.
+    insar_output_file : str or path-like
+        InSAR L1bFile containing multilooked intensities, coherence magnitudes,
+        phases in radians, pair lookup table, baselines and sampling metadata.
+    ocean_file : str or path-like
+        Current-format ocean initial conditions for reference surface statistics
+        and configured diagnostics.
+    output_file : str or path-like
+        Destination plain-text statistics report. ati_stats.npz is also written
+        in the same directory.
+    result_file : str or path-like, optional
+        Destination h5netcdf map dataset. Defaults to sim.ati_map_file
+        (ati_maps.nc when unset) beside output_file.
+    plot_show : bool, optional
+        Display enabled figures even when ati.plot_save is True. Figures are
+        closed after optional saving and display. With plot_save=False,
+        enabled figures are displayed regardless of this argument.
+    plot_bounds : dict, optional
+        Display limits with 'range' and 'azimuth' entries, each a (min, max)
+        pair in metres. These limits affect figures, not saved map values.
+
+    Returns
+    -------
+    xarray.Dataset or None
+        Maps on the valid full-window region, with coordinates in metres.
+        pair_dc/pair_radial_velocity/pair_phase/pair_coherence have axes
+        (pair, polarization, azimuth, range); lag_dc and lag_radial_velocity
+        average finite estimates by channel-index lag. Frequencies are in Hz,
+        radial velocities in m/s and phases in radians. Spatial means and
+        population standard deviations accompany pair and lag maps. The
+        dc/radial_velocity/phase aliases select pair 0-1. Return None if fewer
+        than two channels are available.
+
+    Notes
+    -----
+    Each pair uses its signed time separation baseline / (2 * orbital_speed).
+    Radial velocity is -c * Doppler / (2 * carrier_frequency). Phase is locally
+    unwrapped around its mode; no ambiguity resolution across lags is applied.
+    The input InSAR phase reference, including flattening, is retained.
     """
 
     print('-------------------------------------------------------------------')

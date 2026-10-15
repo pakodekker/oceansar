@@ -53,30 +53,86 @@ def dc_process(cfg_file, proc_output_file, output_file=None, *, resolution=None,
                valid_mask=None, segment_ids=None, nodata=None,
                window_samples=None, samples_per_resolution=None, plot=None,
                plot_show=False, plot_path=None):
-    """Estimate DC for one channel, independently for its selected polarizations.
+    """Estimate single-channel Doppler centroid independently for selected SLCs.
 
-    ``cfg_file`` may be None if the input path and resolution are explicit.
-    Read resolution/taper/lag/channel/thresholds from an optional [dc] section;
-    keyword values override configuration. Missing resolution raises an error.
-    The default channel is 0; channel="all" processes channels independently and
-    adds a channel dimension. polarization=None processes every polarization
-    in each selected channel, or supply a zero-based index or a configured label.
-    ``ProcFile`` metadata supplies the SLC azimuth sample rate (az_sampling,
-    otherwise prf), ground speed, range sampling and incidence angle in degrees.
-    Spatial spacing is (v_ground/fs_az, c/(2*rg_sampling*sin(incidence))).
-    This is a local, constant-incidence ground-range approximation; calibrated
-    pixel_spacing can override it. Azimuth coordinates include az0 when known.
-    Range coordinates are local ground-range offsets from the first pixel.
+    Parameters
+    ----------
+    cfg_file : str or path-like or None
+        Optional configuration with a dc section. Non-None keyword arguments
+        override its controls. With None, supply resolution explicitly.
+    proc_output_file : str or path-like
+        Complex ProcFile SLC with axes (channel, polarization, azimuth, range).
+        Detected InSAR/ATI products cannot supply the required phase.
+    output_file : str or path-like, optional
+        Destination h5netcdf dataset. None returns results without saving a
+        dataset. Must differ from the input SLC.
+    resolution : float or pair of float, optional
+        Requested second-moment averaging widths in metres (azimuth, ground
+        range). Required explicitly or in dc.resolution. Integer support is
+        chosen from the actual taper to meet these widths.
+    taper : str, tuple, callable or 2D array, optional
+        Nonnegative averaging weights on lag-pair midpoints, as accepted by
+        estimate_dc. Default is 'boxcar'. Callable/array tapers require
+        window_samples. Weights apply to correlations, not SLC amplitudes.
+    channel : int or 'all', optional
+        Zero-based channel index, default 0. 'all' estimates each channel
+        independently and adds a channel dimension to the result.
+    polarization : int or str, optional
+        Zero-based index or configured label, such as 'vv'. None processes all
+        available polarizations unless selected in the configuration.
+    lag : int, optional
+        Positive azimuth separation of correlated samples; default 1.
+    pixel_spacing : float or pair of float, optional
+        Input sampling in metres (azimuth, ground range). Otherwise inferred
+        from SLC ground speed, azimuth sample rate, range sampling and incidence
+        angle, using a local constant-incidence ground-range approximation.
+    min_pairs : int, optional
+        Minimum valid lag pairs for an estimate; default 1.
+    min_correlation : float, optional
+        Lower quality threshold for normalized CDE coherence or SDE correlation
+        magnitude; default 0. Estimates at or below the threshold are NaN.
+    valid_mask : 2D bool array, optional
+        Valid input pixels, shape (azimuth, range), shared by selected SLCs.
+        File fill masks and nonfinite samples are excluded independently.
+    segment_ids : 1D array, optional
+        Azimuth continuity labels. Correlation pairs never cross a label change.
+    nodata : scalar, optional
+        Explicit invalid sample value. Zero is otherwise valid.
+    window_samples : pair of int, optional
+        Explicit SLC support (azimuth, range), including lag extra azimuth
+        rows. Its effective width must meet resolution.
+    samples_per_resolution : float or pair of float, optional
+        Requested output samples per effective width, default 2. Increase for
+        denser maps with unchanged averaging resolution. At least 1; realized
+        strides are integer input pixels, with a minimum of one pixel.
+    plot : bool, optional
+        Save diagnostic PNGs; defaults to dc.plot_save, or False. Requires
+        output_file to determine the output directory.
+    plot_show : bool, optional
+        Display maps inline as well as optionally saving them; default False.
+    plot_path : str or path-like, optional
+        Figure directory, default dc.plot_path or 'dc_plots'. Relative paths
+        are resolved beside output_file.
 
-    Return an xarray Dataset, with an additional polarization dimension.
-    Write it to output_file using h5netcdf when specified. Optional diagnostic
-    PNGs are written under [dc] plot_path relative to that output directory.
-    plot_show=True also displays the maps inline; [dc] plot_save controls saving
-    when plot is not explicitly supplied. No ocean state or second channel is
-    required. No reramping, basebanding, phase-reference correction, ambiguity
-    resolution is applied implicitly. When f0 metadata is valid, equivalent radial
-    velocity is also returned as -c*dc/(2*f0), retaining the stored phase reference. dc_mean remains
-    the unweighted pooled full-image estimate for each polarization.
+    Returns
+    -------
+    xarray.Dataset
+        CDE and SDE dc maps in Hz with axes (polarization, estimator, azimuth,
+        range), plus channel when channel='all'. Coordinates are window centres
+        in metres: azimuth includes SLC az0; range is an offset from the first
+        input ground-range pixel. dc_mean pools each valid whole-image pair
+        once; dc_std is the population spatial standard deviation of local
+        maps. Valid carrier metadata additionally supplies radial_velocity,
+        radial_velocity_mean and radial_velocity_std in m/s. Attributes report
+        integer support, effective resolution and realized output spacing.
+
+    Notes
+    -----
+    The observable is the stored SLC's phase frequency modulo fs_az / lag,
+    where fs_az is az_sampling or, if absent, prf. No reramping, basebanding,
+    phase-reference correction or ambiguity resolution is applied implicitly.
+    Equivalent radial velocity is -c * dc / (2 * f0). dc_mean is unweighted
+    and is not the arithmetic mean of overlapping local estimates.
     """
     cfg = ocs_io.ConfigFile(str(cfg_file)) if cfg_file is not None else None
     controls = getattr(cfg, 'dc', None)
@@ -222,7 +278,30 @@ def dc_process(cfg_file, proc_output_file, output_file=None, *, resolution=None,
 
 
 def plot_dc(ds, plot_path=None, *, show=False, bounds=None):
-    """Plot CDE/SDE maps; optionally save PNGs and display in a notebook."""
+    """Plot Doppler-centroid and equivalent radial-velocity maps.
+
+    Parameters
+    ----------
+    ds : xarray.Dataset
+        dc_process result with estimator/polarization dimensions, metre-valued
+        azimuth/range coordinates and a channel_index attribute; an optional
+        channel dimension is processed recursively. Velocity maps are drawn
+        when radial_velocity is present.
+    plot_path : str or path-like, optional
+        Destination directory for PNGs, created when needed. None skips saving.
+    show : bool, optional
+        Display each figure, for example inline in a notebook; default False.
+    bounds : dict, optional
+        'range' and 'azimuth' display limits as (min, max) pairs in metres.
+        Missing limits use the dataset extent.
+
+    Returns
+    -------
+    None
+        Save and/or display one figure per channel, polarization, estimator and
+        available quantity. Figures use bwr with symmetric limits about zero
+        and are closed after use.
+    """
     import matplotlib.pyplot as plt
     from oceansar.radarsim.doppler_plots import symmetric_limit, map_plot_bounds, set_map_bounds
     destination = Path(plot_path) if plot_path is not None else None
@@ -262,6 +341,25 @@ def plot_dc(ds, plot_path=None, *, show=False, bounds=None):
 
 
 def main(argv=None):
+    """Run DC estimation from the command line and print summary statistics.
+
+    Parameters
+    ----------
+    argv : sequence of str, optional
+        Arguments excluding the program name; None uses sys.argv. --cfg_file
+        supplies defaults, --proc_file/--output_file select products, and
+        --resolution, --taper, --channel, --polarization, --lag,
+        --samples-per-resolution and --plot override dc controls. Product
+        paths otherwise come from sim.path/proc_file/dc_file, with the output
+        filename defaulting to dc_data.nc.
+
+    Returns
+    -------
+    int
+        Zero after writing the dataset and printing Doppler/velocity means,
+        spatial standard deviations, resolution and spacing. Parsing failures
+        and caught ValueError/OSError failures raise SystemExit through argparse.
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('-c', '--cfg_file', type=Path)
     parser.add_argument('-p', '--proc_file', type=Path)

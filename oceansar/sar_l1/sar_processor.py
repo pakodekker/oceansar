@@ -24,7 +24,7 @@ from scipy import signal as scipy_signal
 from drama.geo.geo_history import GeoHistory
 from drama.performance.sar.sar_performance_common import calc_analysis_time
 from oceansar.utils import geometry as geo
-from oceansar import utils
+from drama import utils
 from oceansar import ocs_io as tpio
 from oceansar import constants as const
 from oceansar.radarsim.antenna import sinc_1tx_nrx, sinc_bp
@@ -510,7 +510,33 @@ def compensate_azimuth_antenna(data, beam_pattern):
 
 def scansar_deramp_phase(az_size, slant_range, az0, prf,
                          v_ground, v_eff, wavelength):
-    """Return the geometric ScanSAR deramp phase in radians on the focused grid."""
+    """Compute the geometric ScanSAR deramp phase on the focused image grid.
+
+    Parameters
+    ----------
+    az_size : int
+        Number of azimuth samples.
+    slant_range : 1D array
+        Closest-approach range per range bin in metres.
+    az0 : float
+        Along-track position of the first image row in metres.
+    prf : float
+        Azimuth sampling rate in Hz.
+    v_ground : float
+        Ground-track speed in m/s, converting az0 to the first sample time.
+    v_eff : float
+        Effective velocity in m/s for the hyperbolic slant-range model.
+    wavelength : float
+        Radar wavelength in metres.
+
+    Returns
+    -------
+    numpy.ndarray
+        Phase in radians with shape (az_size, number_of_range_bins). Multiply
+        image samples by exp(-1j * phase) to deramp. The phase is
+        4*pi/wavelength * (sqrt(R0**2 + (v_eff*t)**2) - R0), evaluated using
+        a rationalized range difference for accuracy near closest approach.
+    """
     azimuth_time = az0/v_ground + np.arange(az_size)/prf
     slant_range = np.asarray(slant_range)[np.newaxis, :]
     along_track_squared = (v_eff * azimuth_time[:, np.newaxis])**2
@@ -672,6 +698,36 @@ def sar_focus(cfg_file, raw_output_file, output_file):
     # INITIALIZATIONS #
     ###################
 
+    """Focus complex SAR raw data into a complex SLC file.
+
+    Parameters
+    ----------
+    cfg_file : str or path-like
+        Configuration defining the acquisition mode, orbit, radar and
+        processing controls, including Doppler bandwidth, azimuth weighting,
+        diagnostic plots and ScanSAR reramping.
+    raw_output_file : str or path-like
+        System-processed RawFile containing calibrated complex samples with
+        axes (polarization, channel, azimuth, range), geometry and baselines.
+        Normally produced by sar_system_errors.
+    output_file : str or path-like
+        Destination ProcFile. slc_r/slc_i store the focused complex image with
+        axes (channel, polarization, azimuth, range). Geometry metadata include
+        az0 and sr0 in metres, sampling rates and carrier frequency in Hz,
+        velocities in m/s and incidence angle in degrees.
+
+    Returns
+    -------
+    None
+        Write the SLC and configured diagnostics to disk.
+
+    Notes
+    -----
+    This function performs focusing only; it does not apply cal_factor, add
+    receiver noise or delete its input. The caller orchestrates those steps.
+    ScanSAR processing.reramp selects whether to restore the azimuth phase
+    ramp after deramped focusing; the stored phase reference matters for DC.
+    """
     print('-------------------------------------------------------------------')
     print(time.strftime("- OCEANSAR SAR Processor: %Y-%m-%d %H:%M:%S", time.localtime()))
     print('-------------------------------------------------------------------')
@@ -962,6 +1018,37 @@ def ross_sar_focus(cfg_file, reconstruct_raw_output_file, output_file):
     # INITIALIZATIONS #
     ###################
 
+    """Focus reconstructed multichannel raw data into a complex SLC file.
+
+    Parameters
+    ----------
+    cfg_file : str or path-like
+        Configuration defining the acquisition mode, orbit, radar and
+        processing controls, including Doppler bandwidth, azimuth weighting,
+        diagnostic plots and ScanSAR reramping.
+    reconstruct_raw_output_file : str or path-like
+        ReconstructedRawFile containing complex samples with axes
+        (polarization, azimuth, range). The effective azimuth sample rate is
+        mode.prf * sar.num_ch; calibration and system errors should have been
+        handled before reconstruction.
+    output_file : str or path-like
+        Destination ProcFile. slc_r/slc_i store the focused complex image with
+        axes (1, polarization, azimuth, range). Geometry metadata include
+        az0 and sr0 in metres, sampling rates and carrier frequency in Hz,
+        velocities in m/s and incidence angle in degrees.
+
+    Returns
+    -------
+    None
+        Write the SLC and configured diagnostics to disk.
+
+    Notes
+    -----
+    This function performs focusing only; it does not apply cal_factor, add
+    receiver noise or delete its input. The caller orchestrates those steps.
+    ScanSAR processing.reramp selects whether to restore the azimuth phase
+    ramp after deramped focusing; the stored phase reference matters for DC.
+    """
     print('-------------------------------------------------------------------')
     print(time.strftime("- OCEANSAR SAR Processor for Rose-L: %Y-%m-%d %H:%M:%S", time.localtime()))
     print('-------------------------------------------------------------------')

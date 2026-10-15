@@ -185,6 +185,8 @@ def estimate_dc(slc, *, fs_az, pixel_spacing, resolution, methods=('cde', 'sde')
         CDE uses complex lag products. SDE inverts each of the four component
         sign correlations with the arcsine law before reconstructing phase.
         SDE's statistical model assumes zero-mean proper complex Gaussian data.
+    lag : int, optional
+        Positive azimuth separation in input samples; default 1.
     valid_mask : bool array, optional
         True for valid pixels. Nonfinite samples are always excluded.
     segment_ids : 1D array, optional
@@ -216,6 +218,16 @@ def estimate_dc(slc, *, fs_az, pixel_spacing, resolution, methods=('cde', 'sde')
         Output samples per effective resolution (azimuth, range), at least 1.
         Default 2; increase to 4 or 8 for denser maps at the same resolution.
         Sampling is limited by input pixels; realised spacing is reported.
+
+    Returns
+    -------
+    xarray.Dataset
+        Local dc maps in Hz with dimensions (estimator, azimuth, range),
+        complex lag correlations, normalized coherence, valid-pair counts,
+        effective pair counts and pooled dc_mean values. Coordinates are
+        window centres in metres. dc_mean counts each whole-image valid pair
+        once, independently of local overlap. Attributes report the window
+        support, effective widths, input spacing and realized output spacing.
 
     Notes
     -----

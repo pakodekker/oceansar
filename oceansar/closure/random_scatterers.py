@@ -3,7 +3,7 @@
 import numpy as np
 from numba import njit
 
-from oceansar import utils
+from drama import utils
 
 
 @njit(cache=True)

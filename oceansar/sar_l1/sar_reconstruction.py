@@ -5,6 +5,32 @@ from oceansar.utils import geometry as geo
 #create a function
 def raw_reconstr(raw_output_file, reconstr_output_file):
     # Load config and raw data
+    """Reconstruct an azimuth-oversampled raw signal from along-track channels.
+
+    Parameters
+    ----------
+    raw_output_file : str or path-like
+        RawFile with complex samples ordered (polarization, channel, azimuth,
+        range), along-track baselines in metres and radar/geometry metadata.
+        Only the first polarization is used. The current frequency-domain
+        matrix inversion requires an odd number of channels and invertible
+        channel transfer matrices.
+    reconstr_output_file : str or path-like
+        Destination ReconstructedRawFile with complex sample shape
+        (1, number_of_channels * input_azimuth_samples, range_samples).
+        The original per-channel prf is retained in metadata; ross_focus
+        derives the effective sampling rate as prf * num_ch.
+
+    Returns
+    -------
+    None
+        Write reconstructed samples and copied geometry metadata to disk.
+
+    Notes
+    -----
+    Apply the desired system errors before reconstruction. This function
+    neither calibrates samples nor adds receiver noise.
+    """
     raw_file = tpio.RawFile(raw_output_file, 'r')
     raw_data = raw_file.get('raw_data*')  # Shape: [num_bursts, num_ch, az_size, rg_size]
     sr0 = raw_file.get('sr0')

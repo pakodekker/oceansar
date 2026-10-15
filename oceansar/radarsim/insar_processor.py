@@ -23,7 +23,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from oceansar.utils import geometry as geosar
-from oceansar import utils
+from drama import utils
 from oceansar.utils.geometry import sr_to_geo
 from oceansar import ocs_io as tpio
 from oceansar import constants as const
@@ -44,6 +44,39 @@ def uwphase(phasor):
 
 def insar_process(cfg_file, proc_output_file, ocean_file, output_file):
 
+    """Coregister and multilook SLC channels into an InSAR L1b product.
+
+    Parameters
+    ----------
+    cfg_file : str or path-like
+        Configuration supplying radar geometry and insar controls. A target
+        insar.resolution is in metres (azimuth, ground range); the selected
+        taper determines geometry-dependent integer multilook support.
+    proc_output_file : str or path-like
+        Complex ProcFile SLC with axes (channel, polarization, azimuth, range).
+    ocean_file : str or path-like
+        Current-format ocean initial conditions used for surface diagnostics.
+    output_file : str or path-like
+        Destination L1bFile. ml_intensity has axes (channel, polarization,
+        azimuth, range). ml_coherence and ml_phase have axes (pair, azimuth,
+        range), where coh_lut maps channel/polarization combinations to
+        non-redundant pairs. Coherence is dimensionless, phase is in radians,
+        and intensity is normalized power. Sampling, window support and the
+        region's coordinate origin are stored as metadata.
+
+    Returns
+    -------
+    None
+        Write the L1b file and configured diagnostics. If the requested
+        region has insufficient extent free of azimuth edge effects,
+        return without writing the L1b product.
+
+    Notes
+    -----
+    Configured phase flattening changes the phase reference used by ATI.
+    The output is cropped to the requested scene region within the SLC. ATI
+    subsequently trims the multilook support to obtain full-window maps.
+    """
     print('-------------------------------------------------------------------')
     print(time.strftime("- OCEANSAR InSAR Processor: [%Y-%m-%d %H:%M:%S]", time.localtime()))
     print('-------------------------------------------------------------------')

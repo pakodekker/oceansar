@@ -17,6 +17,7 @@ import datetime
 from tqdm.auto import tqdm
 
 from drama.io import cfg as drcfg
+from drama import utils as drutils
 
 from oceansar import utils
 from oceansar import ocs_io as tpio
@@ -294,7 +295,7 @@ def dopsca_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
               + sub_pulse_range_offset*(n_subpulses - 1))
     min_sr = np.min(sr_s) - wh_tol
     rg_samp_orig = int(np.ceil(((max_sr - min_sr)/sr_res)*over_fs))
-    rg_samp = int(utils.optimize_fftsize(rg_samp_orig))
+    rg_samp = int(drutils.optimize_fftsize(rg_samp_orig))
 
     # Other initializations
     if do_hh:

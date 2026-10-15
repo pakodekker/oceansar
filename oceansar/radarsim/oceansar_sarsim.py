@@ -20,7 +20,8 @@ import time
 from drama.io import cfg as drcfg
 #import stereoid.utils.config as st_config
 from oceansar import ocs_io as osrio
-from oceansar import utils
+from drama import utils
+from oceansar.radarsim.sar_system_errors import sar_system_errors, validate_raw_paths
 from oceansar.sar_l1 import sar_focus
 from oceansar.radarsim.sar_raw_nompi import sar_raw
 from oceansar.radarsim.ati_processor import ati_process
@@ -29,11 +30,37 @@ from oceansar.radarsim.L2_wavespectrum import l2_wavespectrum
 
 def sarsim(cfg_file=None):
 
+    """Orchestrate the configured SAR simulation and processing stages.
+
+    Parameters
+    ----------
+    cfg_file : str or path-like, optional
+        Configuration file selected by DRAMA's parameter-file helper. None
+        opens a file-selection dialog. The sim section supplies the output
+        directory, filenames and raw_run/proc_run/insar_run/ati_run/
+        L2_wavespectrum_run switches.
+
+    Returns
+    -------
+    None
+        Copy the configuration to sim.path and write each enabled stage's
+        products there: ideal raw data, ocean initial conditions, focused SLC,
+        InSAR products, ATI reports/maps and wave cross-spectra as applicable.
+        Stages disabled by the configuration require their input files to
+        already exist when a downstream stage needs them.
+
+    Notes
+    -----
+    Whenever proc_run is enabled, explicitly generate the system raw product,
+    focus it, then delete it after successful focusing. The ideal raw file is
+    retained. A failure propagates and leaves an intermediate that was created
+    for inspection. The default temporary filename is raw_data_sys.nc.
+    """
     print('-------------------------------------------------------------------', flush=True)
     print(time.strftime("OCEANSAR SAR Simulator [%Y-%m-%d %H:%M:%S]", time.localtime()), flush=True)
     # print('Copyright (c) Gerard Marull Paretas, Paco López-Dekker')
     print('-------------------------------------------------------------------', flush=True)
-    cfg_file = utils.get_parFile(parfile=cfg_file)
+    cfg_file = utils.get_par_file(parfile=cfg_file)
     cfg = drcfg.ConfigFile(cfg_file)
     # Create output directory if it doesnt exist already
     os.makedirs(cfg.sim.path, exist_ok=True)
@@ -53,15 +80,23 @@ def sarsim(cfg_file=None):
         sar_raw(cfg.cfg_file_name,
                 os.path.join(cfg.sim.path, cfg.sim.raw_file),
                 os.path.join(cfg.sim.path, cfg.sim.ocean_file),
-                cfg.sim.ocean_reuse,
-                os.path.join(cfg.sim.path, cfg.sim.errors_file),
-                cfg.sim.errors_reuse, plot_save=True)
+                cfg.sim.ocean_reuse, plot_save=True)
 
     # Processing
     if cfg.sim.proc_run:
-        print('Launching SAR RAW Processor...')
-        sar_focus(cfg.cfg_file_name, os.path.join(cfg.sim.path, cfg.sim.raw_file),
-                  os.path.join(cfg.sim.path, cfg.sim.proc_file))
+        raw_file = os.path.join(cfg.sim.path, cfg.sim.raw_file)
+        sys_raw_file = os.path.join(cfg.sim.path, getattr(cfg.sim, 'sys_raw_file', 'raw_data_sys.nc'))
+        proc_file = os.path.join(cfg.sim.path, cfg.sim.proc_file)
+        validate_raw_paths(raw_file, sys_raw_file, proc_file)
+
+        print('Launching SAR System Errors Processor...')
+        sar_system_errors(cfg.cfg_file_name, raw_file, sys_raw_file)
+
+        print('Launching SAR Focusing Processor...')
+        sar_focus(cfg.cfg_file_name, sys_raw_file, proc_file)
+
+        # Keep the intermediate if a preceding stage raises an exception.
+        os.remove(sys_raw_file)
 
     if cfg.sim.insar_run:
         print('Launching InSAR L1b Processor...')

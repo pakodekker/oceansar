@@ -45,3 +45,5 @@ tests/__pycache__/test_frozen_raw.cpython-314.pyc
 tests/__pycache__/test_multilook.cpython-314.pyc
 tests/__pycache__/test_random_scatterers.cpython-314.pyc
 tests/__pycache__/test_scansar_deramp.cpython-314.pyc
+tests/__pycache__/test_ocean_state.cpython-314.pyc
+tests/__pycache__/test_sar_system_errors.cpython-314.pyc
