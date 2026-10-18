@@ -28,6 +28,7 @@ from matplotlib.patches import Circle
 
 from drama.geo import inc_to_sr
 from drama.orbits.velocity import orbit_to_vel
+from oceansar.memory import memory_limited
 from oceansar import ocs_io as tpio
 from oceansar import constants as const
 from oceansar.radarsim.xspec_compression import save_compressed_xspec
@@ -76,6 +77,58 @@ def generate_sublook_data(proc_data, sublook_filter, rg_ml, az_ml,
                     sublook_data[chind], az_ml, axis=0)
 
     return sublook_data[:, az_slice, rg_slice]
+
+
+def wavespectrum_roi(image_shape, *, az0, pixel_spacing, scene_size,
+                     average_azimuth_shift=0., azimuth_guard=0):
+    """Locate the available scene within an SLC, then trim motion guards.
+
+    Parameters
+    ----------
+    image_shape : pair of int
+        Available SLC samples (azimuth, range).
+    az0 : float
+        Along-track coordinate of the first SLC row in metres.
+    pixel_spacing, scene_size : pair of float
+        Image spacing and requested scene size in metres (azimuth, range).
+        Ground range starts at column zero; scene azimuth is centred on zero.
+    average_azimuth_shift : float, optional
+        Predicted mean motion displacement of the scene in metres.
+    azimuth_guard : int, optional
+        Samples discarded at both available azimuth edges for velocity spread.
+
+    Returns
+    -------
+    azimuth_slice, range_slice : slice
+        Bounded, nonempty selections with at least two pixels per axis.
+
+    Raises
+    ------
+    ValueError
+        Geometry is invalid or no usable region remains after clipping/guards.
+    """
+    shape = np.asarray(image_shape)
+    spacing, scene = np.asarray(pixel_spacing, float), np.asarray(scene_size, float)
+    if (shape.shape != (2,) or spacing.shape != (2,) or scene.shape != (2,)
+            or not np.all(np.isfinite(shape)) or np.any(shape < 2)
+            or np.any(shape != shape.astype(int))
+            or not np.all(np.isfinite(spacing)) or np.any(spacing <= 0)
+            or not np.all(np.isfinite(scene)) or np.any(scene <= 0)
+            or not np.isfinite(az0) or not np.isfinite(average_azimuth_shift)
+            or not np.isfinite(azimuth_guard) or azimuth_guard < 0
+            or azimuth_guard != int(azimuth_guard)):
+        raise ValueError('Invalid wave-spectrum ROI geometry or azimuth guard')
+    start = int(np.floor((-az0-scene[0]/2+average_azimuth_shift)/spacing[0]))
+    stop = int(np.ceil((-az0+scene[0]/2+average_azimuth_shift)/spacing[0]))
+    # A ScanSAR SLC can be shorter than the displaced scene. Clip before
+    # applying guards: a negative NumPy slice start would otherwise wrap to
+    # the end of the SLC and silently produce an empty sublook image.
+    start = int(np.clip(start, 0, shape[0]))+int(azimuth_guard)
+    stop = int(np.clip(stop, 0, shape[0]))-int(azimuth_guard)
+    range_stop = min(int(np.ceil(scene[1]/spacing[1])), int(shape[1]))
+    if stop-start < 2 or range_stop < 2:
+        raise ValueError('No usable wave-spectrum ROI after clipping to the SLC and trimming motion guards')
+    return slice(start, stop), slice(0, range_stop)
 
 
 def welch_xspec(int_fwd, int_bwd, imgpar, remove_outliers=True,
@@ -269,6 +322,7 @@ def plot_xspec(kx, ky, xspec, ref_xspec=None, vmax=10, vmin=None, avg=3, imag=Tr
     cb2.ax.set_xlabel(im2units, labelpad=10)
     return fig, axs
 
+@memory_limited
 def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file, xvmax=10, xvmin=None, xivmax=None, kymax=0.05, kxmax=0.075):
 
     """Estimate wave cross-spectra from multilooked Doppler sublook intensities.
@@ -306,8 +360,13 @@ def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file, xvmax=1
     Returns
     -------
     None
-        Write the cross-spectrum dataset and configured figures. If no valid
-        multilook region remains after trimming, return without a dataset.
+        Write the cross-spectrum dataset and configured figures.
+
+    Raises
+    ------
+    ValueError
+        The displaced scene has no usable overlap with the SLC after motion
+        guards, or spectral inputs/controls are invalid.
     """
     print('-------------------------------------------------------------------')
     print(time.strftime("- OCEANSAR L2 Wavespectra: [%Y-%m-%d %H:%M:%S]", time.localtime()))
@@ -383,7 +442,7 @@ def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file, xvmax=1
     proc_content.close()
     # OCEAN SURFACE
     surface = OceanSurface()
-    surface.load(ocean_file, compute=['D', 'V'])
+    surface.load(ocean_file, compute=['V'])
     surface.t = 0.
 
     # OTHER INITIALIZATIONS
@@ -415,25 +474,22 @@ def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file, xvmax=1
 
     print('Starting Wavespectrum processing...')
 
-    # Get dimensions & calculate region of interest
-    rg_span = surface.Lx
-    az_span = surface.Ly
+    # Only scene dimensions and velocity statistics are needed below. Release
+    # the large Fourier/surface grids before generating all sublook images.
+    rg_span, az_span = float(surface.Lx), float(surface.Ly)
+    del surface, v_radial_surf
     rg_size = proc_data[0].shape[2]
     az_size = proc_data[0].shape[1]
 
-    # Note: RG is projected, so plots are Ground Range
-    rg_min = 0
-    rg_max = int(rg_span/(const.c/2./rg_sampling/np.sin(inc_angle)))
-    # az_min = int(az_size/2. + (-az_span/2. + avg_az_shift)/(v_ground/prf))
-    # az_max = int(az_size/2. + (az_span/2. + avg_az_shift)/(v_ground/prf))
-    az_min = int((-az0 -az_span/2. + avg_az_shift)/(v_ground/prf))
-    az_max = int((-az0 + az_span/2. + avg_az_shift)/(v_ground/prf))
     az_guard = int(std_az_shift / (v_ground / prf))
-    az_min = az_min + az_guard
-    az_max = az_max - az_guard
-    if (az_max - az_min) < (2 * az_guard - 10):
-        print('Not enough edge-effect free image')
-        return
+    az_roi, rg_roi = wavespectrum_roi(
+        (az_size, rg_size), az0=float(az0),
+        pixel_spacing=(float(az_grid_spacing), float(grg_grid_spacing)),
+        scene_size=(az_span, rg_span), average_azimuth_shift=float(avg_az_shift),
+        azimuth_guard=az_guard)
+    az_min, az_max = az_roi.start, az_roi.stop
+    rg_min, rg_max = rg_roi.start, rg_roi.stop
+    print(f'Wave-spectrum SLC ROI: azimuth [{az_min}:{az_max}], range [{rg_min}:{rg_max}]')
 
     # Adaptive coregistration
     # all of this is not needed
@@ -576,6 +632,7 @@ def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file, xvmax=1
             'range_pixel_spacing': float(delta_rg),
             'azimuth_pixel_spacing': float(delta_az),
             'sublook_count': int(n_sublook),
+            'slc_roi_samples': [az_min, az_max, rg_min, rg_max],
         })
     xspec_dataset['wxspec'].attrs['long_name'] = (
         'Welch cross-spectrum of sublook intensities')

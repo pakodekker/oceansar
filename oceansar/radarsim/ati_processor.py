@@ -22,6 +22,7 @@ import numpy as np
 # import scipy as sp
 import matplotlib.pyplot as plt
 
+from oceansar.memory import memory_limited
 from oceansar.utils import geometry as geosar
 from drama import utils
 from oceansar import ocs_io as tpio
@@ -31,6 +32,7 @@ from oceansar.l2_processing_core import multilook_window, multilook_report
 from oceansar.radarsim.ati_pairs import estimate_ati_pairs, uwphase
 
 
+@memory_limited
 def ati_process(cfg_file, insar_output_file, ocean_file, output_file, *,
                 result_file=None, plot_show=False, plot_bounds=None):
     """Estimate ATI Doppler and radial velocity for all non-redundant antenna pairs.

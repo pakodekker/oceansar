@@ -10,6 +10,7 @@ from pathlib import Path
 import numpy as np
 import xarray as xr
 
+from oceansar.memory import memory_limited
 from oceansar import constants
 from oceansar import ocs_io
 from oceansar.l2_processing_core import estimate_dc
@@ -47,12 +48,14 @@ def _integer(value, name):
     return integer
 
 
+@memory_limited
 def dc_process(cfg_file, proc_output_file, output_file=None, *, resolution=None,
                taper=None, channel=None, polarization=None, lag=None,
                pixel_spacing=None, min_pairs=None, min_correlation=None,
                valid_mask=None, segment_ids=None, nodata=None,
                window_samples=None, samples_per_resolution=None, plot=None,
-               plot_show=False, plot_path=None):
+               plot_show=False, plot_path=None, scansar_correction=None,
+               crlb=None, crlb_snr_db=None):
     """Estimate single-channel Doppler centroid independently for selected SLCs.
 
     Parameters
@@ -113,6 +116,26 @@ def dc_process(cfg_file, proc_output_file, output_file=None, *, resolution=None,
     plot_path : str or path-like, optional
         Figure directory, default dc.plot_path or 'dc_plots'. Relative paths
         are resolved beside output_file.
+    scansar_correction : bool, optional
+        Apply the ADPM finite-lag response correction in ScanSAR mode;
+        defaults to dc.scansar_correction or True. Raw dc/dc_mean remain
+        available. Corrected products are dc_shift_corrected and
+        radial_velocity_corrected, with model baseline, sensitivity and
+        inverse scaling factor. dc.correction_min_sensitivity (default .01),
+        correction_min_correlation (.05) and correction_max_shift_hz (50)
+        control validity. Stripmap estimates are unchanged.
+    crlb : bool, optional
+        Annotate ScanSAR products with the nominal unequalized acquisition
+        CR lower bound; defaults to dc.crlb or True. Requires positive range
+        bandwidth and incidence metadata. Missing range metadata is reported
+        in dc_crlb_status. The local Whittle approximation uses the full
+        input window, independent range cells and unknown homogeneous power;
+        it does not claim that CDE/SDE attains the bound. Stripmap automatic
+        annotation is not yet implemented.
+    crlb_snr_db : float, optional
+        Peak nominal antenna signal PSD / known white noise PSD, in dB.
+        Defaults to dc.crlb_snr_db or None (speckle-only limit). It is not
+        inferred from NESZ or measured/equalized SLC brightness.
 
     Returns
     -------
@@ -125,12 +148,21 @@ def dc_process(cfg_file, proc_output_file, output_file=None, *, resolution=None,
         maps. Valid carrier metadata additionally supplies radial_velocity,
         radial_velocity_mean and radial_velocity_std in m/s. Attributes report
         integer support, effective resolution and realized output spacing.
+        ScanSAR correction additionally returns a baseline phase frequency,
+        dimensionless sensitivity g and scale 1/g, corrected shift maps in
+        Hz, corrected radial velocities in m/s, spatial statistics and
+        correction-validity/reason flags. Raw pooled dc_mean stays uncorrected.
+        ScanSAR CRB annotation adds dc_crlb_std in Hz and, with a carrier,
+        radial_velocity_crlb_std in m/s. These have no estimator dimension;
+        they bound physical Doppler directly, without another 1/g correction.
+        Counts, model assumptions and validity flags accompany the prediction.
 
     Notes
     -----
     The observable is the stored SLC's phase frequency modulo fs_az / lag,
     where fs_az is az_sampling or, if absent, prf. No reramping, basebanding,
-    phase-reference correction or ambiguity resolution is applied implicitly.
+    phase-reference correction or ambiguity resolution changes the raw dc.
+    ScanSAR response calibration is added separately when enabled.
     Equivalent radial velocity is -c * dc / (2 * f0). dc_mean is unweighted
     and is not the arithmetic mean of overlapping local estimates.
     """
@@ -204,6 +236,28 @@ def dc_process(cfg_file, proc_output_file, output_file=None, *, resolution=None,
         else:
             spacing_source = 'explicit pixel_spacing override'
         az0 = _scalar(reader, 'az0', 0.)
+        operation_mode = str(getattr(reader.__file__, 'acquisition_mode',
+            getattr(getattr(cfg, 'mode', None), 'mode', 'stripmap'))).lower()
+        correction = resolve(scansar_correction, 'scansar_correction', True)
+        if not isinstance(correction, (bool, np.bool_)):
+            raise ValueError('scansar_correction must be boolean')
+        bound = resolve(crlb, 'crlb', True)
+        if not isinstance(bound, (bool, np.bool_)):
+            raise ValueError('crlb must be boolean')
+        bound_snr = resolve(crlb_snr_db, 'crlb_snr_db', None)
+        if isinstance(bound_snr, str) and bound_snr.strip().lower() == 'none':
+            bound_snr = None
+        bandwidth = _scalar(reader, 'rg_bw', getattr(getattr(cfg, 'mode', None), 'rg_bw', None))
+        range_resolution = (constants.c/(2*bandwidth*np.sin(np.deg2rad(incidence_deg)))
+            if bandwidth is not None and bandwidth > 0 and incidence_deg is not None
+            and 0 < incidence_deg < 90 else None)
+        bound_status = ('disabled' if not bound else 'not implemented for this acquisition mode'
+            if operation_mode != 'scansar' else 'missing positive range bandwidth/incidence metadata'
+            if range_resolution is None else 'annotated: approximate nominal-acquisition floor')
+        model = None
+        if operation_mode == 'scansar' and (correction or (bound and range_resolution is not None)):
+            from oceansar.radarsim.scansar_dc import scansar_response_model
+            model = scansar_response_model(cfg, reader)
         channel_results = []
         for channel_index in channels:
             results = []
@@ -224,6 +278,20 @@ def dc_process(cfg_file, proc_output_file, output_file=None, *, resolution=None,
                                      min_pairs=min_pairs, min_correlation=min_correlation,
                                      origin=(az0, 0.), window_samples=window_samples,
                                      samples_per_resolution=samples_per_resolution)
+                model_valid = valid & np.isfinite(slc)
+                if nodata is not None:
+                    model_valid &= slc != nodata
+                if model is not None and correction:
+                    from oceansar.radarsim.scansar_dc import calibrate_scansar_dc
+                    result = calibrate_scansar_dc(result, model, model_valid, taper=taper,
+                        segment_ids=segment_ids,
+                        min_sensitivity=getattr(controls, 'correction_min_sensitivity', .01),
+                        min_correlation=getattr(controls, 'correction_min_correlation', .05),
+                        max_shift_hz=getattr(controls, 'correction_max_shift_hz', 50.))
+                if model is not None and bound and range_resolution is not None:
+                    from oceansar.radarsim.scansar_dc import annotate_scansar_crlb
+                    result = annotate_scansar_crlb(result, model, model_valid,
+                        range_resolution_m=range_resolution, segment_ids=segment_ids, snr_db=bound_snr)
                 results.append(result.expand_dims(polarization=[labels[index]]))
             pol_result = xr.concat(results, dim='polarization', join='exact')
             channel_results.append(pol_result.expand_dims(channel=[channel_index]) if all_channels else pol_result)
@@ -231,6 +299,8 @@ def dc_process(cfg_file, proc_output_file, output_file=None, *, resolution=None,
         ds = ds.assign_coords(polarization_index=('polarization', selected))
         ds.attrs.update(source_slc=str(proc_output_file.resolve()), channel_index='all' if all_channels else channel,
                         input_channel_count=nch, spacing_source=spacing_source,
+                        acquisition_mode=operation_mode,
+                        dc_crlb_status=bound_status,
                         range_geometry='local ground range offset',
                         slc_phase_reference='as stored; no implicit phase correction',
                         azimuth_origin_source='SLC az0 metadata' if _scalar(reader, 'az0') is not None else 'local zero')
@@ -253,6 +323,19 @@ def dc_process(cfg_file, proc_output_file, output_file=None, *, resolution=None,
             ds.radial_velocity_std.attrs.update(units='m/s',
                 long_name='Spatial standard deviation of local equivalent radial velocities')
             ds.attrs['doppler_velocity_convention'] = 'v_r = -c * f_D / (2 * f0)'
+            if 'dc_crlb_std' in ds:
+                ds['radial_velocity_crlb_std'] = ds.dc_crlb_std*abs(factor)
+                ds.radial_velocity_crlb_std.attrs.update(units='m/s',
+                    long_name='Approximate nominal-acquisition radial velocity CR lower bound standard deviation',
+                    interpretation='Optimal unbiased estimator floor, not estimated actual error',
+                    ancillary_variables='dc_crlb_valid dc_crlb_reason')
+            if 'dc_shift_corrected' in ds:
+                for suffix in ('', '_mean', '_std'):
+                    name = f'radial_velocity_corrected{suffix}'
+                    ds[name] = ds[f'dc_shift_corrected{suffix}'] * (abs(factor) if suffix == '_std' else factor)
+                    ds[name].attrs.update(units='m/s',
+                        long_name='Radial velocity from ADPM-corrected acquisition Doppler shift',
+                        conversion='v_r = -c * delta_f / (2 * f0); reference Doppler shift zero')
         if 'sin_az' in variables:
             direction = np.ma.asarray(reader.get('sin_az'))
             if direction.shape == (naz,) and not np.ma.getmaskarray(direction).any():
@@ -273,6 +356,9 @@ def dc_process(cfg_file, proc_output_file, output_file=None, *, resolution=None,
             destination = Path(resolve(plot_path, 'plot_path', 'dc_plots'))
             if not destination.is_absolute():
                 destination = Path(output_file).parent / destination
+        if 'dc_sensitivity' in ds:
+            from oceansar.radarsim.doppler_plots import plot_dc_scaling
+            plot_dc_scaling(ds, destination, show=plot_show)
         plot_dc(ds, destination, show=plot_show)
     return ds
 
@@ -283,7 +369,7 @@ def plot_dc(ds, plot_path=None, *, show=False, bounds=None):
     Parameters
     ----------
     ds : xarray.Dataset
-        dc_process result with estimator/polarization dimensions, metre-valued
+    dc_process result with estimator/polarization dimensions, metre-valued
         azimuth/range coordinates and a channel_index attribute; an optional
         channel dimension is processed recursively. Velocity maps are drawn
         when radial_velocity is present.
@@ -303,7 +389,8 @@ def plot_dc(ds, plot_path=None, *, show=False, bounds=None):
         and are closed after use.
     """
     import matplotlib.pyplot as plt
-    from oceansar.radarsim.doppler_plots import symmetric_limit, map_plot_bounds, set_map_bounds
+    from oceansar.radarsim.doppler_plots import symmetric_limit, map_plot_bounds, set_map_bounds, dc_plot_data
+    ds = dc_plot_data(ds)
     destination = Path(plot_path) if plot_path is not None else None
     if destination is not None:
         destination.mkdir(parents=True, exist_ok=True)
@@ -315,7 +402,8 @@ def plot_dc(ds, plot_path=None, *, show=False, bounds=None):
             plot_dc(selected, destination, show=show, bounds=bounds)
         return
     channel = ds.attrs['channel_index']
-    quantities = [('dc', 'dc_mean', 'Stored-SLC phase frequency', 'Hz', '')]
+    corrected = ds.attrs.get('dc_plot_corrected', False)
+    quantities = [('dc', 'dc_mean', 'Corrected Doppler shift' if corrected else 'Stored-SLC phase frequency', 'Hz', '')]
     if 'radial_velocity' in ds:
         quantities.append(('radial_velocity', 'radial_velocity_mean',
                            'Equivalent radial velocity', 'm/s', '_rvel'))
@@ -371,6 +459,9 @@ def main(argv=None):
     parser.add_argument('--lag', type=int)
     parser.add_argument('--samples-per-resolution', type=float, nargs=2, metavar=('AZ', 'GR'))
     parser.add_argument('--plot', action='store_true', default=None)
+    parser.add_argument('--no-scansar-correction', dest='scansar_correction', action='store_false', default=None)
+    parser.add_argument('--no-crlb', dest='crlb', action='store_false', default=None)
+    parser.add_argument('--crlb-snr-db', type=float)
     args = parser.parse_args(argv)
     cfg = ocs_io.ConfigFile(str(args.cfg_file)) if args.cfg_file else None
     simulation = getattr(cfg, 'sim', None)
@@ -384,12 +475,23 @@ def main(argv=None):
     try:
         result = dc_process(args.cfg_file, source, destination, resolution=args.resolution,
                             taper=args.taper, channel=args.channel, polarization=args.polarization,
-                            lag=args.lag, samples_per_resolution=args.samples_per_resolution, plot=args.plot)
+                            lag=args.lag, samples_per_resolution=args.samples_per_resolution, plot=args.plot,
+                            scansar_correction=args.scansar_correction,
+                            crlb=args.crlb, crlb_snr_db=args.crlb_snr_db)
     except (ValueError, OSError) as exc:
         parser.error(str(exc))
     print(result[["dc_mean", "dc_std"]])
     if "radial_velocity_mean" in result:
         print(result[["radial_velocity_mean", "radial_velocity_std"]])
+    if 'dc_shift_corrected' in result:
+        print('ADPM-corrected Doppler shift spatial statistics (Hz):')
+        print(result[['dc_shift_corrected_mean', 'dc_shift_corrected_std']])
+    if 'dc_crlb_std' in result:
+        floor = result.dc_crlb_std
+        print('Nominal acquisition CRB std: min/median/max (Hz), optimal-estimator floor:')
+        print(tuple(float(value.item()) for value in
+                    (floor.min(skipna=True), floor.median(skipna=True), floor.max(skipna=True))))
+        print('This is not the measured CDE/SDE error or the uncertainty of a spatial/channel average.')
     print(f'Effective resolution (m): {result.attrs["effective_resolution_m"]}')
     print(f'SLC support (m): {result.attrs["window_support_m"]}')
     print(f'Output spacing (m): {result.attrs["output_spacing_m"]}')

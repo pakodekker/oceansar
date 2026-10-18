@@ -4,6 +4,85 @@ from pathlib import Path
 import numpy as np
 
 
+def dc_plot_data(ds):
+    """Return a plotting view using response-corrected ScanSAR maps if present.
+
+    The input dataset and its raw pooled dc_mean are never modified. Corrected
+    display means/std are spatial statistics of the corrected local maps.
+    """
+    if 'dc_shift_corrected' not in ds:
+        return ds
+    view = ds.copy(deep=False)
+    view.attrs = dict(ds.attrs, dc_plot_corrected=True)
+    for target, source in (('dc', 'dc_shift_corrected'),
+                           ('radial_velocity', 'radial_velocity_corrected')):
+        if source in ds:
+            for suffix in ('', '_mean', '_std'):
+                view[target+suffix] = ds[source+suffix]
+    return view
+
+
+def plot_dc_scaling(ds, plot_path=None, *, show=False):
+    """Plot ScanSAR sensitivity, scaling and any nominal CRB across the burst.
+
+    Parameters
+    ----------
+    ds : xarray.Dataset
+        Corrected dc_process result with dc_sensitivity and dc_scale_factor.
+        Select the first channel/polarization to avoid duplicate geometry plots.
+    plot_path : str or path-like, optional
+        Destination directory for dc_scansar_scaling.png; None skips saving.
+    show : bool, optional
+        Display the figure inline; default False. Close it after use.
+
+    Returns
+    -------
+    None
+        One figure with separate sensitivity/scaling panels, plus a nominal
+        CRB standard-deviation panel when annotated. Curves show
+        near, middle and far range window centres for both CDE and SDE.
+        Invalid inverse factors remain gaps rather than being clipped.
+    """
+    if 'dc_sensitivity' not in ds:
+        return
+    import matplotlib.pyplot as plt
+    selected = ds
+    for dimension in ('channel', 'polarization'):
+        if dimension in selected.dims:
+            selected = selected.isel({dimension: 0}, drop=True)
+    ranges = sorted(set((0, selected.sizes['range']//2, selected.sizes['range']-1)))
+    has_bound = 'dc_crlb_std' in selected
+    figure, axes = plt.subplots(3 if has_bound else 2, 1,
+        figsize=(10, 10 if has_bound else 7), sharex=True, constrained_layout=True)
+    colors = plt.get_cmap('tab10')
+    for index, column in enumerate(ranges):
+        for method_index, method in enumerate(selected.estimator.values):
+            label = f'{str(method).upper()}, range {float(selected.range[column]):.0f} m'
+            for axis, variable in zip(axes[:2], ('dc_sensitivity', 'dc_scale_factor')):
+                axis.plot(selected.azimuth, selected[variable].sel(estimator=method).isel(range=column),
+                          color=colors(index), linestyle='-' if method_index == 0 else '--', label=label)
+        if has_bound:
+            axes[2].plot(selected.azimuth, selected.dc_crlb_std.isel(range=column),
+                color=colors(index), label=f'Range {float(selected.range[column]):.0f} m')
+    axes[0].set_ylabel('Sensitivity g = d f̂ / d δ')
+    axes[1].set_ylabel('Doppler correction factor 1/g')
+    if has_bound:
+        axes[2].set_ylabel('Nominal CRB std (Hz)')
+        axes[2].set_title('Unequalized acquisition; approximate optimal unbiased estimator floor')
+    axes[-1].set_xlabel('Azimuth position within burst image (m)')
+    for axis in axes:
+        axis.grid(True, alpha=.3)
+        axis.legend(fontsize=9, ncol=2)
+    axes[0].set_title('ScanSAR Doppler-centroid response: fixed burst, processing and antenna equalization')
+    if plot_path is not None:
+        destination = Path(plot_path)
+        destination.mkdir(parents=True, exist_ok=True)
+        figure.savefig(destination/'dc_scansar_scaling.png', dpi=150)
+    if show:
+        plt.show()
+    plt.close(figure)
+
+
 def symmetric_limit(values):
     """Finite maximum absolute value, with a usable range for zero/empty maps."""
     values = np.asarray(values)
@@ -150,6 +229,8 @@ def plot_ati_matrix(ds, plot_path=None, *, show=False, plot_format='png', bounds
 def plot_dc_summary(ds, plot_path=None, *, show=False, bounds=None):
     """Display channel 0 and the arithmetic channel-average maps; return the average."""
     import matplotlib.pyplot as plt
+    plot_dc_scaling(ds, plot_path, show=show)
+    ds = dc_plot_data(ds)
     destination = Path(plot_path) if plot_path is not None else None
     if destination is not None:
         destination.mkdir(parents=True, exist_ok=True)
@@ -191,7 +272,8 @@ def plot_dc_summary(ds, plot_path=None, *, show=False, bounds=None):
                 axis.set(title=label, xlabel='Ground range offset (m)', ylabel='Azimuth (m)')
                 set_map_bounds(axis, bounds)
             figure.colorbar(mesh, ax=axes[row].tolist(), label=unit)
-        figure.suptitle(f'DC {pol}: channel 0 and channel average' if len(groups) > 1 else f'DC {pol}')
+        label = 'Corrected DC' if ds.attrs.get('dc_plot_corrected', False) else 'DC'
+        figure.suptitle(f'{label} {pol}: channel 0 and channel average' if len(groups) > 1 else f'{label} {pol}')
         if destination is not None:
             figure.savefig(destination / f'dc_channel_summary_{pol}.png', dpi=150)
         if show:
@@ -268,10 +350,12 @@ def plot_ati(ds, plot_path=None, *, show=False, plot_format='png', bounds=None):
 def plot_comparison(dc, ati, plot_path=None, *, show=False, channel=None, bounds=None):
     """Compare a DC channel with every ATI lag average in the ATI reference frame.
 
-    DC retains stored-SLC phase and ATI its InSAR flattening. No raster or
-    channel averaging is applied to DC; channel defaults to the first selected.
+    Use ADPM-corrected DC/velocity maps when supplied; otherwise use stored-SLC
+    phase frequency. ATI retains its InSAR flattening. No raster or channel
+    averaging is applied to DC; channel defaults to the first selected.
     """
     import matplotlib.pyplot as plt
+    dc = dc_plot_data(dc)
     channel_label = ''
     if 'channel' in dc.dims:
         channel = int(dc.channel.values[0]) if channel is None else channel
@@ -304,7 +388,8 @@ def plot_comparison(dc, ati, plot_path=None, *, show=False, channel=None, bounds
                 all_ati = ati[f'lag_{variable}'].sel(polarization=pol) if lag is not None else fields[-1]
                 limit = symmetric_limit(np.concatenate([field.values.ravel() for field in fields[:-1]]
                                                         + [all_ati.values.ravel()]))
-                labels = [f'DC{channel_label} {m.upper()}' for m in methods]+[f'ATI{lag_label}']
+                dc_label = 'Corrected DC' if dc.attrs.get('dc_plot_corrected', False) else 'DC'
+                labels = [f'{dc_label}{channel_label} {m.upper()}' for m in methods]+[f'ATI{lag_label}']
                 for column, (field, label) in enumerate(zip(fields, labels)):
                     axis = axes[row, column]
                     mesh = axis.pcolormesh(field.range, field.azimuth, field,

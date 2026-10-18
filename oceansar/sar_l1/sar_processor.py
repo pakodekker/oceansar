@@ -23,6 +23,7 @@ from scipy import signal as scipy_signal
 
 from drama.geo.geo_history import GeoHistory
 from drama.performance.sar.sar_performance_common import calc_analysis_time
+from oceansar.memory import memory_limited
 from oceansar.utils import geometry as geo
 from drama import utils
 from oceansar import ocs_io as tpio
@@ -508,6 +509,33 @@ def compensate_azimuth_antenna(data, beam_pattern):
     return data * compensation[np.newaxis, :, np.newaxis]
 
 
+def processing_antenna_pattern(cfg, beam_pattern):
+    """Return the field pattern actually divided out during focusing.
+
+    cfg.processing.antenna_equalization defaults to True, preserving existing
+    processing. False returns unity on the same frequency grid: acquisition
+    antenna weighting remains in the data. Pass this effective pattern to
+    both compensation and saved DC response metadata so a no-equalization
+    experiment is not subsequently calibrated with the equalized model.
+    """
+    return beam_pattern if getattr(cfg.processing, 'antenna_equalization', True) else np.ones_like(beam_pattern)
+
+
+def processing_azimuth_fft_size(cfg, minimum, default):
+    """Return a validated optional exact FFT length for processing diagnostics.
+
+    processing.azimuth_fft_size=None preserves the optimized default. An
+    explicit integer must cover both raw burst and requested output support.
+    This changes zero padding/frequency sampling, never the acquisition PRF.
+    Actual frequency weights are saved in the SLC for DC response correction.
+    """
+    value=getattr(cfg.processing,'azimuth_fft_size',None)
+    if value is None or str(value).lower()=='none':return int(default)
+    if isinstance(value,(bool,np.bool_)) or not np.isfinite(value) or int(value)!=value or value<minimum:
+        raise ValueError('processing.azimuth_fft_size must be an integer covering raw and output samples')
+    return int(value)
+
+
 def scansar_deramp_phase(az_size, slant_range, az0, prf,
                          v_ground, v_eff, wavelength):
     """Compute the geometric ScanSAR deramp phase on the focused image grid.
@@ -692,6 +720,7 @@ def scansar_azimuth_focus(
     return result
 
 
+@memory_limited
 def sar_focus(cfg_file, raw_output_file, output_file):
 
     ###################
@@ -727,6 +756,10 @@ def sar_focus(cfg_file, raw_output_file, output_file):
     receiver noise or delete its input. The caller orchestrates those steps.
     ScanSAR processing.reramp selects whether to restore the azimuth phase
     ramp after deramped focusing; the stored phase reference matters for DC.
+    ScanSAR SLCs also store burst timing and response-model power weights
+    for downstream Doppler sensitivity correction.
+    sim.memory_limit_gib optionally isolates this stage and monitors measured
+    caller+worker memory, stopping near the configured GiB budget.
     """
     print('-------------------------------------------------------------------')
     print(time.strftime("- OCEANSAR SAR Processor: %Y-%m-%d %H:%M:%S", time.localtime()))
@@ -830,6 +863,7 @@ def sar_focus(cfg_file, raw_output_file, output_file):
         optsize = utils.optimize_fftsize(
             (minimum_az_size, rg_size_orig))
         optsize = [raw_data.shape[0], optsize[0], optsize[1]]
+        optsize[1] = processing_azimuth_fft_size(cfg, minimum_az_size, optsize[1])
         data = np.zeros(optsize, dtype=complex)
         az_size, rg_size = data.shape[1:]
         if operation_mode == 'scansar':
@@ -868,6 +902,7 @@ def sar_focus(cfg_file, raw_output_file, output_file):
             ant_l_rx = cfg.sar.ant_L_rx
             beam_pattern = (sinc_bp(sin_az, ant_l_tx, f0, field=True)
                             * sinc_bp(sin_az, ant_l_rx, f0, field=True))
+        beam_pattern = processing_antenna_pattern(cfg, beam_pattern)
         #fa[az_size/2:] = fa[az_size/2:] - prf
         filter_key = (az_size, rg_size)
         if filter_key not in filter_cache:
@@ -1005,6 +1040,12 @@ def sar_focus(cfg_file, raw_output_file, output_file):
     proc_file.set('rg_bw', rg_bw)
     proc_file.set('b_ati', b_ati)
     proc_file.set('b_xti', b_xti)
+    if operation_mode == 'scansar':
+        from oceansar.radarsim.scansar_dc import write_scansar_dc_metadata
+        write_scansar_dc_metadata(cfg, proc_file, ghist=ghist, look=look_focus,
+            frequencies=fa, beam_pattern=beam_pattern, common_band_filter=common_band_filter,
+            v_eff=v_eff, raw_az0=float(az0), raw_az_size=raw_data.shape[-2],
+            fs_az=float(prf), v_ground=float(v_ground))
     proc_file.close()
 
     print('-----------------------------------------')
@@ -1048,6 +1089,8 @@ def ross_sar_focus(cfg_file, reconstruct_raw_output_file, output_file):
     receiver noise or delete its input. The caller orchestrates those steps.
     ScanSAR processing.reramp selects whether to restore the azimuth phase
     ramp after deramped focusing; the stored phase reference matters for DC.
+    ScanSAR SLCs also store burst timing and response-model power weights
+    for downstream Doppler sensitivity correction.
     """
     print('-------------------------------------------------------------------')
     print(time.strftime("- OCEANSAR SAR Processor for Rose-L: %Y-%m-%d %H:%M:%S", time.localtime()))
@@ -1147,6 +1190,7 @@ def ross_sar_focus(cfg_file, reconstruct_raw_output_file, output_file):
     optsize = utils.optimize_fftsize(
         (minimum_az_size, rg_size_orig))
     optsize = [raw_data.shape[0], optsize[0], optsize[1]]
+    optsize[1] = processing_azimuth_fft_size(cfg, minimum_az_size, optsize[1])
     data = np.zeros(optsize, dtype=complex)
     az_size, rg_size = data.shape[1:]
     if operation_mode == 'scansar':
@@ -1181,6 +1225,7 @@ def ross_sar_focus(cfg_file, reconstruct_raw_output_file, output_file):
         ant_l_rx = cfg.sar.ant_L_rx
         beam_pattern = (sinc_bp(sin_az, ant_l_tx, f0, field=True)
                         * sinc_bp(sin_az, ant_l_rx, f0, field=True))
+    beam_pattern = processing_antenna_pattern(cfg, beam_pattern)
     filter_key = (az_size, rg_size)
     if filter_key not in filter_cache:
         rcmc_fa, ph_ac_reference, _, _ = (
@@ -1313,6 +1358,12 @@ def ross_sar_focus(cfg_file, reconstruct_raw_output_file, output_file):
     proc_file.set('sr0', sr0)
     proc_file.set('rg_sampling', rg_bw*over_fs)
     proc_file.set('rg_bw', rg_bw)
+    if operation_mode == 'scansar':
+        from oceansar.radarsim.scansar_dc import write_scansar_dc_metadata
+        write_scansar_dc_metadata(cfg, proc_file, ghist=ghist, look=look_focus,
+            frequencies=fa, beam_pattern=beam_pattern, common_band_filter=common_band_filter,
+            v_eff=v_eff, raw_az0=float(az0), raw_az_size=raw_data.shape[-2],
+            fs_az=float(prf), v_ground=float(v_ground))
     proc_file.close()
 
     print('-----------------------------------------')

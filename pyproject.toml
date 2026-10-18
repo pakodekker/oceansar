@@ -31,6 +31,7 @@ dependencies = [
     "matplotlib",
     "h5netcdf",
     "tqdm",
+    "psutil>=5.9",
     "drama>=0.7"
 ]
 

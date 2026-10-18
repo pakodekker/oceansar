@@ -11,5 +11,5 @@ setup(
     author='Paco Lopez Dekker',
     author_email='F.LopezDekker@tudelft.nl',
     description='',
-    install_requires=['numpy', 'scipy', 'numexpr', 'numba', 'matplotlib', 'NetCDF4']
+    install_requires=['numpy', 'scipy', 'numexpr', 'numba', 'matplotlib', 'NetCDF4', 'psutil>=5.9']
 )

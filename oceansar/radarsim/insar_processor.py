@@ -22,6 +22,7 @@ import numpy as np
 # import scipy as sp
 import matplotlib.pyplot as plt
 
+from oceansar.memory import memory_limited
 from oceansar.utils import geometry as geosar
 from drama import utils
 from oceansar.utils.geometry import sr_to_geo
@@ -42,6 +43,7 @@ def uwphase(phasor):
     return pha
 
 
+@memory_limited
 def insar_process(cfg_file, proc_output_file, ocean_file, output_file):
 
     """Coregister and multilook SLC channels into an InSAR L1b product.

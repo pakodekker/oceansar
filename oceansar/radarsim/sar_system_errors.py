@@ -15,6 +15,7 @@ import numpy as np
 from netCDF4 import Dataset
 from drama import utils as drutils
 
+from oceansar.memory import memory_limited
 from oceansar import ocs_io
 from oceansar.utils.random import get_sim_seed, random_generator
 
@@ -67,6 +68,7 @@ def _copy_metadata(source, target):
             copied[...] = variable[...]
 
 
+@memory_limited
 def sar_system_errors(cfg_file, raw_file, output_file, *, block_azimuth=128):
     """Write amplitude-calibrated SAR raw data with additive receiver noise.
 

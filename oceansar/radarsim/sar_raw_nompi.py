@@ -28,6 +28,7 @@ from drama.performance.sar.sar_performance_common import (
     calc_analysis_time
 )
 
+from oceansar.memory import memory_limited
 from oceansar import utils
 from oceansar import ocs_io as tpio
 from oceansar.utils import geometry as geosar
@@ -43,12 +44,15 @@ from oceansar.swell_spec import dir_swell_spec as s_spec
 from oceansar.radarsim.factorize_raw import (
     aggregate_factorized_raw,
     factorize_raw_params,
+    factorization_scene_time,
+    factorization_current_range,
     nominal_raw_time_span,
 )
 
 
+@memory_limited
 def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file=False,
-            plot_save=True, bistatic=False, dau=0):
+            plot_save=True, bistatic=False, dau=0, *, factorization=None):
     """Generate ideal SAR raw samples and store their amplitude calibration factor.
 
     Parameters
@@ -76,6 +80,13 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file=False,
     dau : float, optional
         Along-track spacecraft displacement in metres, passed to the geometry
         model. Default is zero.
+    factorization : object, optional
+        Experimental factorization strategy with ``parameters`` and
+        ``aggregate`` methods matching factorize_raw_params and
+        aggregate_factorized_raw. None uses the production implementation.
+        The strategy may supply scene_time_offset (seconds) and
+        frozen_scene_time (seconds) in its parameter dictionary to align
+        physical ocean/scatterer times across different internal guards.
 
     Returns
     -------
@@ -87,6 +98,9 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file=False,
     The output is marked raw_data_state='ideal' and calibration_applied=0.
     Call sar_system_errors separately to apply cal_factor and add NESZ noise
     before focusing. A configured sim.seed controls the random streams.
+    A positive sim.memory_limit_gib runs this stage in an externally monitored
+    worker. Its arrays are released when the call returns; a budget violation
+    raises SimulationMemoryError in the caller without killing its notebook.
     """
 
 
@@ -364,7 +378,8 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file=False,
     else:
         v_ground = provisional_v_ground
     simpar['v_ground'] = v_ground
-    simpar = factorize_raw_params(cfg, simpar, surface, info)
+    parameter_builder = factorize_raw_params if factorization is None else factorization.parameters
+    simpar = parameter_builder(cfg, simpar, surface, info)
     # Get range of azimut angles to intialize Bragg model..
     # TODO 
     # angular range
@@ -380,11 +395,16 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file=False,
     proc_raw_vv = None # Just to avoid errors in the code, these will be initialized later
     proc_raw_hh = None
     if cfg.srg.factorize:
+        # These are already complex residual fields, not large slant ranges.
+        # Store the retained block/time cube in complex64; double precision is
+        # required for range/phase geometry, not for its field mantissas. Keep
+        # the much smaller row accumulator in complex128 so this storage
+        # change does not also change scatterer summation precision/order.
         if do_hh:
-            proc_raw_hh = np.zeros([num_ch, simpar["az_steps"], simpar["nblocks"], rg_samp], dtype=complex)
+            proc_raw_hh = np.zeros([num_ch, simpar["az_steps"], simpar["nblocks"], rg_samp], dtype=np.complex64)
             proc_raw_hh_ = np.zeros([surface.Ny,rg_samp], dtype=complex)
         if do_vv:
-            proc_raw_vv = np.zeros([num_ch, simpar["az_steps"], simpar["nblocks"],rg_samp], dtype=complex)
+            proc_raw_vv = np.zeros([num_ch, simpar["az_steps"], simpar["nblocks"],rg_samp], dtype=np.complex64)
             proc_raw_vv_ = np.zeros([surface.Ny,rg_samp], dtype=complex)
         sr_surface_fct = np.zeros([simpar["az_steps"], simpar['nblocks']])
         sr_surface_fct_full = np.zeros([simpar["az_steps"]*simpar["n_pulses_b"], simpar['nblocks']])
@@ -441,8 +461,9 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file=False,
             tau_c, (surface.Ny, surface.Nx), 1/simpar["t_step"],
             rng=bragg_negative_rng)
         if cfg.ocean.frozen_ocean:
-            rndscat_m.scats(0.0, out=bragg_scats[0])
-            rndscat_p.scats(0.0, out=bragg_scats[1])
+            frozen_time = simpar.get('frozen_scene_time', 0.)
+            rndscat_m.scats(frozen_time, out=bragg_scats[0])
+            rndscat_p.scats(frozen_time, out=bragg_scats[1])
         # NOTE: This ignores slope, may be changed
         k_b = 2.*k0*sin_inc
         c_b = sin_inc*np.sqrt(const.g/k_b + 0.072e-3*k_b)
@@ -476,17 +497,18 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file=False,
     # Reference block wise range history in case we factorize this
     if cfg.srg.factorize:
         info.msg("Initialize reference range history",1)
+        block_centres = np.arange(simpar['block_Ny']//2, surface.Ny, simpar['block_Ny'])
         for az_step in tqdm(range(simpar["az_steps"]*simpar["n_pulses_b"])):
             t_now = az_step * simpar["t_step"]/simpar["n_pulses_b"]
             az_now = simpar["az0"] + t_now * simpar["v_ground"]
             az = (surface.y - az_now).reshape((surface.Ny, 1))
             t_az = -az / simpar["v_ground"]
-            sin_az = az / simpar["sr0"]
-            az_proj_angle = np.arcsin(az / simpar["gr0"])
-            # Note: Projected displacements are added to slant range
-            sr_surface_fct_ = (az/2*sin_az).flatten()
             sr_surface_fct_ = np.flip(ghist.sr_spl(la[0], np.flip(t_az.flatten()))).flatten() - simpar['sr0']
-            sr_surface_fct_ = sr_surface_fct_[simpar['block_Ny']//2::simpar['block_Ny']]
+            sr_surface_fct_ = sr_surface_fct_[block_centres]
+            block_sin_az = np.flip(ghist.t2u_spl(la[la.size//2],
+                np.flip(t_az[block_centres, 0])), axis=1).flatten()
+            sr_surface_fct_ = sr_surface_fct_ + factorization_current_range(
+                cfg, simpar, surface, t_now, sin_inc[0, 0], block_sin_az)
             sr_surface_fct_full[az_step] = sr_surface_fct_
         fig, axs = plt.subplots(1,2, figsize=(12,6))
         im = axs[0].imshow(sr_surface_fct_full, aspect='auto')
@@ -513,7 +535,12 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file=False,
         # init/load only allocate displacement, slope and hMTF arrays with
         # np.empty. Freezing skips subsequent evolution, not initialization.
         if az_step == 0 or not cfg.ocean.frozen_ocean:
-            surface.t = t_now
+            # Guards extend the numerical interval, not the physical scene
+            # epoch. An experimental strategy can keep the ocean clock tied
+            # to burst time so changing guards does not change the retained
+            # scene. Geometry and restored histories still use az_now above.
+            scene_time = factorization_scene_time(cfg, simpar, t_now)
+            surface.t = scene_time
 
         ## COMPUTE RCS FOR EACH MODEL
         # Note: SAR processing is range independent as slant range is fixed
@@ -528,13 +555,22 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file=False,
         # Note: Projected displacements are added to slant range
         sr_history = np.flip(
             ghist.sr_spl(la, np.flip(t_az.flatten())), axis=1).T
+        # GeoHistory returns float64 absolute ranges. Keep that precision
+        # through subtraction of the global origin and carrier-phase formation;
+        # the complex64 storage decision is made only on completed profiles.
         sr_history -= simpar["sr0"]
         sr_surface = (sr_history - cos_inc*surface.Dz
                          + surface.Dx*sin_inc + surface.Dy*sin_az)
         if cfg.srg.factorize:
-            # Now I want to keep and subtrack a slant range for each block 
-            sr_surface_fct_ = sr_history[:, 0]
-            sr_surface_fct_ = sr_surface_fct_[simpar['block_Ny']//2::simpar['block_Ny']]
+            # Remove both satellite range history and known current drift.
+            # Leaving U*t in Dx/Dy while removing only satellite motion shifts
+            # the residual ocean band towards coarse-grid Nyquist, potentially
+            # aliasing it before interpolation. The identical projected U*t
+            # term is restored in sr_surface_fct_full, for phase AND range
+            # delay. Use the ocean clock (fixed for frozen snapshots) and the
+            # actual block direction, not an independent constant-tone clock.
+            sr_surface_fct_ = sr_history[block_centres, 0] + factorization_current_range(
+                cfg, simpar, surface, t_now, sin_inc[0, 0], sin_az[block_centres, 0])
             sr_surface_fct[az_step] = sr_surface_fct_
             sr_surface = sr_surface.reshape([simpar['nblocks'], simpar['block_Ny'],surface.Nx])
             sr_surface = sr_surface - sr_surface_fct_[:,np.newaxis,np.newaxis]
@@ -669,11 +705,12 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file=False,
                 cap_phase = (
                     (2 * k0) * simpar["t_step"] * c_b * (az_step + 1)
                 )
+                cap_phase += (2*k0)*c_b*simpar.get('scene_time_offset', 0.)
             phase_bragg[0] = surf_phase - cap_phase # + dop_phase_p
             phase_bragg[1] = surf_phase + cap_phase # + dop_phase_m
             if not cfg.ocean.frozen_ocean:
-                rndscat_m.scats(t_now, out=bragg_scats[0])
-                rndscat_p.scats(t_now, out=bragg_scats[1])
+                rndscat_m.scats(scene_time, out=bragg_scats[0])
+                rndscat_p.scats(scene_time, out=bragg_scats[1])
             if do_hh:
                 scene_hh += ne.evaluate('sum(scat_bragg_hh * exp(1j*phase_bragg) * bragg_scats, axis=0)')
             if do_vv:
@@ -798,7 +835,8 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file=False,
         # sr_surface_fct
         # proc_raw_vv
         # proc_raw_hh
-        proc_raw_hh, proc_raw_vv = aggregate_factorized_raw(proc_raw_hh, 
+        aggregate = aggregate_factorized_raw if factorization is None else factorization.aggregate
+        proc_raw_hh, proc_raw_vv = aggregate(proc_raw_hh,
                                                             proc_raw_vv, 
                                                             sr_surface_fct, sr_surface_fct_full,
                                                             simpar, surface, cfg, info, workers=cfg.sim.nworkers)
@@ -887,6 +925,15 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file=False,
     raw_file = tpio.RawFile(output_file, 'w', total_raw.shape)
     raw_file.__file__.raw_data_state = 'ideal'
     raw_file.__file__.calibration_applied = 0
+    if cfg.srg.factorize:
+        raw_file.__file__.factorization_profile_dtype = 'complex64'
+        raw_file.__file__.factorization_current_reference = int(getattr(cfg.srg, 'factorize_current', True))
+        raw_file.__file__.factorization_current_vector_m_s = np.asarray(surface.current, dtype=float)
+        raw_file.__file__.factorization_coarse_sampling_hz = float(1/simpar['t_step'])
+        raw_file.__file__.factorization_current_clock = ('fixed ocean snapshot' if cfg.ocean.frozen_ocean
+                                                        else 'elapsed generator time plus scene_time_offset')
+        raw_file.__file__.factorization_current_scene_time_offset_s = float(simpar.get('scene_time_offset', 0.))
+        raw_file.__file__.factorization_current_frozen_scene_time_s = float(simpar.get('frozen_scene_time', 0.))
     raw_file.__file__.createVariable('cal_factor', 'f8')
     raw_file.__file__['cal_factor'].long_name = 'Amplitude scale from simulator field units to calibrated raw data'
     raw_file.set('cal_factor', cal_factor)

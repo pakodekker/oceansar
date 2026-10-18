@@ -1,4 +1,8 @@
-# Supporting code for factorizing raw data generation; nothing too fancy here.
+"""Block range references and interpolation for factorized SAR raw generation.
+
+Remove common satellite motion and deterministic current before constructing
+coarse range profiles; restore the same phase and range delay at full PRF.
+"""
 
 import numpy as np
 import scipy as sp
@@ -30,8 +34,80 @@ def nominal_raw_time_span(cfg, params, surface):
         + surface.Ly) / params["v_ground"]
 
 
+def factorization_scene_time(cfg, params, elapsed_time):
+    """Return ocean time in seconds for elapsed generator time in seconds.
+
+    cfg.ocean.frozen_ocean selects a fixed params['frozen_scene_time']
+    snapshot (default zero). Otherwise add params['scene_time_offset']
+    (default zero) to elapsed_time. Scalars and arrays are accepted. Use this
+    same clock for materializing the ocean and constructing both reference
+    grids: guards may extend numerical time without shifting the scene epoch.
+    """
+    if cfg.ocean.frozen_ocean:
+        return np.zeros_like(elapsed_time, dtype=float)+params.get('frozen_scene_time', 0.)
+    return np.asarray(elapsed_time, dtype=float)+params.get('scene_time_offset', 0.)
+
+
+def factorization_current_range(cfg, params, surface, elapsed_time,
+                                 sin_incidence, sin_azimuth):
+    """Return deterministic current displacement projected into slant range.
+
+    Parameters
+    ----------
+    cfg : ConfigFile
+        ocean.frozen_ocean controls the scene clock; optional
+        srg.factorize_current (default True) enables this reference term.
+    params : dict
+        Scene-clock offsets used by factorization_scene_time, in seconds.
+    surface : OceanSurface
+        Supplies current=(Ux, Uy) in m/s in the surface's range/azimuth axes.
+        Use the loaded ocean's current, rather than possibly changed config.
+    elapsed_time : float or array
+        Generator time from the first INTERNAL sample, in seconds, evaluated
+        separately on the coarse and full-PRF grids.
+    sin_incidence, sin_azimuth : float or array
+        Projection factors of the common reference point. Incidence uses the
+        first range column, matching the platform range reference; azimuth
+        uses the same GeoHistory direction and block centre as the actual
+        surface phase. Arrays must broadcast with the scene time.
+
+    Returns
+    -------
+    float or numpy.ndarray
+        Range offset t_scene*(Ux*sin_incidence + Uy*sin_azimuth), in metres.
+        Disabled correction returns zero with the same broadcast shape.
+
+    Notes
+    -----
+    OceanSurface already includes U*t_scene in Dx/Dy, and the raw phase is
+    exp(-2j*k0*range). ADD this term to the removed block range reference
+    before generating coarse profiles, then restore the SAME reference on
+    the full grid. This demodulates the known carrier AND removes its range
+    drift before interpolation, without changing physical current or the
+    random sequence, coherence time, coarse sampling rate or guard count.
+    At broadside, f_current=-2*Ux*sin(theta)/lambda. A frozen snapshot has no
+    growing U*t term; its constant displacement is still projected through
+    the time-varying azimuth geometry. Residual within-block/swath projection
+    differences remain in the coarse fields.
+    """
+    ux, uy = np.asarray(surface.current, dtype=float)
+    time = factorization_scene_time(cfg, params, elapsed_time)
+    result = time*(ux*np.asarray(sin_incidence)+uy*np.asarray(sin_azimuth))
+    return result if getattr(cfg.srg, 'factorize_current', True) else np.zeros_like(result)
+
+
 def factorize_raw_params(cfg, params, surface, info, internal_oversampling=8,
                          scansar_guard_coarse_samples=2):
+    """Derive coarse sampling, spatial blocks and retained raw pulse support.
+
+    cfg supplies acquisition mode/PRF, ocean wind speed and srg.factorize.
+    params supplies carrier/wavelength, reference range, antenna length and
+    ground speed; surface supplies azimuth extent and grid count. Return the
+    updated params dict with internal/coarse time step in seconds, integer
+    decimation, block dimensions and output crop/origin. Coarse sampling is
+    determined by stochastic ocean coherence; by default deterministic current
+    is removed by factorization_current_range and restored during aggregation.
+    """
     factorize = cfg.srg.factorize
     prf = cfg.mode.prf
     operation_mode = getattr(cfg.mode, "mode", "stripmap").lower()
@@ -46,6 +122,9 @@ def factorize_raw_params(cfg, params, surface, info, internal_oversampling=8,
         # Coherence time of the surface, for a large area
         tau_c = closure.grid_coherence(
             cfg.ocean.wind_U, 500, params["f0"])
+        # This sets sampling for the stochastic residual, not its deterministic
+        # current carrier. The block reference removes that known carrier; do
+        # not alter the physical coherence model to mimic frequency translation.
         info.msg("Surface coherence time: %f s" % tau_c)
         n_pulses_b = sp.fft.next_fast_len(int(tau_c * prf/4))
         info.msg("PRF down-sampling rate =%i" % n_pulses_b)
@@ -110,6 +189,36 @@ def factorize_raw_params(cfg, params, surface, info, internal_oversampling=8,
 def aggregate_factorized_raw(proc_raw_hh, proc_raw_vv, 
                             sr_surface_fct, sr_surface_fct_full,
                             params, surface, cfg, info, workers=4):
+    """Interpolate block residual fields and restore their full range reference.
+
+    Parameters
+    ----------
+    proc_raw_hh, proc_raw_vv : complex ndarray or None
+        Coarse residual range profiles, axes (channel, coarse time, block,
+        range). None disables that polarization.
+    sr_surface_fct, sr_surface_fct_full : ndarray
+        Removed reference ranges in metres on coarse/full time grids, axes
+        (time, block). Both contain the same platform/current convention.
+        The coarse reference is retained in the interface for auditing; the
+        already-demodulated input fields need no further coarse correction.
+    params : dict
+        Block count, coarse pulse count, integer interpolation factor, k0 in
+        rad/m, range sampling Fs in Hz and retained full-rate pulse crop.
+    surface, cfg : object
+        Generator context retained by the strategy interface. Restoration
+        uses the explicitly supplied reference arrays, including current.
+    info : PrInfo
+        Progress logger. workers specifies the SciPy FFT worker count.
+    workers : int, optional
+        FFT worker count, default 4.
+
+    Returns
+    -------
+    tuple of complex64 ndarray or None
+        HH/VV raw fields with axes (channel, retained full-rate time, range).
+        Restore exp(-2j*k0*reference) AND the fractional range delay after
+        interpolation, sum blocks and crop to the requested acquisition.
+    """
     # Now we need to upsample, and restore the full RCM and phase
     # We will do this block by block, to save memory
     info.msg("Interpolate and restore full phase and RCM")
@@ -144,6 +253,9 @@ def aggregate_factorized_raw(proc_raw_hh, proc_raw_vv,
             proc_raw_vv_b = None
             # Now something not super nice, I will interpolate sr_surface_fct to the full azimuth grid, and then apply the phase correction 
             rcm_b = sr_surface_fct_full[:,b]  
+            # Preserve float64 range/phase until AFTER the complex exponential.
+            # Casting a satellite-scale range to float32 here loses sub-wavelength
+            # information; storing the resulting unit phasor in complex64 is safe.
             phase_b = - 2 * params["k0"] * rcm_b
             #phasor_b = np.exp(1j*phase_b)
             phasor_b = np.exp(1j * phase_b).astype(np.complex64)

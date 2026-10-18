@@ -19,6 +19,7 @@ import shutil
 import time
 from drama.io import cfg as drcfg
 #import stereoid.utils.config as st_config
+from oceansar.memory import memory_limited
 from oceansar import ocs_io as osrio
 from drama import utils
 from oceansar.radarsim.sar_system_errors import sar_system_errors, validate_raw_paths
@@ -28,6 +29,7 @@ from oceansar.radarsim.ati_processor import ati_process
 from oceansar.radarsim.insar_processor import insar_process
 from oceansar.radarsim.L2_wavespectrum import l2_wavespectrum
 
+@memory_limited
 def sarsim(cfg_file=None):
 
     """Orchestrate the configured SAR simulation and processing stages.
