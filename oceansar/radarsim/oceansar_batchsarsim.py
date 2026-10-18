@@ -19,6 +19,7 @@ import time
 import subprocess
 import numpy as np
 from oceansar import ocs_io as osrio
+from oceansar.ocs_io.sar_config import set_mode_parameter
 from drama import utils
 from matplotlib import pyplot as plt
 import matplotlib as mpl
@@ -71,7 +72,7 @@ def batch_sarsim(template_file):
                             cfg.ocean.wind_dir = wind_dir
                             cfg.ocean.current_mag = current_mag
                             cfg.ocean.current_dir = current_dir
-                            cfg.mode.inc_angle = inc_angle
+                            set_mode_parameter(cfg, 'inc_angle', inc_angle)
 
                             if not os.path.exists(cfg.sim.path):
                                 os.makedirs(cfg.sim.path)

@@ -86,5 +86,10 @@ def raw_reconstr(raw_output_file, reconstr_output_file):
     reconstr_file.set('sr0', sr0)
     reconstr_file.set('rg_sampling', rg_sampling)
     reconstr_file.set('rg_bw', rg_bw)
+    # Preserve the complete antenna definition for focusing after reconstruction.
+    for name in ('antenna_configuration', 'antenna_pattern_scope'):
+        if name in raw_file.__file__.ncattrs():
+            reconstr_file.__file__.setncattr(name, raw_file.__file__.getncattr(name))
     reconstr_file.set('raw_data*', upsample_signal)
+    raw_file.close()
     reconstr_file.close()

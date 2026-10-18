@@ -18,28 +18,19 @@ from tqdm import tqdm
 
 from drama import utils as drtls
 from drama.geo.geo_history import GeoHistory
-from drama.performance.sar.sar_performance_common import (
-    mode_from_conf,
-    is_scansar,
-    beamcentertime_to_zeroDopplertime,
-    define_tx_ant,
-    define_rx_ant,
-    plot_pattern,
-    calc_analysis_time
-)
-
+from drama.performance.sar.sar_performance_common import calc_analysis_time
 from oceansar.memory import memory_limited
 from oceansar import utils
 from oceansar import ocs_io as tpio
 from oceansar.utils import geometry as geosar
-from oceansar.radarsim.antenna import sinc_bp
+from oceansar.radarsim.antenna_model import SarAntenna, resolve_acquisition, channel_positions
 from oceansar import constants as const
 
 from oceansar import nrcs as rcs
 from oceansar import closure
 from oceansar.radarsim import range_profile as raw
 
-from oceansar.surfaces import OceanSurface #, OceanSurfaceBalancer
+from oceansar.surfaces import OceanSurface
 from oceansar.swell_spec import dir_swell_spec as s_spec
 from oceansar.radarsim.factorize_raw import (
     aggregate_factorized_raw,
@@ -111,7 +102,9 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file=False,
 
     ## CONFIGURATION FILE
     # Note: variables are 'copied' to reduce code verbosity
-    cfg = tpio.ConfigFile(cfg_file)
+    cfg = resolve_acquisition(tpio.ConfigFile(cfg_file))
+    antennas = SarAntenna.from_config(cfg)
+    b_ati, b_xti = channel_positions(cfg)
     seed = utils.get_sim_seed(cfg)
     surface_rng = utils.random_generator(seed, 'surface')
     bragg_positive_rng = utils.random_generator(seed, 'bragg_positive')
@@ -135,7 +128,6 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file=False,
     pol = cfg.mode.pol
     simpar['pol'] = pol
     simpar['f0'] = f0
-    squint_r = np.degrees(cfg.sar.squint)
     if pol == 'DP':
         do_hh = True
         do_vv = True
@@ -311,23 +303,14 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file=False,
     simpar['sr_res'] = sr_res
     simpar['l0'] = l0
     simpar['k0'] = k0
-    ant_l_tx = cfg.sar.ant_L_tx
-    ant_l_rx = cfg.sar.ant_L_rx
+    ant_l_tx = antennas.tx.La
     simpar['ant_l_tx'] = ant_l_tx
-    simpar['ant_l_rx'] = ant_l_rx
+    if getattr(cfg.mode, 'mode', 'stripmap').lower() == 'stripmap' and not hasattr(cfg.mode, 'aperture_time'):
+        simpar['antenna_sine_span'] = antennas.stripmap_sine_span()
 
-    # ATI baselines
-    b_ati = cfg.sar.b_ati
-    if not type(b_ati) == np.ndarray:
-        b_ati = np.arange(num_ch) * b_ati
-    simpar['b_ati'] = b_ati
-    k0_b_ati = k0 * b_ati
-    # XTI baselines
-    b_xti = cfg.sar.b_xti
-    if not type(b_xti) == np.ndarray:
-        b_xti = np.arange(num_ch) * b_xti
-    simpar['b_xti'] = b_xti
-    k0_b_xti = k0 * b_xti
+    # Complete receive antennas are translated independently of their elements.
+    simpar['b_ati'], simpar['b_xti'] = b_ati, b_xti
+    k0_b_ati, k0_b_xti = k0 * b_ati, k0 * b_xti
 
     derive_v_ground = v_ground == 'auto'
     if derive_v_ground:
@@ -719,8 +702,7 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file=False,
         # ANTENNA PATTERN
         # FIXME: this assume co-located Tx and Rx, so it will not work for true bistatic configurations
 
-        beam_pattern = (sinc_bp(sin_az, ant_l_tx, f0, field=True)
-                        * sinc_bp(sin_az, ant_l_rx, f0, field=True)).astype(np.float32)
+        beam_pattern = antennas.field(sin_az)
         # GENERATE CHANEL PROFILES
         if cfg.srg.factorize:
             sr_surface_ = sr_surface
@@ -863,12 +845,17 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file=False,
     # Store the amplitude calibration without applying it to ideal samples.
     # The system-errors stage currently calibrates before adding NESZ noise,
     # keeping that unit conversion beside the receiver model for future changes.
-    az_axis = np.arange(-simpar["t_span"]/2.*v_ground, simpar["t_span"]/2.*v_ground, sr0*const.c/(np.pi*f0*ant_l_tx*10.))
+    az_axis = np.linspace(-simpar["t_span"]/2*v_ground,
+                          simpar["t_span"]/2*v_ground, 8193)
 
-    pattern = (sinc_bp(az_axis/sr0, ant_l_tx, f0, field=True)
-               * sinc_bp(az_axis/sr0, ant_l_rx, f0, field=True))
-    cal_factor = (1. / np.sqrt(trapezoid(np.abs(pattern)**2., az_axis)
-                  * sr_res/np.sin(inc_angle)))
+    # Use the same GeoHistory direction cosine and complex field as acquisition.
+    cal_times = -az_axis/v_ground
+    cal_sine = np.flip(ghist.t2u_spl(la[la.size//2], np.flip(cal_times)), axis=1).flatten()
+    pattern = antennas.field(cal_sine)
+    illuminated_area = trapezoid(np.abs(pattern)**2., az_axis)*sr_res/np.sin(inc_angle)
+    if not np.isfinite(illuminated_area) or illuminated_area <= 0:
+        raise ValueError("Antenna has no finite illuminated calibration area")
+    cal_factor = 1./np.sqrt(illuminated_area)
 
     # Save RAW data (and other properties, used by 3rd party software)
     if do_hh and do_vv:
@@ -923,6 +910,7 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file=False,
         plt.close()
 
     raw_file = tpio.RawFile(output_file, 'w', total_raw.shape)
+    antennas.save(raw_file.__file__)
     raw_file.__file__.raw_data_state = 'ideal'
     raw_file.__file__.calibration_applied = 0
     if cfg.srg.factorize:

@@ -28,7 +28,7 @@ from oceansar.utils import geometry as geo
 from drama import utils
 from oceansar import ocs_io as tpio
 from oceansar import constants as const
-from oceansar.radarsim.antenna import sinc_1tx_nrx, sinc_bp
+from oceansar.radarsim.antenna_model import SarAntenna, resolve_acquisition
 
 
 def make_geohistory(cfg, inc_angle, fit_half_span=1.0):
@@ -510,15 +510,34 @@ def compensate_azimuth_antenna(data, beam_pattern):
 
 
 def processing_antenna_pattern(cfg, beam_pattern):
-    """Return the field pattern actually divided out during focusing.
+    """Return the complex field actually divided out during focusing.
 
-    cfg.processing.antenna_equalization defaults to True, preserving existing
-    processing. False returns unity on the same frequency grid: acquisition
-    antenna weighting remains in the data. Pass this effective pattern to
-    both compensation and saved DC response metadata so a no-equalization
-    experiment is not subsequently calibrated with the equalized model.
+    Parameters
+    ----------
+    cfg : ConfigFile
+        processing.antenna_equalization (default True) enables division.
+        antenna_min_relative_field (default 0.001) suppresses bins below this
+        fraction of the largest field on the processing grid, avoiding noise
+        amplification at array nulls. Zero requests exact nonzero inversion.
+    beam_pattern : 1D complex array
+        Acquired Tx times Rx field on the processing Doppler grid.
+
+    Returns
+    -------
+    ndarray
+        Effective complex field; masked bins are zero and compensation sets
+        those data bins to zero. Disabled equalization returns unity. Save
+        this same array in the DC response metadata, including its null mask.
     """
-    return beam_pattern if getattr(cfg.processing, 'antenna_equalization', True) else np.ones_like(beam_pattern)
+    if not getattr(cfg.processing, 'antenna_equalization', True):
+        return np.ones_like(beam_pattern)
+    minimum = float(getattr(cfg.processing, 'antenna_min_relative_field', .001))
+    if not np.isfinite(minimum) or not 0 <= minimum < 1:
+        raise ValueError('processing.antenna_min_relative_field must be in [0, 1)')
+    field = np.asarray(beam_pattern)
+    if not np.isfinite(field).all():
+        raise ValueError('Antenna field must be finite')
+    return np.where(abs(field) >= minimum*np.max(abs(field)), field, 0)
 
 
 def processing_azimuth_fft_size(cfg, minimum, default):
@@ -766,7 +785,7 @@ def sar_focus(cfg_file, raw_output_file, output_file):
     print('-------------------------------------------------------------------')
 
     # CONFIGURATION FILE
-    cfg = tpio.ConfigFile(cfg_file)
+    cfg = resolve_acquisition(tpio.ConfigFile(cfg_file))
 
     # PROCESSING
     az_weighting = cfg.processing.az_weighting
@@ -804,6 +823,7 @@ def sar_focus(cfg_file, raw_output_file, output_file):
 
     # RAW DATA
     raw_file = tpio.RawFile(raw_output_file, 'r')
+    antennas = SarAntenna.from_product(cfg, raw_file.__file__)
     raw_data = raw_file.get('raw_data*')
     sr0 = raw_file.get('sr0')
     az0 = raw_file.get('az0')
@@ -891,17 +911,7 @@ def sar_focus(cfg_file, raw_output_file, output_file):
         # Antenna response in the original azimuth-Doppler domain.
         ## FIXME this will not work for a long separation betwen Tx and Rx!!!
         sin_az = geohistory_doppler_sine(ghist, look_focus, fa, f0)
-        if hasattr(cfg.sar, 'ant_L'):
-            ant_L = cfg.sar.ant_L
-            if cfg.sar.L_total:
-                beam_pattern = sinc_1tx_nrx(sin_az, ant_L * num_ch, f0, num_ch, field=True)
-            else:
-                beam_pattern = sinc_1tx_nrx(sin_az, ant_L, f0, 1, field=True)
-        else:
-            ant_l_tx = cfg.sar.ant_L_tx
-            ant_l_rx = cfg.sar.ant_L_rx
-            beam_pattern = (sinc_bp(sin_az, ant_l_tx, f0, field=True)
-                            * sinc_bp(sin_az, ant_l_rx, f0, field=True))
+        beam_pattern = antennas.field(sin_az)
         beam_pattern = processing_antenna_pattern(cfg, beam_pattern)
         #fa[az_size/2:] = fa[az_size/2:] - prf
         filter_key = (az_size, rg_size)
@@ -1027,7 +1037,8 @@ def sar_focus(cfg_file, raw_output_file, output_file):
     proc_file.set('inc_angle', inc_angle)
     proc_file.set('f0', f0)
     proc_file.set('num_ch', num_ch)
-    proc_file.set('ant_L', ant_l_tx)
+    proc_file.set('ant_L', antennas.tx.La)
+    antennas.save(proc_file.__file__)
     proc_file.set('prf', prf)
     proc_file.set('v_ground', v_ground)
     proc_file.set('v_orbit', v_orbit)
@@ -1042,7 +1053,7 @@ def sar_focus(cfg_file, raw_output_file, output_file):
     proc_file.set('b_xti', b_xti)
     if operation_mode == 'scansar':
         from oceansar.radarsim.scansar_dc import write_scansar_dc_metadata
-        write_scansar_dc_metadata(cfg, proc_file, ghist=ghist, look=look_focus,
+        write_scansar_dc_metadata(cfg, proc_file, antennas=antennas, ghist=ghist, look=look_focus,
             frequencies=fa, beam_pattern=beam_pattern, common_band_filter=common_band_filter,
             v_eff=v_eff, raw_az0=float(az0), raw_az_size=raw_data.shape[-2],
             fs_az=float(prf), v_ground=float(v_ground))
@@ -1097,7 +1108,7 @@ def ross_sar_focus(cfg_file, reconstruct_raw_output_file, output_file):
     print('-------------------------------------------------------------------')
 
     # CONFIGURATION FILE
-    cfg = tpio.ConfigFile(cfg_file)
+    cfg = resolve_acquisition(tpio.ConfigFile(cfg_file))
 
     # PROCESSING
     az_weighting = cfg.processing.az_weighting
@@ -1135,6 +1146,7 @@ def ross_sar_focus(cfg_file, reconstruct_raw_output_file, output_file):
 
     # RAW DATA
     raw_file = tpio.ReconstructedRawFile(reconstruct_raw_output_file, 'r')
+    antennas = SarAntenna.from_product(cfg, raw_file.__file__)
     raw_data = raw_file.get('raw_data*')
     sr0 = raw_file.get('sr0')
     az0 = raw_file.get('az0')
@@ -1217,14 +1229,7 @@ def ross_sar_focus(cfg_file, reconstruct_raw_output_file, output_file):
     # Antenna response in the original azimuth-Doppler domain.
     ## FIXME this will not work for a long separation betwen Tx and Rx!!!
     sin_az = geohistory_doppler_sine(ghist, look_focus, fa, f0)
-    if hasattr(cfg.sar, 'ant_L'):
-        ant_L = cfg.sar.ant_L
-        beam_pattern = sinc_1tx_nrx(sin_az, ant_L, f0, 1, field=True)
-    else:
-        ant_l_tx = cfg.sar.ant_L_tx
-        ant_l_rx = cfg.sar.ant_L_rx
-        beam_pattern = (sinc_bp(sin_az, ant_l_tx, f0, field=True)
-                        * sinc_bp(sin_az, ant_l_rx, f0, field=True))
+    beam_pattern = antennas.field(sin_az)
     beam_pattern = processing_antenna_pattern(cfg, beam_pattern)
     filter_key = (az_size, rg_size)
     if filter_key not in filter_cache:
@@ -1347,7 +1352,8 @@ def ross_sar_focus(cfg_file, reconstruct_raw_output_file, output_file):
     proc_file.set('slc*', slc)
     proc_file.set('inc_angle', inc_angle)
     proc_file.set('f0', f0)
-    proc_file.set('ant_L', ant_l_tx)
+    proc_file.set('ant_L', antennas.tx.La)
+    antennas.save(proc_file.__file__)
     proc_file.set('prf', prf)
     proc_file.set('v_ground', v_ground)
     proc_file.set('v_orbit', v_orbit)
@@ -1360,7 +1366,7 @@ def ross_sar_focus(cfg_file, reconstruct_raw_output_file, output_file):
     proc_file.set('rg_bw', rg_bw)
     if operation_mode == 'scansar':
         from oceansar.radarsim.scansar_dc import write_scansar_dc_metadata
-        write_scansar_dc_metadata(cfg, proc_file, ghist=ghist, look=look_focus,
+        write_scansar_dc_metadata(cfg, proc_file, antennas=antennas, ghist=ghist, look=look_focus,
             frequencies=fa, beam_pattern=beam_pattern, common_band_filter=common_band_filter,
             v_eff=v_eff, raw_az0=float(az0), raw_az_size=raw_data.shape[-2],
             fs_az=float(prf), v_ground=float(v_ground))

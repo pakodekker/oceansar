@@ -12,22 +12,14 @@ from oceansar.l2_processing_core.dc_response import (
 )
 
 
-def _antenna_model(cfg, ghist, look, frequencies, f0):
-    from oceansar.radarsim.antenna import sinc_bp, sinc_1tx_nrx
-    from oceansar.sar_l1.sar_processor import geohistory_doppler_sine
+def _antenna_model(cfg, ghist, look, frequencies, f0, antennas=None):
+    """Return acquired power and the actual fixed focusing equalizer power."""
+    from oceansar.radarsim.antenna_model import SarAntenna
+    from oceansar.sar_l1.sar_processor import geohistory_doppler_sine, processing_antenna_pattern
+    antennas = antennas if antennas is not None else SarAntenna.from_config(cfg)
     sine = geohistory_doppler_sine(ghist, look, frequencies, f0)
-    raw_field = (sinc_bp(sine, cfg.sar.ant_L_tx, f0, field=True)
-                 * sinc_bp(sine, cfg.sar.ant_L_rx, f0, field=True))
-    # Reproduce the actual focuser, including its existing ant_L branch,
-    # rather than assuming its amplitude equalizer is a power division.
-    if hasattr(cfg.sar, 'ant_L'):
-        length = cfg.sar.ant_L
-        field = sinc_1tx_nrx(sine, length*cfg.sar.num_ch if cfg.sar.L_total else length,
-                             f0, cfg.sar.num_ch if cfg.sar.L_total else 1, field=True)
-    else:
-        field = raw_field
-    if not getattr(cfg.processing, 'antenna_equalization', True):
-        return abs(raw_field)**2, np.ones_like(field,dtype=float)
+    raw_field = antennas.field(sine)
+    field = processing_antenna_pattern(cfg, raw_field)
     inverse = np.zeros_like(field, dtype=float)
     np.divide(1., abs(field)**2, out=inverse, where=abs(field) > 0)
     return abs(raw_field)**2, inverse
@@ -35,13 +27,13 @@ def _antenna_model(cfg, ghist, look, frequencies, f0):
 
 def write_scansar_dc_metadata(cfg, proc_file, *, ghist, look, frequencies,
                               beam_pattern, common_band_filter, v_eff,
-                              raw_az0, raw_az_size, fs_az, v_ground):
+                              raw_az0, raw_az_size, fs_az, v_ground, antennas=None):
     """Record the actual focusing model needed for ScanSAR DC calibration.
 
     Parameters
     ----------
     cfg : ConfigFile
-        Radar/acquisition configuration; supplies antenna lengths and mode.
+        Radar/acquisition configuration supplying named DRAMA antennas and mode.
     proc_file : ProcFile
         Open output SLC, modified in place without changing image samples.
     ghist : GeoHistory
@@ -65,6 +57,10 @@ def write_scansar_dc_metadata(cfg, proc_file, *, ghist, look, frequencies,
     v_ground : float
         Ground-track velocity in m/s.
 
+    antennas : SarAntenna, optional
+        Acquired antenna model loaded from the raw header by the focuser.
+        None constructs the model from cfg.
+
     Returns
     -------
     None
@@ -80,7 +76,7 @@ def write_scansar_dc_metadata(cfg, proc_file, *, ghist, look, frequencies,
                  / (constants.c/f0*float(proc_file.get('sr0')))
                  + float(cfg.processing.doppler_bw)/2 + 150.)
     physical_f = np.linspace(-extent, extent, 8193)
-    power, _ = _antenna_model(cfg, ghist, look, physical_f, f0)
+    power, _ = _antenna_model(cfg, ghist, look, physical_f, f0, antennas)
     order = np.argsort(frequencies)
     inverse = np.zeros_like(beam_pattern, dtype=float)
     np.divide(1., abs(beam_pattern)**2, out=inverse, where=abs(beam_pattern) > 0)
@@ -142,6 +138,9 @@ def scansar_response_model(cfg, reader):
     else:
         if cfg is None:
             raise ValueError('ScanSAR DC correction needs saved SLC response metadata or its focusing configuration')
+        from oceansar.radarsim.antenna_model import SarAntenna, resolve_acquisition
+        cfg = resolve_acquisition(cfg)
+        antennas = SarAntenna.from_product(cfg, source)
         from oceansar.sar_l1.sar_processor import (
             make_geohistory, estimate_effective_velocity, reference_point_geometry,
             azimuth_common_band_filter,
@@ -173,8 +172,8 @@ def scansar_response_model(cfg, reader):
         extent = max(fs, 2*v_eff**2*(cfg.ocean.Ly/2/model['v_ground'])
                      / (constants.c/model['f0']*model['sr0']) + cfg.processing.doppler_bw/2 + 150.)
         f = np.linspace(-extent, extent, 8193)
-        power, _ = _antenna_model(cfg, geometry, look, f, model['f0'])
-        _, inverse = _antenna_model(cfg, geometry, look, processing_f, model['f0'])
+        power, _ = _antenna_model(cfg, geometry, look, f, model['f0'], antennas)
+        _, inverse = _antenna_model(cfg, geometry, look, processing_f, model['f0'], antennas)
         window = azimuth_common_band_filter(processing_f, cfg.processing.doppler_bw,
                                            cfg.processing.az_weighting)
         model.update(f=f, power=power, processing_f=processing_f[order],

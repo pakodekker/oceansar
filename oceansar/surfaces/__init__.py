@@ -20,7 +20,3 @@ Ocean surfaces
 """
 
 from .ocean import OceanSurface
-try:
-    from .balancer import OceanSurfaceBalancer
-except:
-    print("OceanSurfaceBalancer import failed, probably no mpi4py")
