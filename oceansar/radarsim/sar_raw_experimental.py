@@ -19,7 +19,7 @@ from tqdm import tqdm
 from oceansar.memory import memory_limited
 from oceansar import constants, ocs_io
 from oceansar.radarsim.factorize_raw import factorize_raw_params, aggregate_factorized_raw
-from oceansar.radarsim.sar_raw_nompi import sar_raw
+from oceansar.radarsim.sar_raw import sar_raw
 
 
 @dataclass(frozen=True)

@@ -29,9 +29,13 @@ def nominal_raw_time_span(cfg, params, surface):
             raise ValueError("ScanSAR mode requires a positive t_burst")
         return t_span
 
-    return (
-        1.5 * params["sr0"] * params["l0"] / params["ant_l_tx"]
-        + surface.Ly) / params["v_ground"]
+    aperture_time = getattr(cfg.mode, 'aperture_time', None)
+    if aperture_time is not None:
+        if not np.isfinite(aperture_time) or aperture_time <= 0:
+            raise ValueError('mode.aperture_time must be a positive duration in seconds')
+        return float(aperture_time)
+    sine_span = params.get('antenna_sine_span', 1.5*params['l0']/params['ant_l_tx'])
+    return (params['sr0']*sine_span + surface.Ly) / params['v_ground']
 
 
 def factorization_scene_time(cfg, params, elapsed_time):

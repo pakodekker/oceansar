@@ -45,7 +45,8 @@ from oceansar import nrcs as rcs
 from oceansar import closure
 from oceansar.radarsim import range_profile as raw
 
-from oceansar.surfaces import OceanSurface, OceanSurfaceBalancer
+from oceansar.surfaces import OceanSurface
+from oceansar.surfaces.balancer import OceanSurfaceBalancer
 from oceansar.swell_spec import dir_swell_spec as s_spec
 
 

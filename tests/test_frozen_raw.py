@@ -9,7 +9,7 @@ import numpy as np
 from netCDF4 import Dataset
 
 from oceansar import ocs_io
-from oceansar.radarsim.sar_raw_nompi import sar_raw
+from oceansar.radarsim.sar_raw import sar_raw
 from oceansar.surfaces import OceanSurface
 
 
@@ -36,10 +36,12 @@ class FrozenRawTests(unittest.TestCase):
             root = Path(directory)
             cfg = ocs_io.ConfigFile(str(example))
             cfg.sim.seed = 12
+            # This test inspects mocked surface calls in the current process.
+            cfg.sim.memory_limit_gib = 0.
             cfg.sim.nworkers = 1
             cfg.sim.add_point_target = False
             cfg.sar.num_ch = 1
-            cfg.mode.t_burst = .1
+            cfg.RWV.burst_length[0] = .1
             cfg.ocean.Lx = cfg.ocean.Ly = 256.
             cfg.ocean.dx = cfg.ocean.dy = 8.
             cfg.ocean.frozen_ocean = True
@@ -51,7 +53,7 @@ class FrozenRawTests(unittest.TestCase):
             for reuse in (False, True):
                 with self.subTest(reuse_ocean=reuse):
                     updates.clear()
-                    with patch('oceansar.radarsim.sar_raw_nompi.OceanSurface', CheckedSurface), \
+                    with patch('oceansar.radarsim.sar_raw.OceanSurface', CheckedSurface), \
                          contextlib.redirect_stdout(io.StringIO()), \
                          contextlib.redirect_stderr(io.StringIO()):
                         sar_raw(str(root/'cfg.cfg'), str(root/'raw.nc'),

@@ -1,6 +1,8 @@
 import re
 import numpy as np
 import ast
+from pathlib import Path
+import copy
 
 class Section():
     def __init__(self):
@@ -59,9 +61,11 @@ class ConfigFile():
         :param cfg_file_name: Route of parameter file
     """
 
-    def __init__(self, cfg_file_name, str_mode=False):
+    def __init__(self, cfg_file_name, str_mode=False, *, _load_system=True):
         self.cfg_file_name = cfg_file_name
         self.str_mode = str_mode
+        self._load_system = _load_system
+        self._system_sections = []
         self.read()
 
     def read(self):
@@ -87,7 +91,7 @@ class ConfigFile():
             line = re.sub(r'[;#].*$','', line)
 
             # Section line
-            s = re.search(r'\[(\w+)\]', line)
+            s = re.fullmatch(r'\[(\w+)\]', line.strip())
             if s:
                 vars(self)[s.group(1)] = Section()
                 self.sections.append(s.group(1))
@@ -97,7 +101,7 @@ class ConfigFile():
             # Variable line
             else:
 
-                s = re.search(r'(\w+)\s*=\s*([\s\w\s\\\:\.,/\'\-\[\]]+)', line)
+                s = re.fullmatch(r'(\w+)\s*=\s*(.+?)\s*', line)
 
                 if s:
                     # String mode: no conversion to 'native' type
@@ -142,12 +146,30 @@ class ConfigFile():
 
         file.close()
 
+        if self._load_system and hasattr(self, 'system'):
+            system_path = Path(self.system.file).expanduser()
+            if not system_path.is_absolute():
+                system_path = Path(self.cfg_file_name).resolve().parent/system_path
+            system = ConfigFile(str(system_path), str_mode=self.str_mode, _load_system=False)
+            if hasattr(system, 'system'):
+                raise ValueError('System files must be self-contained, without another [system] reference')
+            self._system_path = system_path.resolve()
+            for name in system.sections[1:]:
+                if hasattr(self, name):
+                    raise ValueError(f'Duplicate section [{name}] in main and system files')
+                setattr(self, name, getattr(system, name))
+                self.sections.append(name)
+                self._system_sections.append(name)
+        if not self.str_mode and self._load_system:
+            from .sar_config import resolve_acquisition
+            resolve_acquisition(self)
+
         # Legacy parameter files kept operating-mode values under [sar].
         # Keep those files readable while consumers migrate to cfg.mode.
         if not hasattr(self, 'mode') and hasattr(self, 'sar'):
             self.mode = self.sar
 
-    def save(self, alternate_file=None, blank_lines=True):
+    def _save_plain(self, alternate_file=None, blank_lines=True):
         """ Saves configuration file
 
             :param alternate_file: Alternate path to save file
@@ -173,10 +195,10 @@ class ConfigFile():
                     file.write('%s=%d\n' % (element, element_value))
 
                 elif (type(element_value) is float) or (type(element_value) is np.float32):
-                    file.write('%s=%.8f\n' % (element, element_value))
+                    file.write('%s=%.17g\n' % (element, element_value))
 
                 elif type(element_value) is np.float64:
-                    file.write('%s=%.8f\n' % (element, element_value))
+                    file.write('%s=%.17g\n' % (element, element_value))
 
                 elif type(element_value) is bool:
                     file.write('%s=%s\n' % (element, 'True' if element_value else 'False'))
@@ -189,7 +211,7 @@ class ConfigFile():
                     file.write('%s=['%element + ','.join('\'%s\''%f for f in element_value) + ']\n')
 
                 elif type(element_value) is np.ndarray:
-                    file.write('%s=['%element + ','.join('%.2f'%f for f in element_value) + ']\n')
+                    file.write('%s=['%element + ','.join('%.17g'%f for f in element_value) + ']\n')
 
                 else:
                     print(type(element_value))
@@ -201,3 +223,57 @@ class ConfigFile():
 
 
         file.close()
+
+
+    def save(self, alternate_file=None, blank_lines=True):
+        """Save configuration values, retaining a portable separate system file.
+
+        Parameters
+        ----------
+        alternate_file : str or path-like, optional
+            Main-file destination (default the input filename). Referenced
+            system sections are written to <main-stem>_system.cfg beside it;
+            the original shared system file is never edited. Runtime derived
+            mode aliases are not serialized. Edit the selected definition to
+            change acquisition parameters. Comments are not retained.
+        blank_lines : bool
+            Separate serialized sections with blank lines, default True.
+
+        Returns
+        -------
+        None
+            Write the main file and, when applicable, its system companion.
+        """
+        destination = Path(alternate_file or self.cfg_file_name)
+        if not self._system_sections:
+            return self._save_plain(str(destination), blank_lines)
+        main = copy.deepcopy(self)
+        hardware = copy.deepcopy(self)
+        hardware.sections = [hardware] + list(self._system_sections)
+        hardware.elements = []
+        main.sections = [main] + [name for name in self.sections[1:] if name not in self._system_sections]
+        companion = destination.with_name(destination.stem+'_system.cfg')
+        main.system.file = companion.name
+        hardware._save_plain(str(companion), blank_lines)
+        main._save_plain(str(destination), blank_lines)
+
+    def copy_to(self, directory):
+        """Copy a reproducible main/system configuration bundle into directory.
+
+        directory is an existing/new output folder. Return the main-file Path.
+        A referenced system is snapshotted locally using save(); an inline
+        configuration is copied verbatim. The input files remain untouched.
+        Copying onto the input main file is a no-op.
+        """
+        import shutil
+        directory = Path(directory)
+        directory.mkdir(parents=True, exist_ok=True)
+        source = Path(self.cfg_file_name).resolve()
+        target = directory/source.name
+        if target.exists() and source.samefile(target):
+            return target
+        if self._system_sections:
+            self.save(str(target))
+        else:
+            shutil.copy2(source, target)
+        return target
