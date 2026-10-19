@@ -13,6 +13,7 @@ import xarray as xr
 from oceansar.memory import memory_limited
 from oceansar import constants
 from oceansar import ocs_io
+from oceansar.ocs_io import product_metadata as metadata
 from oceansar.l2_processing_core import estimate_dc
 
 
@@ -24,16 +25,6 @@ def _scalar(reader, name, default=None):
         return default
     result = float(value.item())
     return result if np.isfinite(result) else default
-
-
-def _polarizations(cfg, count):
-    pol = getattr(getattr(cfg, 'mode', None), 'pol', None)
-    if pol is not None:
-        labels = ['hh', 'vv'] if str(pol).lower() == 'dp' else [str(pol).lower()]
-        if len(labels) != count:
-            raise ValueError('Configured polarization count does not match the SLC')
-        return labels
-    return [f'pol{i}' for i in range(count)]
 
 
 def _integer(value, name):
@@ -206,7 +197,7 @@ def dc_process(cfg_file, proc_output_file, output_file=None, *, resolution=None,
         if not all_channels and not 0 <= channel < nch:
             raise ValueError(f'channel must be between 0 and {nch-1}')
         channels = list(range(nch)) if all_channels else [channel]
-        labels = _polarizations(cfg, npol)
+        labels = metadata.polarizations(reader.__file__, npol, cfg)
         if polarization is None:
             selected = list(range(npol))
         elif isinstance(polarization, str) and not polarization.isdigit():
@@ -219,7 +210,7 @@ def dc_process(cfg_file, proc_output_file, output_file=None, *, resolution=None,
             if not 0 <= index < npol:
                 raise ValueError(f'polarization must be between 0 and {npol-1}')
             selected = [index]
-        fs_az = _scalar(reader, 'az_sampling', _scalar(reader, 'prf'))
+        fs_az = metadata.azimuth_sampling(reader.__file__)
         if fs_az is None or fs_az <= 0:
             raise ValueError('SLC must provide a positive az_sampling or prf sample rate')
         v_ground = _scalar(reader, 'v_ground')
@@ -236,8 +227,7 @@ def dc_process(cfg_file, proc_output_file, output_file=None, *, resolution=None,
         else:
             spacing_source = 'explicit pixel_spacing override'
         az0 = _scalar(reader, 'az0', 0.)
-        operation_mode = str(getattr(reader.__file__, 'acquisition_mode',
-            getattr(getattr(cfg, 'mode', None), 'mode', 'stripmap'))).lower()
+        operation_mode = metadata.acquisition_mode(reader.__file__, cfg)
         correction = resolve(scansar_correction, 'scansar_correction', True)
         if not isinstance(correction, (bool, np.bool_)):
             raise ValueError('scansar_correction must be boolean')
@@ -304,7 +294,7 @@ def dc_process(cfg_file, proc_output_file, output_file=None, *, resolution=None,
                         range_geometry='local ground range offset',
                         slc_phase_reference='as stored; no implicit phase correction',
                         azimuth_origin_source='SLC az0 metadata' if _scalar(reader, 'az0') is not None else 'local zero')
-        for name in ('sr0', 'inc_angle', 'f0', 'v_ground', 'v_orbit', 'orbit_alt', 'prf', 'rg_sampling', 'reramp'):
+        for name in ('sr0', 'inc_angle', 'f0', 'v_ground', 'v_orbit', 'orbit_alt', 'prf', 'az_sampling', 'rg_sampling', 'reramp'):
             value = _scalar(reader, name)
             if value is not None:
                 ds.attrs[f'input_{name}'] = value

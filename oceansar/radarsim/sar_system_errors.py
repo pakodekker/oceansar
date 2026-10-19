@@ -17,6 +17,7 @@ from drama import utils as drutils
 
 from oceansar.memory import memory_limited
 from oceansar import ocs_io
+from oceansar.ocs_io import product_metadata as metadata
 from oceansar.utils.random import get_sim_seed, random_generator
 
 
@@ -75,8 +76,8 @@ def sar_system_errors(cfg_file, raw_file, output_file, *, block_azimuth=128):
     Parameters
     ----------
     cfg_file : str or path-like
-        Configuration supplying mode.pol ('hh', 'vv' or 'DP'), srg.nesz in dB
-        and optional sim.seed for repeatable noise.
+        Configuration supplying srg.nesz in dB and optional sim.seed for
+        repeatable noise. Acquired polarization comes from the input header.
     raw_file : str or path-like
         Ideal RawFile marked raw_data_state='ideal', containing a positive
         scalar cal_factor and raw_data_r/raw_data_i with axes (polarization,
@@ -120,12 +121,10 @@ def sar_system_errors(cfg_file, raw_file, output_file, *, block_azimuth=128):
     if np.isnan(nesz_db) or nesz_db == np.inf:
         raise ValueError('NESZ must be finite or -inf to disable receiver noise')
     sigma = drutils.db2lin(nesz_db, amplitude=True)/np.sqrt(2.)
-    polarization = str(cfg.mode.pol).lower()
-    labels = ['hh', 'vv'] if polarization == 'dp' else [polarization]
-    if any(label not in ('hh', 'vv') for label in labels):
-        raise ValueError('SAR polarization must be hh, vv or DP')
-
     with Dataset(raw_file, 'r') as source:
+        labels = metadata.polarizations(source, source['raw_data_r'].shape[0], cfg)
+        if any(label not in ('hh', 'vv') for label in labels):
+            raise ValueError('SAR polarization must be hh, vv or DP')
         if (getattr(source, 'raw_data_state', None) != 'ideal'
                 or 'cal_factor' not in source.variables):
             raise ValueError('Regenerate ideal raw data with sar_raw before adding system errors')

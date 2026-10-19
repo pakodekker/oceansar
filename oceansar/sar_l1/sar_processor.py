@@ -16,6 +16,7 @@
 import os
 import time
 import argparse
+import copy
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -29,6 +30,8 @@ from drama import utils
 from oceansar import ocs_io as tpio
 from oceansar import constants as const
 from oceansar.radarsim.antenna_model import SarAntenna, resolve_acquisition
+from oceansar.ocs_io import product_metadata as metadata
+from oceansar.utils.plotting import finish_plot
 
 
 def make_geohistory(cfg, inc_angle, fit_half_span=1.0):
@@ -102,11 +105,14 @@ def geohistory_doppler_sine(ghist, look_angle, fa, f0):
 
 def scene_coordinates(cfg):
     """Return the optimized raw-generator scene coordinates."""
-    nx = int(cfg.ocean.Lx/cfg.ocean.dx)
-    ny = int(cfg.ocean.Ly/cfg.ocean.dy)
-    if cfg.ocean.opt_res:
-        nx = int(utils.optimize_fftsize(nx, cfg.ocean.fft_max_prime))
-        ny = int(utils.optimize_fftsize(ny, cfg.ocean.fft_max_prime))
+    if hasattr(cfg.ocean, 'Nx') and hasattr(cfg.ocean, 'Ny'):
+        nx, ny = int(cfg.ocean.Nx), int(cfg.ocean.Ny)
+    else:
+        nx = int(cfg.ocean.Lx/cfg.ocean.dx)
+        ny = int(cfg.ocean.Ly/cfg.ocean.dy)
+        if cfg.ocean.opt_res:
+            nx = int(utils.optimize_fftsize(nx, cfg.ocean.fft_max_prime))
+            ny = int(utils.optimize_fftsize(ny, cfg.ocean.fft_max_prime))
     x = np.linspace(-cfg.ocean.Lx/2., cfg.ocean.Lx/2., nx)
     y = np.linspace(-cfg.ocean.Ly/2., cfg.ocean.Ly/2., ny)
     return x, y
@@ -219,7 +225,7 @@ def geohistory_src_filter(ghist, look_angle, fa, fr, f0,
 
 
 def point_target_azimuth_profile(data, expected_az, expected_rg,
-                                 oversample=16, span=10):
+                                 oversample=16, span=10, *, plot_save=True, plot_show=False):
     """Return an oversampled, phase-compensated point-target profile."""
     az_center = int(np.round(expected_az))
     rg_center = int(np.round(expected_rg))
@@ -253,7 +259,7 @@ def point_target_azimuth_profile(data, expected_az, expected_rg,
 
 def plot_point_target_azimuth_grid(data, expected_targets, channel,
                                    prf, plot_path, plot_format,
-                                   oversample=16, span=10):
+                                   oversample=16, span=10, *, plot_save=True, plot_show=False):
     """Plot the 3x3 target-grid azimuth responses for one channel."""
     def azimuth_spectrum(expected_az, expected_rg, cut_samples=128,
                          fft_oversample=8, phase_threshold_db=-12.0):
@@ -336,10 +342,9 @@ def plot_point_target_azimuth_grid(data, expected_targets, channel,
     fig.suptitle('Point-target azimuth responses, channel %d' % channel,
                  y=0.995)
     fig.tight_layout(rect=(0, 0, 1, 0.93))
-    fig.savefig(os.path.join(
+    finish_plot(fig, os.path.join(
         plot_path, 'plot_point_target_azimuth_grid_%d.%s' %
-        (channel, plot_format)))
-    plt.close(fig)
+        (channel, plot_format)), save=plot_save, show=plot_show)
 
     spectra = [azimuth_spectrum(expected_az, expected_rg)
                for _, expected_az, expected_rg in expected_targets]
@@ -359,10 +364,9 @@ def plot_point_target_azimuth_grid(data, expected_targets, channel,
         ax.set_ylabel('Normalized amplitude [dB]')
     fig.suptitle('Point-target azimuth spectra, channel %d' % channel)
     fig.tight_layout(rect=(0, 0, 1, 0.97))
-    fig.savefig(os.path.join(
+    finish_plot(fig, os.path.join(
         plot_path, 'plot_point_target_azimuth_spectrum_amplitude_%d.%s' %
-        (channel, plot_format)))
-    plt.close(fig)
+        (channel, plot_format)), save=plot_save, show=plot_show)
 
     fig, axs = plt.subplots(3, 3, figsize=(15, 11), sharex=True, sharey=True)
     for ax, (target, spectrum) in zip(
@@ -380,16 +384,15 @@ def plot_point_target_azimuth_grid(data, expected_targets, channel,
         'Point-target azimuth spectral phase, channel %d\n'
         '(constant and linear phase removed)' % channel)
     fig.tight_layout(rect=(0, 0, 1, 0.95))
-    fig.savefig(os.path.join(
+    finish_plot(fig, os.path.join(
         plot_path, 'plot_point_target_azimuth_spectrum_phase_%d.%s' %
-        (channel, plot_format)))
-    plt.close(fig)
+        (channel, plot_format)), save=plot_save, show=plot_show)
 
 
 def check_reference_range_history(cfg, ghist, inc_angle, raw_sr0, az0,
                                   prf, v_ground, f0, sr_pt, az_size,
                                   v_eff, plot_path=None, plot_format='png',
-                                  plot_save=False):
+                                  plot_save=False, plot_show=False):
     """Print consistency diagnostics for the saved reference range history."""
     raw_sr0 = np.asarray(raw_sr0).item()
     az0 = np.asarray(az0).item()
@@ -431,7 +434,7 @@ def check_reference_range_history(cfg, ghist, inc_angle, raw_sr0, az0,
             (np.mean(rcmc_diff_pt), np.sqrt(np.mean(rcmc_diff_pt**2)),
              np.max(np.abs(rcmc_diff_pt))))
 
-    if plot_save and plot_path is not None:
+    if (plot_save or plot_show) and plot_path is not None:
         rcmc_sorted = rcmc_fa[fa_order]
         rcmc_pt_sorted = rcmc_fa_pt[fa_order]
         rcmc_diff_sorted = rcmc_sorted - sr_dop_sorted
@@ -471,33 +474,38 @@ def check_reference_range_history(cfg, ghist, inc_angle, raw_sr0, az0,
         axs[1, 1].grid(True)
 
         fig.tight_layout()
-        fig.savefig(os.path.join(
-            plot_path, 'plot_range_history_check.%s' % plot_format))
-        plt.close(fig)
+        finish_plot(fig, os.path.join(
+            plot_path, 'plot_range_history_check.%s' % plot_format), save=plot_save, show=plot_show)
 
 def azimuth_common_band_filter(fa, doppler_bw, az_weighting):
-    """Return the normalized azimuth weighting on the FFT frequency grid."""
-    az_size = fa.size
-    doppler_spacing = fa[1] - fa[0]
-    n_samp = 2 * (int(doppler_bw / doppler_spacing) // 2)
-    n_samp = min(n_samp, az_size)
-    if n_samp < 2:
+    """Return a zero-centred, unit mean in-band power amplitude weighting.
+
+    fa is the actual FFT frequency grid in Hz; doppler_bw is the full retained
+    bandwidth in Hz and az_weighting is the raised-cosine constant coefficient
+    (1 for rectangular, .5 for Hann). Evaluate an even function of frequency
+    directly: rolling an even-length window centres it at minus half a bin,
+    introducing a deterministic Doppler offset. This also centres a full-band
+    taper correctly, including the unpaired even-FFT Nyquist sample.
+    """
+    fa = np.asarray(fa, dtype=float)
+    if (fa.ndim != 1 or fa.size < 3 or not np.isfinite(fa).all()
+            or not np.isfinite(doppler_bw) or doppler_bw <= 0
+            or not np.isfinite(az_weighting)):
+        raise ValueError('Invalid azimuth frequency grid, bandwidth or weighting')
+    spacing = np.min(np.diff(np.sort(fa)))
+    if spacing <= 0:
+        raise ValueError('Azimuth frequency grid must contain distinct bins')
+    bandwidth = min(float(doppler_bw), fa.size * spacing)
+    support = np.abs(fa) <= bandwidth/2
+    if np.count_nonzero(support) < 3:
         raise ValueError("doppler_bw is too narrow for the azimuth grid")
-
-    weighting = (
-        az_weighting
-        - (1.0 - az_weighting)
-        * np.cos(2.0 * np.pi * np.linspace(0.0, 1.0, n_samp))
-    )
-
-    window_power = np.mean(np.abs(weighting) ** 2)
+    weighting = np.zeros(fa.size)
+    weighting[support] = (az_weighting + (1.0 - az_weighting)
+                          * np.cos(2*np.pi*fa[support]/bandwidth))
+    window_power = np.mean(weighting[support]**2)
+    if window_power <= 0:
+        raise ValueError('Azimuth weighting has zero power')
     weighting /= np.sqrt(window_power)
-
-    if az_size > n_samp:
-        padded_weighting = np.zeros(az_size)
-        padded_weighting[:n_samp] = weighting
-        weighting = np.roll(padded_weighting, -n_samp // 2)
-
     return weighting
 
 
@@ -740,7 +748,7 @@ def scansar_azimuth_focus(
 
 
 @memory_limited
-def sar_focus(cfg_file, raw_output_file, output_file):
+def sar_focus(cfg_file, raw_output_file, output_file, *, plot_show=False):
 
     ###################
     # INITIALIZATIONS #
@@ -751,18 +759,25 @@ def sar_focus(cfg_file, raw_output_file, output_file):
     Parameters
     ----------
     cfg_file : str or path-like
-        Configuration defining the acquisition mode, orbit, radar and
-        processing controls, including Doppler bandwidth, azimuth weighting,
-        diagnostic plots and ScanSAR reramping.
+        Configuration supplying processing controls, including Doppler
+        bandwidth, azimuth weighting, diagnostic plots and ScanSAR reramping.
     raw_output_file : str or path-like
         System-processed RawFile containing calibrated complex samples with
         axes (polarization, channel, azimuth, range), geometry and baselines.
-        Normally produced by sar_system_errors.
+        Normally produced by sar_system_errors. Acquisition and geometry
+        headers are authoritative. az_sampling (Hz) specifies actual sample
+        timing after any upsampling; prf remains the acquisition pulse rate.
+        Single reconstructed channels must use an explicit length-one channel
+        axis and corresponding num_ch/baselines in this interface.
     output_file : str or path-like
         Destination ProcFile. slc_r/slc_i store the focused complex image with
         axes (channel, polarization, azimuth, range). Geometry metadata include
         az0 and sr0 in metres, sampling rates and carrier frequency in Hz,
         velocities in m/s and incidence angle in degrees.
+    plot_show : bool, optional
+        Display enabled diagnostic figures, including when also saving them.
+        Unsaved enabled figures are displayed automatically. Figures close
+        after saving/displaying. Default False.
 
     Returns
     -------
@@ -785,6 +800,8 @@ def sar_focus(cfg_file, raw_output_file, output_file):
     print('-------------------------------------------------------------------')
 
     # CONFIGURATION FILE
+    from oceansar.radarsim.sar_system_errors import validate_raw_paths
+    validate_raw_paths(raw_output_file, output_file)
     cfg = resolve_acquisition(tpio.ConfigFile(cfg_file))
 
     # PROCESSING
@@ -802,39 +819,48 @@ def sar_focus(cfg_file, raw_output_file, output_file):
         cfg.processing.range_dependent_azimuth
         if hasattr(cfg.processing, 'range_dependent_azimuth') else True)
     reramp = getattr(cfg.processing, 'reramp', True)
-    operation_mode = getattr(cfg.mode, 'mode', 'stripmap').lower()
-    if operation_mode not in ('stripmap', 'scansar'):
-        raise ValueError(
-            "Unsupported SAR operating mode: %s" % operation_mode)
     add_point_target = (cfg.sim.add_point_target
                         if hasattr(cfg.sim, 'add_point_target') else False)
 
-    # SAR
-    f0 = cfg.sar.f0
-    prf = cfg.mode.prf
-    num_ch = cfg.sar.num_ch
-    alt = cfg.sar.alt
-    rg_bw = cfg.mode.rg_bw
-    over_fs = cfg.mode.over_fs
-
-    # CALCULATE PARAMETERS
-    l0 = const.c / f0
-    rg_sampling = rg_bw * over_fs
-
     # RAW DATA
     raw_file = tpio.RawFile(raw_output_file, 'r')
-    antennas = SarAntenna.from_product(cfg, raw_file.__file__)
-    raw_data = raw_file.get('raw_data*')
-    sr0 = raw_file.get('sr0')
-    az0 = raw_file.get('az0')
-    v_ground = raw_file.get('v_ground')
-    inc_angle = raw_file.get('inc_angle')
-    b_ati = raw_file.get('b_ati')
-    b_xti = raw_file.get('b_xti')
-    sr_pt = None
-    if 'sr_pt' in raw_file.__file__.variables:
-        sr_pt = raw_file.get('sr_pt')
-    raw_file.close()
+    try:
+        cfg = metadata.focusing_configuration(cfg, raw_file.__file__)
+        antennas = SarAntenna.from_product(copy.deepcopy(cfg), raw_file.__file__)
+        raw_data = raw_file.get('raw_data*')
+        if raw_data.ndim != 4:
+            raise ValueError('Expected raw dimensions (polarization, channel, azimuth, range)')
+        num_ch = raw_data.shape[1]
+        if metadata.scalar(raw_file.__file__, 'num_ch', positive=True) != num_ch:
+            raise ValueError('Raw num_ch header does not match the channel dimension')
+        labels = metadata.polarizations(raw_file.__file__, raw_data.shape[0], cfg)
+        # Use actual sample timing, never acquisition PRF times an assumed channel
+        # count. Reconstruction/upsampling must explicitly update az_sampling.
+        prf = metadata.azimuth_sampling(raw_file.__file__)
+        acquisition_prf = metadata.scalar(raw_file.__file__, 'prf', positive=True)
+        f0 = metadata.scalar(raw_file.__file__, 'f0', positive=True)
+        alt = metadata.scalar(raw_file.__file__, 'orbit_alt', positive=True)
+        rg_sampling = metadata.scalar(raw_file.__file__, 'rg_sampling', positive=True)
+        rg_bw = metadata.scalar(raw_file.__file__, 'rg_bw', positive=True)
+        operation_mode = metadata.acquisition_mode(raw_file.__file__, cfg)
+        if operation_mode not in ('stripmap', 'scansar'):
+            raise ValueError('Unsupported SAR operating mode: %s' % operation_mode)
+        l0 = const.c / f0
+        sr0 = metadata.scalar(raw_file.__file__, 'sr0', positive=True)
+        az0 = metadata.scalar(raw_file.__file__, 'az0')
+        v_ground = metadata.scalar(raw_file.__file__, 'v_ground', positive=True)
+        inc_angle = metadata.scalar(raw_file.__file__, 'inc_angle')
+        b_ati = raw_file.get('b_ati')
+        b_xti = raw_file.get('b_xti')
+        for name, baseline in (('b_ati', b_ati), ('b_xti', b_xti)):
+            if (np.ma.is_masked(baseline) or np.shape(baseline) != (num_ch,)
+                    or not np.isfinite(baseline).all()):
+                raise ValueError('Invalid raw baseline header: ' + name)
+        sr_pt = None
+        if 'sr_pt' in raw_file.__file__.variables:
+            sr_pt = raw_file.get('sr_pt')
+    finally:
+        raw_file.close()
     inc_angle_rad = np.asarray(np.deg2rad(inc_angle)).item()
     ghist = make_geohistory(cfg, inc_angle_rad)
     v_eff = estimate_effective_velocity(cfg, inc_angle_rad, ghist=ghist)
@@ -850,7 +876,7 @@ def sar_focus(cfg_file, raw_output_file, output_file):
 
     # OTHER INITIALIZATIONS
     # Create plots directory
-    plot_path = os.path.dirname(output_file) + os.sep + plot_path
+    plot_path = os.path.join(os.path.dirname(output_file), plot_path)
     if plot_save:
         if not os.path.exists(plot_path):
             os.makedirs(plot_path)
@@ -866,13 +892,13 @@ def sar_focus(cfg_file, raw_output_file, output_file):
 
         # Build the azimuth processing grid. ScanSAR acquisition duration and
         # image extent are independent, so center the burst in a grid large
-        # enough for the requested scene at the original PRF.
+        # enough for the saved scene at the actual input sampling rate.
         az_size_orig, rg_size_orig = raw_data[0, ch].shape
         if ch == 0 and sr_pt is not None:
             check_reference_range_history(
                 cfg, ghist, inc_angle_rad, sr0, az0, prf, v_ground, f0,
                 sr_pt, az_size_orig, v_eff, plot_path=plot_path,
-                plot_format=plot_format, plot_save=plot_save)
+                plot_format=plot_format, plot_save=plot_save, plot_show=plot_show)
         if operation_mode == 'scansar':
             output_az_size = max(
                 1, int(np.ceil(cfg.ocean.Ly * prf / v_ground)))
@@ -952,7 +978,8 @@ def sar_focus(cfg_file, raw_output_file, output_file):
             plt.figure()
             plt.imshow(np.fft.fftshift(np.abs(data[0]), axes=0), vmax=np.max(np.abs(data)), cmap='gray',
                        origin='lower')
-            plt.savefig(plot_path + os.sep + ('plot_rcmc_dopp_%d.%s' % (ch, plot_format)))
+            finish_plot(plt.gcf(), os.path.join(plot_path, 'plot_rcmc_dopp_%d.%s' % (ch, plot_format)),
+                        save=plot_save, show=plot_show)
 
         if plot_rcmc_time:
             rcmc_time = np.fft.ifft(data[0], axis=0)[
@@ -961,7 +988,8 @@ def sar_focus(cfg_file, raw_output_file, output_file):
             plt.figure()
             plt.imshow(np.real(rcmc_time), vmin=-rcmc_time_max, vmax=rcmc_time_max, cmap='gray',
                        origin='lower')
-            plt.savefig(plot_path + os.sep + ('plot_rcmc_time_real_%d.%s' % (ch, plot_format)))
+            finish_plot(plt.gcf(), os.path.join(plot_path, 'plot_rcmc_time_real_%d.%s' % (ch, plot_format)),
+                        save=plot_save, show=plot_show)
 
         # Azimuth compression
         print(
@@ -1002,7 +1030,7 @@ def sar_focus(cfg_file, raw_output_file, output_file):
                 :,
             ]
             output_az0 = az0 + n_val_az_2 * v_ground / prf
-        if add_point_target and plot_save:
+        if add_point_target and (plot_save or plot_show):
             expected_targets = []
             for target_name, target_look, target_y in point_targets:
                 target_sr = ghist.sr_spl(target_look, 0.0).item()
@@ -1012,16 +1040,23 @@ def sar_focus(cfg_file, raw_output_file, output_file):
                 expected_targets.append(
                     (target_name, expected_az, expected_rg))
             plot_point_target_azimuth_grid(
-                data, expected_targets, ch, prf, plot_path, plot_format)
+                data, expected_targets, ch, prf, plot_path, plot_format,
+                plot_save=plot_save, plot_show=plot_show)
         if plot_image_valid:
             plt.figure()
+            range_step = const.c/(2*rg_sampling)
+            azimuth_step = v_ground/prf
             plt.imshow(np.abs(data[0]), origin='lower', vmin=0, vmax=np.max(np.abs(data)),
-                       aspect=float(rg_size_orig) / float(data.shape[1]),
+                       extent=[-.5*range_step, (rg_size_orig-.5)*range_step,
+                               output_az0-.5*azimuth_step,
+                               output_az0+(data.shape[1]-.5)*azimuth_step],
+                       aspect='equal',
                        cmap='gray')
-            plt.xlabel("Range")
-            plt.ylabel("Azimuth")
-            plt.savefig(os.path.join(
-                plot_path, ('plot_image_valid_%d.%s' % (ch, plot_format))))
+            plt.xlabel("Slant range offset [m]")
+            plt.ylabel("Azimuth [m]")
+            finish_plot(plt.gcf(), os.path.join(
+                plot_path, 'plot_image_valid_%d.%s' % (ch, plot_format)),
+                save=plot_save, show=plot_show)
 
         slc.append(data)
 
@@ -1039,7 +1074,9 @@ def sar_focus(cfg_file, raw_output_file, output_file):
     proc_file.set('num_ch', num_ch)
     proc_file.set('ant_L', antennas.tx.La)
     antennas.save(proc_file.__file__)
-    proc_file.set('prf', prf)
+    metadata.write_sampling(proc_file.__file__, prf, acquisition_prf)
+    metadata.write_geometry(proc_file.__file__, cfg, labels)
+    proc_file.__file__.processed_doppler_bandwidth_hz = float(min(doppler_bw, prf))
     proc_file.set('v_ground', v_ground)
     proc_file.set('v_orbit', v_orbit)
     proc_file.set('az0', output_az0)
@@ -1047,7 +1084,7 @@ def sar_focus(cfg_file, raw_output_file, output_file):
     proc_file.set('sin_az', output_sin_az)
     proc_file.set('orbit_alt', alt)
     proc_file.set('sr0', sr0)
-    proc_file.set('rg_sampling', rg_bw*over_fs)
+    proc_file.set('rg_sampling', rg_sampling)
     proc_file.set('rg_bw', rg_bw)
     proc_file.set('b_ati', b_ati)
     proc_file.set('b_xti', b_xti)

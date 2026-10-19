@@ -17,6 +17,7 @@
 import os
 import time
 import argparse
+import json
 
 import numpy as np
 # import scipy as sp
@@ -27,6 +28,8 @@ from oceansar.utils import geometry as geosar
 from drama import utils
 from oceansar.utils.geometry import sr_to_geo
 from oceansar import ocs_io as tpio
+from oceansar.ocs_io import product_metadata as metadata
+from oceansar.utils.plotting import finish_plot as finish_figure
 from oceansar import constants as const
 from oceansar.surfaces import OceanSurface
 from oceansar.l2_processing_core import multilook_window, multilook_report
@@ -44,14 +47,15 @@ def uwphase(phasor):
 
 
 @memory_limited
-def insar_process(cfg_file, proc_output_file, ocean_file, output_file):
+def insar_process(cfg_file, proc_output_file, ocean_file, output_file, *, plot_show=False):
 
     """Coregister and multilook SLC channels into an InSAR L1b product.
 
     Parameters
     ----------
     cfg_file : str or path-like
-        Configuration supplying radar geometry and insar controls. A target
+        Configuration supplying insar controls. Geometry, timing, mode and
+        polarization are inherited from the input SLC. A target
         insar.resolution is in metres (azimuth, ground range); the selected
         taper determines geometry-dependent integer multilook support.
     proc_output_file : str or path-like
@@ -65,6 +69,10 @@ def insar_process(cfg_file, proc_output_file, ocean_file, output_file):
         non-redundant pairs. Coherence is dimensionless, phase is in radians,
         and intensity is normalized power. Sampling, window support and the
         region's coordinate origin are stored as metadata.
+
+    plot_show : bool, optional
+        Display enabled diagnostics even when saving. Unsaved enabled figures
+        are displayed automatically, and all figures are closed afterward.
 
     Returns
     -------
@@ -88,13 +96,6 @@ def insar_process(cfg_file, proc_output_file, ocean_file, output_file):
     ## CONFIGURATION FILE
     cfg = tpio.ConfigFile(cfg_file)
 
-    pol = cfg.mode.pol
-    if pol == 'DP':
-        polt = ['hh', 'vv']
-    elif pol == 'hh':
-        polt = ['hh']
-    else:
-        polt = ['vv']
     # ATI
     rg_ml = getattr(cfg.insar, "rg_ml", None)
     az_ml = getattr(cfg.insar, "az_ml", None)
@@ -113,6 +114,11 @@ def insar_process(cfg_file, proc_output_file, ocean_file, output_file):
     # PROCESSED DATA
     proc_content = tpio.ProcFile(proc_output_file, 'r')
     proc_data = proc_content.get('slc*')
+    polt = metadata.polarizations(proc_content.__file__, proc_data.shape[1], cfg)
+    inherited_attributes = {key: proc_content.__file__.getncattr(key) for key in
+        ('processing_geometry', 'processed_doppler_bandwidth_hz', 'antenna_configuration')
+        if key in proc_content.__file__.ncattrs()}
+    acquisition_prf = metadata.scalar(proc_content.__file__, 'prf', positive=True)
     sr0 = proc_content.get('sr0')
     #print(f"Read sr0 from proc file: {sr0}")
     az0 = proc_content.get('az0')
@@ -121,8 +127,10 @@ def insar_process(cfg_file, proc_output_file, ocean_file, output_file):
     b_ati = proc_content.get('b_ati')
     b_xti = proc_content.get('b_xti')
     f0 = proc_content.get('f0')
-    prf = proc_content.get('az_sampling' if 'az_sampling' in proc_content.__file__.variables else 'prf')
-    num_ch = proc_content.get('num_ch')
+    prf = metadata.azimuth_sampling(proc_content.__file__)
+    num_ch = proc_data.shape[0]
+    if metadata.scalar(proc_content.__file__, 'num_ch', positive=True) != num_ch:
+        raise ValueError('SLC num_ch header does not match the channel dimension')
     rg_bw = proc_content.get('rg_bw')
     rg_sampling = proc_content.get('rg_sampling')
     v_ground = proc_content.get('v_ground')
@@ -142,7 +150,7 @@ def insar_process(cfg_file, proc_output_file, ocean_file, output_file):
         reramp = bool(np.asarray(proc_content.get('reramp')).item())
     else:
         reramp = bool(getattr(cfg.processing, 'reramp', True))
-    operation_mode = getattr(cfg.mode, 'mode', 'stripmap').lower()
+    operation_mode = metadata.acquisition_mode(proc_content.__file__, cfg)
     inc_angle = np.deg2rad(proc_content.get('inc_angle'))
     # print(f"Read inc_angle from proc file: {np.rad2deg(inc_angle)}")
     proc_content.close()
@@ -173,7 +181,7 @@ def insar_process(cfg_file, proc_output_file, ocean_file, output_file):
         plt.rc('text', usetex=True)
 
     # Create plots directory
-    plot_path = os.path.dirname(output_file) + os.sep + plot_path
+    plot_path = os.path.join(os.path.dirname(output_file), plot_path)
     if plot_save:
         if not os.path.exists(plot_path):
             os.makedirs(plot_path)
@@ -343,7 +351,10 @@ def insar_process(cfg_file, proc_output_file, ocean_file, output_file):
     l1b_file.set('inc_angle', inc_angle)
     l1b_file.set('f0', f0)
     l1b_file.set('num_ch', num_ch)
-    l1b_file.set('az_sampling', prf)
+    metadata.write_sampling(l1b_file.__file__, prf, acquisition_prf)
+    l1b_file.__file__.setncatts(inherited_attributes)
+    l1b_file.__file__.acquisition_mode = operation_mode
+    l1b_file.__file__.polarizations = json.dumps(polt)
     l1b_file.set('v_ground', v_ground)
     l1b_file.set('v_orbit', v_orbit)
     l1b_file.set('orbit_alt', alt)
@@ -370,6 +381,8 @@ def insar_process(cfg_file, proc_output_file, ocean_file, output_file):
                                   np.broadcast_to(target_resolution, (2,)))
     l1b_file.close()
 
+    image_extent = [(rg_min-.5)*spacing[1], (rg_max-.5)*spacing[1],
+                    az0+(az_min-.5)*spacing[0], az0+(az_max-.5)*spacing[0]]
     print('Generating plots and estimating values...')
 
     # SURFACE HEIGHT
@@ -383,12 +396,8 @@ def insar_process(cfg_file, proc_output_file, ocean_file, output_file):
         cbar = plt.colorbar()
         cbar.ax.set_xlabel('[m]')
 
-        if plot_save:
-            plt.savefig(plot_path + os.sep + 'plot_surface.' + plot_format,
-                        bbox_inches='tight')
-            plt.close()
-        else:
-            plt.show()
+        finish_figure(plt.gcf(), os.path.join(plot_path, 'plot_surface.' + plot_format),
+                      save=plot_save, show=plot_show, bbox_inches='tight')
 
 
     # PROCESSED AMPLITUDE
@@ -399,15 +408,14 @@ def insar_process(cfg_file, proc_output_file, ocean_file, output_file):
             plt.figure()
             plt.imshow(utils.db(i_all[0, pind]), aspect='equal',
                        origin='lower',
-                       vmin=utils.db(np.max(i_all[pind]))-20,
-                       extent=[0., rg_span, 0., az_span], interpolation='nearest',
+                       vmin=utils.db(np.max(i_all[0, pind]))-20,
+                       extent=image_extent, interpolation='nearest',
                        cmap='viridis')
             plt.xlabel('Ground range [m]')
             plt.ylabel('Azimuth [m]')
             plt.title("Amplitude")
             plt.colorbar()
-            plt.savefig(save_path)
-            plt.close()
+            finish_figure(plt.gcf(), save_path, save=plot_save, show=plot_show)
 
             save_path = (plot_path + os.sep + 'amp_' + polt[pind]+
                          '.' + plot_format)
@@ -418,14 +426,13 @@ def insar_process(cfg_file, proc_output_file, ocean_file, output_file):
             plt.imshow(int_img, aspect='equal',
                        origin='lower',
                        vmin=vmin, vmax=vmax,
-                       extent=[0., rg_span, 0., az_span], interpolation='nearest',
+                       extent=image_extent, interpolation='nearest',
                        cmap='viridis')
             plt.xlabel('Ground range [m]')
             plt.ylabel('Azimuth [m]')
             plt.title("Amplitude")
             plt.colorbar()
-            plt.savefig(save_path)
-            plt.close()
+            finish_figure(plt.gcf(), save_path, save=plot_save, show=plot_show)
 
     if plot_coh and ch_dim[0] > 1:
         for pind in range(npol):
@@ -437,16 +444,15 @@ def insar_process(cfg_file, proc_output_file, ocean_file, output_file):
             plt.imshow(np.abs(cohs[coh_ind]), aspect='equal',
                        origin='lower',
                        vmin=0, vmax=1,
-                       extent=[0., rg_span, 0., az_span],
+                       extent=image_extent,
                        cmap='bone')
             plt.xlabel('Ground range [m]')
             plt.ylabel('Azimuth [m]')
             plt.title("ATI Coherence")
             # plt.colorbar()
-            plt.savefig(save_path)
-            plt.close()
+            finish_figure(plt.gcf(), save_path, save=plot_save, show=plot_show)
 
-    if num_ch > 1:
+    if num_ch > 1 and (plot_coh or plot_coh_all):
         npol_ = npol
     else:
         npol_ = 0
@@ -471,14 +477,13 @@ def insar_process(cfg_file, proc_output_file, ocean_file, output_file):
         plt.imshow(insar_phase, aspect='equal',
                    origin='lower',
                    vmin=vmin, vmax=vmax,
-                   extent=[0., rg_span, 0., az_span],
+                   extent=image_extent,
                    cmap='hsv')
         plt.xlabel('Ground range [m]')
         plt.ylabel('Azimuth [m]')
         plt.title("InSAR Phase")
         plt.colorbar()
-        plt.savefig(save_path)
-        plt.close()
+        finish_figure(plt.gcf(), save_path, save=plot_save, show=plot_show)
 
 
 
@@ -489,7 +494,7 @@ def insar_process(cfg_file, proc_output_file, ocean_file, output_file):
                      polt[0] + polt[1] +
                      '.' + plot_format)
         utils.image(np.abs(cohs[coh_ind]), max=1, min=0, aspect='equal',
-                    cmap='gray', extent=[0., rg_span, 0., az_span],
+                    cmap='gray', extent=image_extent,
                     xlabel='Ground range [m]', ylabel='Azimuth [m]',
                     title='XPOL Coherence',
                     usetex=plot_tex, save=plot_save, save_path=save_path)
@@ -503,7 +508,7 @@ def insar_process(cfg_file, proc_output_file, ocean_file, output_file):
         vmax = np.min([np.abs(phase_mean) + 4*phase_std, np.pi])
         utils.image(insar_phase, aspect='equal',
                     min=vmin,  max=vmax,
-                    cmap=utils.bwr_cmap, extent=[0., rg_span, 0., az_span],
+                    cmap=utils.bwr_cmap, extent=image_extent,
                     xlabel='Ground range [m]', ylabel='Azimuth [m]',
                     title='XPOL Phase', cbar_xlabel='[rad]',
                     usetex=plot_tex, save=plot_save, save_path=save_path)

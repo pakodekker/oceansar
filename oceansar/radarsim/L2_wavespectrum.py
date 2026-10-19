@@ -26,10 +26,10 @@ import drama.utils as drtls
 from matplotlib import colors
 from matplotlib.patches import Circle
 
-from drama.geo import inc_to_sr
-from drama.orbits.velocity import orbit_to_vel
 from oceansar.memory import memory_limited
 from oceansar import ocs_io as tpio
+from oceansar.ocs_io import product_metadata as metadata
+from oceansar.utils.plotting import finish_plot as finish_figure
 from oceansar import constants as const
 from oceansar.radarsim.xspec_compression import save_compressed_xspec
 from oceansar.l2_processing_core.cross_spectrum import (
@@ -323,14 +323,14 @@ def plot_xspec(kx, ky, xspec, ref_xspec=None, vmax=10, vmin=None, avg=3, imag=Tr
     return fig, axs
 
 @memory_limited
-def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file, xvmax=10, xvmin=None, xivmax=None, kymax=0.05, kxmax=0.075):
+def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file, xvmax=10, xvmin=None, xivmax=None, kymax=0.05, kxmax=0.075, *, plot_show=False):
 
     """Estimate wave cross-spectra from multilooked Doppler sublook intensities.
 
     Parameters
     ----------
     cfg_file : str or path-like
-        Configuration supplying radar geometry and L2_wavespectrum sublook,
+        Configuration supplying L2_wavespectrum sublook,
         multilook, Welch averaging, outlier-removal and plotting controls.
     proc_output_file : str or path-like
         Complex ProcFile SLC with axes (channel, polarization, azimuth, range).
@@ -356,6 +356,9 @@ def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file, xvmax=1
     kxmax : float, optional
         Reserved x-wavenumber display limit in cycles/m. Currently not
         forwarded to the plotting helper.
+    plot_show : bool, optional
+        Display enabled figures while also saving them if configured. Enabled
+        unsaved figures are displayed automatically. All figures are closed.
 
     Returns
     -------
@@ -377,24 +380,6 @@ def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file, xvmax=1
     ## CONFIGURATION FILE
     cfg = tpio.ConfigFile(cfg_file)
 
-    # SAR
-    inc_angle = np.deg2rad(cfg.mode.inc_angle)
-    f0 = cfg.sar.f0
-    prf = cfg.mode.prf
-    num_ch = cfg.sar.num_ch
-    # ant_L = cfg.sar.ant_L
-    alt = cfg.sar.alt
-    v_ground = cfg.sar.v_ground
-    rg_bw = cfg.mode.rg_bw
-    over_fs = cfg.mode.over_fs
-    pol = cfg.mode.pol
-    if pol == 'DP':
-        polt = ['hh', 'vv']
-    elif pol == 'hh':
-        polt = ['hh']
-    else:
-        polt = ['vv']
-        # L2 wavespectrum
     rg_ml = cfg.L2_wavespectrum.rg_ml
     az_ml = cfg.L2_wavespectrum.az_ml
     krg_ml = cfg.L2_wavespectrum.krg_ml
@@ -410,19 +395,22 @@ def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file, xvmax=1
     n_sublook = cfg.L2_wavespectrum.n_sublook
     sublook_weighting = cfg.L2_wavespectrum.sublook_az_weighting
 
-    ## CALCULATE PARAMETERS
-    if v_ground == 'auto':
-        v_ground = orbit_to_vel(alt, ground=True, inc=inc_angle)
-    k0 = 2.*np.pi*f0/const.c
-    rg_sampling = rg_bw*over_fs
-
-    # # PROCESSED RAW DATA
-    # proc_content = tpio.ProcFile(proc_output_file, 'r')
-    # proc_data = proc_content.get('slc*')
-    # proc_content.close()
     # PROCESSED DATA
     proc_content = tpio.ProcFile(proc_output_file, 'r')
     proc_data = proc_content.get('slc*')
+    polt = metadata.polarizations(proc_content.__file__, proc_data.shape[1], cfg)
+    acquisition_prf = metadata.scalar(proc_content.__file__, 'prf', positive=True)
+    operation_mode = metadata.acquisition_mode(proc_content.__file__, cfg)
+    proc_bw = getattr(proc_content.__file__, 'processed_doppler_bandwidth_hz', None)
+    if proc_bw is None and 'dc_processing_frequency' in proc_content.__file__.variables:
+        frequencies = proc_content.get('dc_processing_frequency')
+        support = proc_content.get('dc_processing_power') > 0
+        if np.count_nonzero(support) > 1:
+            proc_bw = np.ptp(frequencies[support]) + np.median(np.diff(frequencies))
+    if proc_bw is None:
+        raise ValueError('SLC must record its processed Doppler bandwidth; refocus the raw data')
+    if not np.isfinite(proc_bw) or proc_bw <= 0:
+        raise ValueError('SLC processed Doppler bandwidth must be positive and finite')
     sr0 = proc_content.get('sr0')
     #print(f"Read sr0 from proc file: {sr0}")
     az0 = proc_content.get('az0')
@@ -431,8 +419,10 @@ def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file, xvmax=1
     b_ati = proc_content.get('b_ati')
     b_xti = proc_content.get('b_xti')
     f0 = proc_content.get('f0')
-    prf = proc_content.get('prf')
-    num_ch = proc_content.get('num_ch')
+    prf = metadata.azimuth_sampling(proc_content.__file__)
+    num_ch = proc_data.shape[0]
+    if metadata.scalar(proc_content.__file__, 'num_ch', positive=True) != num_ch:
+        raise ValueError('SLC num_ch header does not match the channel dimension')
     rg_bw = proc_content.get('rg_bw')
     rg_sampling = proc_content.get('rg_sampling')
     v_ground = proc_content.get('v_ground')
@@ -452,7 +442,7 @@ def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file, xvmax=1
         plt.rc('text', usetex=True)
 
     # Create plots directory
-    plot_path = os.path.dirname(output_file) + os.sep + plot_path
+    plot_path = os.path.join(os.path.dirname(output_file), plot_path)
     if plot_save:
         if not os.path.exists(plot_path):
             os.makedirs(plot_path)
@@ -467,7 +457,6 @@ def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file, xvmax=1
     v_radial_surf_std = np.std(v_radial_surf)
 
     # Expected mean azimuth shift
-    sr0 = inc_to_sr(inc_angle, alt)
     avg_az_shift = - v_radial_surf_mean / v_ground * sr0
     std_az_shift = v_radial_surf_std / v_ground * sr0
 
@@ -533,9 +522,7 @@ def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file, xvmax=1
 
     ## Wave spectra computation
     ## Processed Doppler bandwidth
-    proc_bw = cfg.processing.doppler_bw
-    PRF = cfg.mode.prf
-    fa = sp.fft.fftfreq(proc_data_rshp[1], 1/PRF)
+    fa = sp.fft.fftfreq(proc_data_rshp[1], 1/prf)
     # Filters
     sublook_filt = []
     sublook_bw = proc_bw / n_sublook
@@ -627,7 +614,10 @@ def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file, xvmax=1
             'source_slc': os.path.abspath(proc_output_file),
             'incidence_angle': float(inc_angle),
             'radar_frequency': float(f0),
-            'prf': float(prf),
+            'prf': float(acquisition_prf),
+            'az_sampling': float(prf),
+            'processed_doppler_bandwidth_hz': float(proc_bw),
+            'acquisition_mode': operation_mode,
             'ground_velocity': float(v_ground),
             'range_pixel_spacing': float(delta_rg),
             'azimuth_pixel_spacing': float(delta_az),
@@ -654,6 +644,8 @@ def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file, xvmax=1
     print(f"Saved compressed cross-spectra to {output_file}")
 
 
+    image_extent = [(rg_min-.5)*grg_grid_spacing, (rg_max-.5)*grg_grid_spacing,
+                    az0+(az_min-.5)*az_grid_spacing, az0+(az_max-.5)*az_grid_spacing]
     # PROCESSED AMPLITUDE
     if plot_proc_ampl:
         for pind in range(npol):
@@ -663,14 +655,13 @@ def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file, xvmax=1
             plt.imshow(drtls.db(i_all[pind]), aspect='equal',
                        origin='lower',
                        vmin=drtls.db(np.max(i_all[pind]))-20,
-                       extent=[0., rg_span, 0., az_span], interpolation='nearest',
+                       extent=image_extent, interpolation='nearest',
                        cmap='viridis')
             plt.xlabel('Ground range [m]')
             plt.ylabel('Azimuth [m]')
             plt.title("Amplitude")
             plt.colorbar()
-            plt.savefig(save_path)
-            plt.close()
+            finish_figure(plt.gcf(), save_path, save=plot_save, show=plot_show)
 
             save_path = (plot_path + os.sep + 'amp_' + polt[pind]+
                          '.' + plot_format)
@@ -681,14 +672,13 @@ def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file, xvmax=1
             plt.imshow(int_img, aspect='equal',
                        origin='lower',
                        vmin=vmin, vmax=vmax,
-                       extent=[0., rg_span, 0., az_span], interpolation='nearest',
+                       extent=image_extent, interpolation='nearest',
                        cmap='viridis')
             plt.xlabel('Ground range [m]')
             plt.ylabel('Azimuth [m]')
             plt.title("Amplitude")
             plt.colorbar()
-            plt.savefig(save_path)
-            plt.close()
+            finish_figure(plt.gcf(), save_path, save=plot_save, show=plot_show)
 
     # Plot the first channel/polarization for each sublook pair.
     if plot_spectrum:
@@ -705,8 +695,7 @@ def l2_wavespectrum(cfg_file, proc_output_file, ocean_file, output_file, xvmax=1
                 save_path = os.path.join(
                     plot_path,
                     f'xspec_{ind1 + 1}{ind2 + 1}.{plot_format}')
-                fig.savefig(save_path)
-                plt.close(fig)
+                finish_figure(fig, save_path, save=plot_save, show=plot_show)
 
 
 

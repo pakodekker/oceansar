@@ -22,6 +22,7 @@ from drama.performance.sar.sar_performance_common import calc_analysis_time
 from oceansar.memory import memory_limited
 from oceansar import utils
 from oceansar import ocs_io as tpio
+from oceansar.ocs_io import product_metadata as metadata
 from oceansar.utils import geometry as geosar
 from oceansar.radarsim.antenna_model import SarAntenna, resolve_acquisition, channel_positions
 from oceansar import constants as const
@@ -929,7 +930,9 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file=False,
     raw_file.set('f0', f0)
     raw_file.set('num_ch', num_ch)
     raw_file.set('ant_L', ant_l_tx)
-    raw_file.set('prf', prf)
+    metadata.write_sampling(raw_file.__file__, prf, prf)
+    labels = ['hh', 'vv'] if str(pol).lower() == 'dp' else [str(pol).lower()]
+    metadata.write_geometry(raw_file.__file__, cfg, labels, surface=surface)
     raw_file.set('v_ground', v_ground)
     raw_file.set('az0', simpar['output_az0'])
     raw_file.set('orbit_alt', alt)

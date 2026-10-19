@@ -26,6 +26,7 @@ from oceansar.memory import memory_limited
 from oceansar.utils import geometry as geosar
 from drama import utils
 from oceansar import ocs_io as tpio
+from oceansar.ocs_io import product_metadata as metadata
 from oceansar import constants as const
 from oceansar.surfaces import OceanSurface
 from oceansar.l2_processing_core import multilook_window, multilook_report
@@ -92,13 +93,6 @@ def ati_process(cfg_file, insar_output_file, ocean_file, output_file, *,
     cfg = tpio.ConfigFile(cfg_file)
 
     # SAR
-    pol = cfg.mode.pol
-    if pol == 'DP':
-        polt = ['hh', 'vv']
-    elif pol == 'hh':
-        polt = ['hh']
-    else:
-        polt = ['vv']
     # ATI
 
     ml_win = cfg.ati.ml_win
@@ -126,6 +120,7 @@ def ati_process(cfg_file, insar_output_file, ocean_file, output_file, *,
     # PROCESSED InSAR L1b DATA
     insar_data = tpio.L1bFile(insar_output_file, 'r')
     i_all = insar_data.get('ml_intensity')
+    polt = metadata.polarizations(insar_data.__file__, i_all.shape[1], cfg)
     cohs = insar_data.get('ml_coherence') * np.exp(1j * insar_data.get('ml_phase'))
     coh_lut = insar_data.get('coh_lut')
     sr0 = insar_data.get('sr0')
@@ -133,7 +128,10 @@ def ati_process(cfg_file, insar_output_file, ocean_file, output_file, *,
     b_ati = insar_data.get('b_ati')
     b_xti = insar_data.get('b_xti')
     f0 = insar_data.get('f0')
-    az_sampling = insar_data.get('az_sampling')
+    az_sampling = metadata.azimuth_sampling(insar_data.__file__)
+    acquisition_prf = (metadata.scalar(insar_data.__file__, 'prf', positive=True)
+                       if 'prf' in insar_data.__file__.variables else az_sampling)
+    operation_mode = metadata.acquisition_mode(insar_data.__file__, cfg)
     num_ch = insar_data.get('num_ch')
     rg_sampling = insar_data.get('rg_sampling')
     v_ground = insar_data.get('v_ground')
@@ -183,7 +181,7 @@ def ati_process(cfg_file, insar_output_file, ocean_file, output_file, *,
         plt.rc('text', usetex=True)
 
     # Create plots directory
-    plot_path = os.path.dirname(output_file) + os.sep + plot_path
+    plot_path = os.path.join(os.path.dirname(output_file), plot_path)
     if plot_save:
         if not os.path.exists(plot_path):
             os.makedirs(plot_path)
@@ -211,7 +209,6 @@ def ati_process(cfg_file, insar_output_file, ocean_file, output_file, *,
     v_horizo_surf_ml_std = np.std(v_horizo_surf_ml)
 
     # Expected mean azimuth shift
-    sr0 = geosar.inc_to_sr(inc_angle, alt)
     avg_az_shift = - v_radial_surf_mean / v_ground * sr0
     std_az_shift = v_radial_surf_std / v_ground * sr0
 
@@ -263,6 +260,8 @@ def ati_process(cfg_file, insar_output_file, ocean_file, output_file, *,
         ati = estimate_ati_pairs(cohs, coh_lut, b_ati, float(v_orbit), float(f0),
                                  polt, azimuth, ground_range)
         ati.attrs.update(source_insar=os.path.abspath(insar_output_file),
+            acquisition_mode=operation_mode, az_sampling=float(az_sampling),
+            prf=float(acquisition_prf),
             phase_reference='InSAR phase as stored, including configured flattening',
             coordinate_origin_source=origin_source,
             window_samples=counts.tolist(), pixel_spacing_m=spacing.tolist(),

@@ -120,9 +120,8 @@ def scansar_response_model(cfg, reader):
     """
     source = reader.__file__
     scalar = lambda name: float(np.asarray(reader.get(name)).item())
-    fs = scalar('az_sampling') if 'az_sampling' in source.variables else scalar('prf')
-    if not np.isfinite(fs) or fs <= 0:
-        fs = scalar('prf')
+    from oceansar.ocs_io import product_metadata as metadata
+    fs = metadata.azimuth_sampling(source)
     model = dict(fs=fs, f0=scalar('f0'), v_ground=scalar('v_ground'),
                  sr0=scalar('sr0'), rg_sampling=scalar('rg_sampling'),
                  az0=scalar('az0'), reramp=bool(scalar('reramp')), cache={})
@@ -139,7 +138,7 @@ def scansar_response_model(cfg, reader):
         if cfg is None:
             raise ValueError('ScanSAR DC correction needs saved SLC response metadata or its focusing configuration')
         from oceansar.radarsim.antenna_model import SarAntenna, resolve_acquisition
-        cfg = resolve_acquisition(cfg)
+        cfg = metadata.focusing_configuration(resolve_acquisition(cfg), source)
         antennas = SarAntenna.from_product(cfg, source)
         from oceansar.sar_l1.sar_processor import (
             make_geohistory, estimate_effective_velocity, reference_point_geometry,
@@ -159,7 +158,7 @@ def scansar_response_model(cfg, reader):
             raw = ocs_io.RawFile(str(raw_path), 'r')
             try:
                 raw_count = raw.__file__['raw_data_r'].shape[-2]
-                raw_fs = float(np.asarray(raw.get('prf')).item())
+                raw_fs = metadata.azimuth_sampling(raw.__file__)
                 raw_start = float(np.asarray(raw.get('az0')).item())/model['v_ground']
             finally:
                 raw.close()
