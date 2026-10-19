@@ -4,7 +4,8 @@ import numpy as np
 
 MODE_FIELDS = dict(mode='mode', inc_angle='inc_angle', pol='pol', prf='PRF',
                    rg_bw='pulse_bw', over_fs='over_fs', t_burst='burst_length',
-                   squint='squint', aperture_time='aperture_time')
+                   squint='squint', aperture_time='aperture_time',
+                   image_length='image_length')
 PROCESSING_FIELDS = dict(doppler_bw='proc_bw', az_weighting='proc_tapering')
 
 
@@ -68,9 +69,15 @@ def resolve_acquisition(cfg):
     for alias, source in MODE_FIELDS.items():
         if hasattr(definition, source):
             setattr(selector, alias, get(source))
-        elif alias in ('t_burst', 'aperture_time') and hasattr(selector, alias):
+        elif alias in ('t_burst', 'aperture_time', 'image_length') and hasattr(selector, alias):
             delattr(selector, alias)
     selector.mode = kind
+    if hasattr(selector, 'image_length'):
+        value = selector.image_length
+        if (isinstance(value, (bool, np.bool_)) or not np.isscalar(value)
+                or not isinstance(value, (int, float, np.integer, np.floating))
+                or not np.isfinite(value) or value <= 0):
+            raise ValueError(f'[{name}] image_length must be positive and finite, in metres')
     if not 0 < selector.inc_angle < 90:
         raise ValueError(f'[{name}] inc_angle must be between 0 and 90 degrees')
     if str(selector.pol).lower() not in ('hh', 'vv', 'dp'):

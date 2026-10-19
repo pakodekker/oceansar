@@ -4,6 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import xarray as xr
+from scipy import fft as sp_fft
 
 from oceansar import constants, ocs_io
 from oceansar.l2_processing_core.dc_estimator import _pair_mask, _taper_weights
@@ -72,7 +73,12 @@ def write_scansar_dc_metadata(cfg, proc_file, *, ghist, look, frequencies,
         return
     dataset = proc_file.__file__
     f0 = float(cfg.sar.f0)
-    extent = max(fs_az, 2*v_eff**2*(cfg.ocean.Ly/2/v_ground)
+    # A deliberately retained noise-only image region may extend beyond the
+    # simulated scene. Model the actual SLC coordinates, not ocean.Ly.
+    image_start = float(proc_file.get('az0')) / v_ground
+    image_stop = image_start + (dataset['slc_r'].shape[-2]-1)/fs_az
+    image_half_span = max(abs(image_start), abs(image_stop))
+    extent = max(fs_az, 2*v_eff**2*image_half_span
                  / (constants.c/f0*float(proc_file.get('sr0')))
                  + float(cfg.processing.doppler_bw)/2 + 150.)
     physical_f = np.linspace(-extent, extent, 8193)
@@ -143,9 +149,8 @@ def scansar_response_model(cfg, reader):
         from oceansar.sar_l1.sar_processor import (
             make_geohistory, estimate_effective_velocity, reference_point_geometry,
             azimuth_common_band_filter,
-            processing_azimuth_fft_size,
+            processing_azimuth_fft_size, scansar_azimuth_grid, range_processing_grid,
         )
-        from drama import utils
         incidence = np.deg2rad(scalar('inc_angle'))
         geometry = make_geohistory(cfg, incidence)
         v_eff = estimate_effective_velocity(cfg, incidence, ghist=geometry)
@@ -162,11 +167,23 @@ def scansar_response_model(cfg, reader):
                 raw_start = float(np.asarray(raw.get('az0')).item())/model['v_ground']
             finally:
                 raw.close()
-        n = int(utils.optimize_fftsize(max(int(np.ceil(raw_count*fs/raw_fs)),
-                    int(np.ceil(cfg.ocean.Ly*fs/model['v_ground'])))))
-        n = processing_azimuth_fft_size(cfg,max(int(np.ceil(raw_count*fs/raw_fs)),
-                    int(np.ceil(cfg.ocean.Ly*fs/model['v_ground']))),n)
-        processing_f = np.fft.fftfreq(n, 1/fs)
+        rg_count = getattr(source, 'range_fft_size', None)
+        if rg_count is None:
+            rg_count, _, _ = range_processing_grid(
+                geometry, look, source['slc_r'].shape[-1],
+                scalar('rg_sampling'), fs, model['f0'])
+        far_range = model['sr0'] + (rg_count-1)*constants.c/(2*scalar('rg_sampling'))
+        minimum_rate = 2*v_eff**2/((constants.c/model['f0'])*far_range)
+        _, minimum_fft, _ = scansar_azimuth_grid(
+            cfg.ocean.Ly, getattr(cfg.mode, 'image_length', None), fs,
+            model['v_ground'], int(np.ceil(raw_count*fs/raw_fs)),
+            doppler_rate=minimum_rate,
+            full_image=getattr(cfg.processing, 'scansar_full_image', False))
+        saved_size = getattr(source, 'azimuth_fft_size', None)
+        n = (int(saved_size) if saved_size is not None else
+             processing_azimuth_fft_size(cfg, minimum_fft,
+                 sp_fft.next_fast_len(minimum_fft, real=False)))
+        processing_f = sp_fft.fftfreq(n, 1/fs)
         order = np.argsort(processing_f)
         extent = max(fs, 2*v_eff**2*(cfg.ocean.Ly/2/model['v_ground'])
                      / (constants.c/model['f0']*model['sr0']) + cfg.processing.doppler_bw/2 + 150.)

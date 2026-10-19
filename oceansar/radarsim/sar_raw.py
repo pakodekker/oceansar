@@ -106,6 +106,7 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file=False,
     cfg = resolve_acquisition(tpio.ConfigFile(cfg_file))
     antennas = SarAntenna.from_config(cfg)
     b_ati, b_xti = channel_positions(cfg)
+    has_cross_track_baseline = bool(np.any(b_xti != 0.0))
     seed = utils.get_sim_seed(cfg)
     surface_rng = utils.random_generator(seed, 'surface')
     bragg_positive_rng = utils.random_generator(seed, 'bragg_positive')
@@ -559,8 +560,12 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file=False,
             sr_surface = sr_surface.reshape([simpar['nblocks'], simpar['block_Ny'],surface.Nx])
             sr_surface = sr_surface - sr_surface_fct_[:,np.newaxis,np.newaxis]
             sr_surface = sr_surface.reshape([surface.Ny,surface.Nx])
-        # Elevation displacements
-        wave_dinc = (surface.Dz * sin_inc + surface.Dx * sin_inc) / simpar["sr0"]
+        # Incidence corrections are used only by cross-track channel phases.
+        # Check ALL resolved channel positions, using exact zero so even tiny
+        # nonzero baselines retain their correction. None marks the unused
+        # case without allocating either of these full-scene arrays.
+        wave_dinc = ((surface.Dz * sin_inc + surface.Dx * sin_inc) / simpar["sr0"]
+                     if has_cross_track_baseline else None)
         if az_step == 0:
             if do_hh:
                 scene_hh = np.zeros([int(surface.Ny), int(surface.Nx)], dtype=complex)
@@ -672,11 +677,9 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file=False,
                 t_last_rcs_bragg = t_now
 
             if do_hh:
-                scat_bragg_hh = np.sqrt(RCS_bragg_hh)
                 NRCS_bragg_hh_instant_avg = np.sum(RCS_bragg_hh) / surface_area
                 NRCS_avg_hh[az_step] += NRCS_bragg_hh_instant_avg
             if do_vv:
-                scat_bragg_vv = np.sqrt(RCS_bragg_vv)
                 NRCS_bragg_vv_instant_avg = np.sum(RCS_bragg_vv) / surface_area
                 NRCS_avg_vv[az_step] += NRCS_bragg_vv_instant_avg
 
@@ -695,10 +698,14 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file=False,
             if not cfg.ocean.frozen_ocean:
                 rndscat_m.scats(scene_time, out=bragg_scats[0])
                 rndscat_p.scats(scene_time, out=bragg_scats[1])
+            # Fuse power-to-amplitude conversion into the NumExpr reduction:
+            # sqrt is evaluated in chunks, avoiding another full (2, Ny, Nx)
+            # amplitude array per polarization. Retain RCS power for cached
+            # scattering updates and NRCS statistics; phase remains float64.
             if do_hh:
-                scene_hh += ne.evaluate('sum(scat_bragg_hh * exp(1j*phase_bragg) * bragg_scats, axis=0)')
+                scene_hh += ne.evaluate('sum(sqrt(RCS_bragg_hh) * exp(1j*phase_bragg) * bragg_scats, axis=0)')
             if do_vv:
-                scene_vv += ne.evaluate('sum(scat_bragg_vv * exp(1j*phase_bragg) * bragg_scats, axis=0)')
+                scene_vv += ne.evaluate('sum(sqrt(RCS_bragg_vv) * exp(1j*phase_bragg) * bragg_scats, axis=0)')
 
         # ANTENNA PATTERN
         # FIXME: this assume co-located Tx and Rx, so it will not work for true bistatic configurations
@@ -709,7 +716,8 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file=False,
             sr_surface_ = sr_surface
         else:
             sr_surface_ = sr_surface.flatten()
-        tot_dinc = (inc - inc_angle) + wave_dinc
+        tot_dinc = ((inc - inc_angle) + wave_dinc
+                    if has_cross_track_baseline else None)
         if do_hh:
             scene_hh *= beam_pattern
         if do_vv:
@@ -919,6 +927,15 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file=False,
         raw_file.__file__.factorization_current_reference = int(getattr(cfg.srg, 'factorize_current', True))
         raw_file.__file__.factorization_current_vector_m_s = np.asarray(surface.current, dtype=float)
         raw_file.__file__.factorization_coarse_sampling_hz = float(1/simpar['t_step'])
+        if 'scansar_guard_coarse_samples' in simpar:
+            raw_file.__file__.factorization_scansar_guard_coarse_samples = int(
+                simpar['scansar_guard_coarse_samples'])
+            raw_file.__file__.factorization_coarse_sample_count = int(simpar['az_steps'])
+            full_count = simpar['az_steps'] * simpar['n_pulses_b']
+            raw_file.__file__.factorization_azimuth_padding_full_prf_samples = np.array([
+                simpar['az_crop_start'],
+                full_count - simpar['az_crop_start'] - simpar['output_az_steps'],
+            ], dtype=np.int64)
         raw_file.__file__.factorization_current_clock = ('fixed ocean snapshot' if cfg.ocean.frozen_ocean
                                                         else 'elapsed generator time plus scene_time_offset')
         raw_file.__file__.factorization_current_scene_time_offset_s = float(simpar.get('scene_time_offset', 0.))

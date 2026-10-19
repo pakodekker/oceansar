@@ -20,6 +20,7 @@ import copy
 
 import numpy as np
 from matplotlib import pyplot as plt
+from scipy import fft as sp_fft
 from scipy import signal as scipy_signal
 
 from drama.geo.geo_history import GeoHistory
@@ -224,6 +225,40 @@ def geohistory_src_filter(ghist, look_angle, fa, fr, f0,
     return src_phase
 
 
+def range_processing_grid(ghist, look_angle, raw_samples, sample_rate,
+                           azimuth_sampling, f0):
+    """Return fast range FFT length, minimum length and migration guard.
+
+    raw_samples is the input range count; sample_rate, azimuth_sampling and
+    f0 are header range sampling, actual azimuth sampling and carrier in Hz.
+    ghist/look_angle specify the same reference geometry as RCMC and SRC.
+
+    The combined RCMC/SRC phase is phi(f0+fr, fa)-phi(f0, fa). Its derivative
+    with respect to fr is 4*pi*range_migration/c, giving a range-sample shift
+    2*sample_rate*range_migration/c. Bound the nominal shift at both azimuth
+    Nyquist edges and the lowest range-band carrier (largest migration).
+    Keep ceil(max(abs(shift)))+1 zero samples after the input: a shift through
+    the start then wraps into this discarded tail, not the retained image.
+    The extra sample covers endpoint rounding. Fractional-shift/spectral tails
+    are not finite-support kernels; this guard covers nominal group delay.
+
+    Apply next_fast_len only after adding this guard. Fast-size rounding alone
+    must never be relied on to supply range-migration padding.
+    """
+    lowest_carrier = f0-sample_rate/2
+    if lowest_carrier <= 0:
+        raise ValueError('Range sampling band must have positive carrier frequencies')
+    migration, _, _, _ = geohistory_reference_filter(
+        ghist, look_angle, np.array([-azimuth_sampling/2, azimuth_sampling/2]),
+        lowest_carrier)
+    shift = np.asarray(migration, dtype=np.float64)*2*sample_rate/const.c
+    if not np.isfinite(shift).all():
+        raise ValueError('Nonfinite range-migration guard')
+    guard = int(np.ceil(np.max(np.abs(shift))))+1
+    minimum = int(raw_samples)+guard
+    return sp_fft.next_fast_len(minimum, real=False), minimum, guard
+
+
 def point_target_azimuth_profile(data, expected_az, expected_rg,
                                  oversample=16, span=10, *, plot_save=True, plot_show=False):
     """Return an oversampled, phase-compensated point-target profile."""
@@ -260,7 +295,16 @@ def point_target_azimuth_profile(data, expected_az, expected_rg,
 def plot_point_target_azimuth_grid(data, expected_targets, channel,
                                    prf, plot_path, plot_format,
                                    oversample=16, span=10, *, plot_save=True, plot_show=False):
-    """Plot the 3x3 target-grid azimuth responses for one channel."""
+    """Plot retained target azimuth responses for one channel.
+
+    expected_targets contains (name, azimuth index, range index) entries within
+    data, whose axes are (polarization, azimuth, range). Cropping a ScanSAR
+    image may retain fewer than the original nine scene targets.
+    """
+    if not expected_targets:
+        return
+    ncols = min(3, len(expected_targets))
+    nrows = int(np.ceil(len(expected_targets)/ncols))
     def azimuth_spectrum(expected_az, expected_rg, cut_samples=128,
                          fft_oversample=8, phase_threshold_db=-12.0):
         """Return amplitude and detrended phase of a local target-cut FFT."""
@@ -287,9 +331,9 @@ def plot_point_target_azimuth_grid(data, expected_targets, channel,
         profile_padded = np.zeros(n_fft, dtype=complex)
         pad_start = (n_fft - profile.size)//2
         profile_padded[pad_start:pad_start + profile.size] = profile
-        spectrum = np.fft.fftshift(np.fft.fft(
-            np.fft.ifftshift(profile_padded)))
-        frequency = np.fft.fftshift(np.fft.fftfreq(n_fft, d=1/prf))
+        spectrum = sp_fft.fftshift(sp_fft.fft(
+            sp_fft.ifftshift(profile_padded)))
+        frequency = sp_fft.fftshift(sp_fft.fftfreq(n_fft, d=1/prf))
         amplitude = np.abs(spectrum)
         amplitude /= np.max(amplitude)
         amplitude_db = 20*np.log10(np.maximum(amplitude, 1e-6))
@@ -314,7 +358,8 @@ def plot_point_target_azimuth_grid(data, expected_targets, channel,
 
         return frequency, amplitude_db, phase_frequency, phase
 
-    fig, axs = plt.subplots(3, 3, figsize=(15, 11), sharex=True, sharey=True)
+    fig, axs = plt.subplots(nrows, ncols, figsize=(5*ncols, 11*nrows/3),
+                            sharex=True, sharey=True, squeeze=False)
     for ax, (target_name, expected_az, expected_rg) in zip(
             axs.ravel(), expected_targets):
         azimuth_samples, profile, peak_az, peak_rg = (
@@ -349,7 +394,8 @@ def plot_point_target_azimuth_grid(data, expected_targets, channel,
     spectra = [azimuth_spectrum(expected_az, expected_rg)
                for _, expected_az, expected_rg in expected_targets]
 
-    fig, axs = plt.subplots(3, 3, figsize=(15, 11), sharex=True, sharey=True)
+    fig, axs = plt.subplots(nrows, ncols, figsize=(5*ncols, 11*nrows/3),
+                            sharex=True, sharey=True, squeeze=False)
     for ax, (target, spectrum) in zip(
             axs.ravel(), zip(expected_targets, spectra)):
         frequency, amplitude_db, _, _ = spectrum
@@ -368,7 +414,8 @@ def plot_point_target_azimuth_grid(data, expected_targets, channel,
         plot_path, 'plot_point_target_azimuth_spectrum_amplitude_%d.%s' %
         (channel, plot_format)), save=plot_save, show=plot_show)
 
-    fig, axs = plt.subplots(3, 3, figsize=(15, 11), sharex=True, sharey=True)
+    fig, axs = plt.subplots(nrows, ncols, figsize=(5*ncols, 11*nrows/3),
+                            sharex=True, sharey=True, squeeze=False)
     for ax, (target, spectrum) in zip(
             axs.ravel(), zip(expected_targets, spectra)):
         _, _, phase_frequency, phase = spectrum
@@ -407,7 +454,7 @@ def check_reference_range_history(cfg, ghist, inc_angle, raw_sr0, az0,
         (np.mean(sr_diff), np.sqrt(np.mean(sr_diff**2)),
          np.max(np.abs(sr_diff))))
 
-    fa = np.fft.fftfreq(az_size, 1/prf)
+    fa = sp_fft.fftfreq(az_size, 1/prf)
     fa_order = np.argsort(fa)[::-1]
     fa_sorted = fa[fa_order]
     sr_dop, _, sr_zero_dop, t_zero_dop = geohistory_reference_filter(
@@ -548,18 +595,98 @@ def processing_antenna_pattern(cfg, beam_pattern):
     return np.where(abs(field) >= minimum*np.max(abs(field)), field, 0)
 
 
+def azimuth_filter_samples(sample_rate, doppler_rate, bandwidth=None):
+    """Return nominal azimuth focusing-filter support in time samples.
+
+    sample_rate is actual azimuth sampling in Hz (header az_sampling).
+    doppler_rate contains the nonzero local Doppler rates in Hz/s across the
+    processed range. Use the smallest magnitude for the longest filter.
+    bandwidth is the focused bandwidth in Hz; None selects the full sampled
+    band, as required by ScanSAR's focus-before-deramp processing.
+
+    A chirp sweeps bandwidth B in T = B / min(abs(Ka)) seconds. Its matched
+    filter therefore spans Nh = ceil(sample_rate * B / min(abs(Ka))) samples.
+    ScanSAR uses B = sample_rate, giving ceil(sample_rate**2 / abs(Ka));
+    stripmap applies the common-band window with the matched filter and can
+    use B = min(processed_bandwidth, sample_rate).
+
+    This is the nominal chirp support, not an explicit truncation of the
+    frequency-domain filter. Spectral-cutoff tails and the later ScanSAR
+    low-pass response can extend beyond it; they are not included in Nh.
+    """
+    if (isinstance(sample_rate, (bool, np.bool_)) or not np.isscalar(sample_rate)
+            or not np.isfinite(sample_rate) or sample_rate <= 0):
+        raise ValueError('sample_rate must be positive and finite')
+    rates = np.asarray(doppler_rate, dtype=np.float64)
+    if rates.size == 0 or not np.isfinite(rates).all() or np.any(rates == 0):
+        raise ValueError('Doppler rates must be finite and nonzero')
+    if bandwidth is None:
+        bandwidth = sample_rate
+    if (isinstance(bandwidth, (bool, np.bool_)) or not np.isscalar(bandwidth)
+            or not np.isfinite(bandwidth) or bandwidth <= 0):
+        raise ValueError('bandwidth must be positive and finite')
+    return max(1, int(np.ceil(sample_rate * min(bandwidth, sample_rate)
+                              / np.min(np.abs(rates)))))
+
+
+def scansar_azimuth_grid(scene_length, image_length, sample_rate, v_ground,
+                         raw_samples, *, doppler_rate, full_image=False):
+    """Return ScanSAR output count, minimum FFT count and crop offset.
+
+    scene_length and image_length are along-track lengths in metres; None for
+    image_length preserves the scene extent for unannotated acquisitions.
+    sample_rate is the actual input sampling in Hz, not the nominal PRF;
+    v_ground is in m/s and raw_samples is the acquired burst sample count.
+    doppler_rate contains the range-dependent rates in Hz/s.
+    full_image requests the nominal image even when the scene is shorter.
+
+    The crop offset is relative to the first acquired pulse. Centre on the raw
+    burst, resolving a half-sample tie towards the later sample. It must not
+    depend on FFT padding parity. Ceil rounds lengths up by less than a pixel.
+
+    For raw length Nr and nominal focusing support Nh, linear convolution
+    needs Nr + Nh - 1 samples. The minimum FFT grid is therefore
+    max(Nr + Nh - 1, output_samples). Round up with scipy.fft.next_fast_len
+    afterwards. The simulated scene length does not add a convolution guard:
+    contributions from the entire scene are already present in the raw burst,
+    including physical azimuth ambiguities. See azimuth_filter_samples for
+    the chirp-support approximation and its spectral-tail limitations.
+    """
+    for name, value in (('scene_length', scene_length),
+                        ('sample_rate', sample_rate), ('v_ground', v_ground)):
+        if (isinstance(value, (bool, np.bool_)) or not np.isscalar(value)
+                or not np.isfinite(value) or value <= 0):
+            raise ValueError(f'{name} must be positive and finite')
+    if image_length is None:
+        image_length = scene_length
+    if (isinstance(image_length, (bool, np.bool_)) or not np.isscalar(image_length)
+            or not np.isfinite(image_length) or image_length <= 0):
+        raise ValueError('image_length must be positive and finite, in metres')
+    if (isinstance(raw_samples, (bool, np.bool_)) or not np.isfinite(raw_samples)
+            or int(raw_samples) != raw_samples or raw_samples < 1):
+        raise ValueError('raw_samples must be a positive integer')
+    if not isinstance(full_image, (bool, np.bool_)):
+        raise ValueError('processing.scansar_full_image must be boolean')
+    length = image_length if full_image else min(scene_length, image_length)
+    output_samples = max(1, int(np.ceil(length * sample_rate / v_ground)))
+    filter_samples = azimuth_filter_samples(sample_rate, doppler_rate)
+    minimum_fft = max(int(raw_samples) + filter_samples - 1, output_samples)
+    crop_offset = (int(raw_samples) - output_samples + 1) // 2
+    return output_samples, minimum_fft, crop_offset
+
+
 def processing_azimuth_fft_size(cfg, minimum, default):
     """Return a validated optional exact FFT length for processing diagnostics.
 
     processing.azimuth_fft_size=None preserves the optimized default. An
-    explicit integer must cover both raw burst and requested output support.
+    explicit integer must cover the required processing support and guards.
     This changes zero padding/frequency sampling, never the acquisition PRF.
     Actual frequency weights are saved in the SLC for DC response correction.
     """
     value=getattr(cfg.processing,'azimuth_fft_size',None)
     if value is None or str(value).lower()=='none':return int(default)
     if isinstance(value,(bool,np.bool_)) or not np.isfinite(value) or int(value)!=value or value<minimum:
-        raise ValueError('processing.azimuth_fft_size must be an integer covering raw and output samples')
+        raise ValueError('processing.azimuth_fft_size must be an integer covering processing support and zero guards')
     return int(value)
 
 
@@ -605,8 +732,16 @@ def scansar_deramp_phase(az_size, slant_range, az0, prf,
             / (instantaneous_range + slant_range))
 
 
-def stripmap_azimuth_focus(data, ph_ac, common_band_filter):
-    """Apply stripmap azimuth matched filtering and return the focused SLC."""
+def stripmap_azimuth_focus(data, ph_ac, common_band_filter, *, workers=None):
+    """Return stripmap SLC samples with the same shape as complex data.
+
+    data has axes (batch, azimuth-Doppler, range); sar_focus batches the
+    polarizations of one channel. ph_ac is matched-filter phase in radians,
+    shaped (azimuth,) or (azimuth, range). common_band_filter contains the
+    one-dimensional amplitude weights in azimuth FFT order. workers is the
+    SciPy FFT thread count, or None for its current default. The returned
+    azimuth axis is in the spatial domain; no image cropping is done here.
+    """
     az_size = data.shape[1]
 
     if ph_ac.ndim == 1:
@@ -619,7 +754,7 @@ def stripmap_azimuth_focus(data, ph_ac, common_band_filter):
             * common_band_filter.reshape((1, az_size, 1))
         )
 
-    return np.fft.ifft(data * azimuth_filter, axis=1)
+    return sp_fft.ifft(data * azimuth_filter, axis=1, workers=workers)
 
 
 def scansar_azimuth_focus(
@@ -629,6 +764,7 @@ def scansar_azimuth_focus(
     common_band_filter=None,
     *,
     reramp=True,
+    workers=None,
 ):
     """Focus ScanSAR data using deramp-filter-reramp processing.
 
@@ -641,7 +777,8 @@ def scansar_azimuth_focus(
         RCMC-corrected data in azimuth-Doppler/range coordinates.
 
         Expected shape:
-        ``(channel, azimuth, range)``.
+        ``(batch, azimuth, range)``. sar_focus batches the polarizations
+        of one channel.
 
     ph_ac : ndarray
         Azimuth matched-filter phase in the original Doppler domain.
@@ -670,6 +807,10 @@ def scansar_azimuth_focus(
         If True, restore the removed azimuth phase before returning.
         If False, return the focused data in deramped coordinates.
 
+    workers : int or None, optional
+        SciPy FFT worker count. None uses SciPy's current default; sar_focus
+        supplies sim.nworkers to each transform.
+
     Returns
     -------
     ndarray
@@ -681,7 +822,7 @@ def scansar_azimuth_focus(
 
     if data.ndim != 3:
         raise ValueError(
-            "data must have shape (channel, azimuth, range)"
+            "data must have shape (batch, azimuth, range)"
         )
 
     az_size = data.shape[1]
@@ -720,14 +861,14 @@ def scansar_azimuth_focus(
     azimuth_filter = np.exp(1j * ph_ac)
 
     # 2. Transform to focused azimuth/range coordinates.
-    focused = np.fft.ifft(data * azimuth_filter, axis=1)
+    focused = sp_fft.ifft(data * azimuth_filter, axis=1, workers=workers)
 
     # 3. Remove the azimuth-dependent phase modulation.
     deramp = np.exp(-1j * deramp_phase)
     deramped = focused * deramp
 
     # 4. Transform to the common baseband Doppler domain.
-    baseband_spectrum = np.fft.fft(deramped, axis=1)
+    baseband_spectrum = sp_fft.fft(deramped, axis=1, workers=workers)
 
     # 5. Select the desired common Doppler band.
     if common_band_filter is not None:
@@ -738,7 +879,7 @@ def scansar_azimuth_focus(
         baseband_spectrum *= common_band_filter
 
     # 6. Return to deramped azimuth/range coordinates.
-    result = np.fft.ifft(baseband_spectrum, axis=1)
+    result = sp_fft.ifft(baseband_spectrum, axis=1, workers=workers)
 
     # 7. Optionally restore the removed phase.
     if reramp:
@@ -792,6 +933,12 @@ def sar_focus(cfg_file, raw_output_file, output_file, *, plot_show=False):
     ramp after deramped focusing; the stored phase reference matters for DC.
     ScanSAR SLCs also store burst timing and response-model power weights
     for downstream Doppler sensitivity correction.
+    The acquired mode image_length (metres) caps the ScanSAR output extent.
+    By default shorter scenes are retained at their own length; setting
+    processing.scansar_full_image=True retains the full nominal image instead.
+    FFT zero guards use the nominal focusing-filter duration B/abs(Ka),
+    independently of the simulated scene extent. scipy.fft.next_fast_len
+    selects efficient mixed-factor sizes; sim.nworkers selects FFT threads.
     sim.memory_limit_gib optionally isolates this stage and monitors measured
     caller+worker memory, stopping near the configured GiB budget.
     """
@@ -803,6 +950,11 @@ def sar_focus(cfg_file, raw_output_file, output_file, *, plot_show=False):
     from oceansar.radarsim.sar_system_errors import validate_raw_paths
     validate_raw_paths(raw_output_file, output_file)
     cfg = resolve_acquisition(tpio.ConfigFile(cfg_file))
+    workers = getattr(cfg.sim, 'nworkers', 1)
+    if (isinstance(workers, (bool, np.bool_)) or not np.isscalar(workers)
+            or not np.isfinite(workers) or int(workers) != workers or workers < 1):
+        raise ValueError('sim.nworkers must be a positive integer')
+    workers = int(workers)
 
     # PROCESSING
     az_weighting = cfg.processing.az_weighting
@@ -891,24 +1043,38 @@ def sar_focus(cfg_file, raw_output_file, output_file, *, plot_show=False):
     for ch in np.arange(num_ch):
 
         # Build the azimuth processing grid. ScanSAR acquisition duration and
-        # image extent are independent, so center the burst in a grid large
-        # enough for the saved scene at the actual input sampling rate.
+        # image extent are independent. Retain the mode-defined image, while
+        # allowing a larger simulated scene to contribute physical ambiguities.
         az_size_orig, rg_size_orig = raw_data[0, ch].shape
+        rg_fft_size, minimum_rg_size, range_guard = range_processing_grid(
+            ghist, look_focus, rg_size_orig, rg_sampling, prf, f0)
+        # Use the farthest processed range for the smallest |Ka| and longest
+        # filter. Keep range/phase geometry in float64. In reconstructed data
+        # prf here is header az_sampling, not the nominal acquisition PRF.
+        far_range = sr0 + (rg_fft_size-1)*const.c/(2*rg_sampling)
+        minimum_doppler_rate = 2*v_eff**2/(l0*far_range)
+        focusing_bandwidth = prf if operation_mode == 'scansar' else min(prf, doppler_bw)
+        filter_samples = azimuth_filter_samples(
+            prf, minimum_doppler_rate, focusing_bandwidth)
         if ch == 0 and sr_pt is not None:
             check_reference_range_history(
                 cfg, ghist, inc_angle_rad, sr0, az0, prf, v_ground, f0,
                 sr_pt, az_size_orig, v_eff, plot_path=plot_path,
                 plot_format=plot_format, plot_save=plot_save, plot_show=plot_show)
         if operation_mode == 'scansar':
-            output_az_size = max(
-                1, int(np.ceil(cfg.ocean.Ly * prf / v_ground)))
-            minimum_az_size = max(az_size_orig, output_az_size)
+            output_az_size, minimum_az_size, output_offset = scansar_azimuth_grid(
+                cfg.ocean.Ly, getattr(cfg.mode, 'image_length', None), prf,
+                v_ground, az_size_orig, doppler_rate=minimum_doppler_rate,
+                full_image=getattr(
+                    cfg.processing, 'scansar_full_image', False))
         else:
             output_az_size = None
-            minimum_az_size = az_size_orig
-        optsize = utils.optimize_fftsize(
-            (minimum_az_size, rg_size_orig))
-        optsize = [raw_data.shape[0], optsize[0], optsize[1]]
+            minimum_az_size = az_size_orig + filter_samples - 1
+        # Complex transforms: let SciPy choose supported small prime factors,
+        # rather than rounding to the next power of two. An explicit diagnostic
+        # azimuth_fft_size remains allowed, but must include the support above.
+        optsize = [raw_data.shape[0],
+                   sp_fft.next_fast_len(minimum_az_size, real=False), rg_fft_size]
         optsize[1] = processing_azimuth_fft_size(cfg, minimum_az_size, optsize[1])
         data = np.zeros(optsize, dtype=complex)
         az_size, rg_size = data.shape[1:]
@@ -924,14 +1090,16 @@ def sar_focus(cfg_file, raw_output_file, output_file, *, plot_show=False):
         if ch == 0 and operation_mode == 'scansar':
             print(
                 "ScanSAR azimuth grid: %d burst samples, "
-                "%d FFT samples, %d output samples"
-                % (az_size_orig, az_size, output_az_size))
+                "%d nominal filter samples (min |Ka| %.3f Hz/s), "
+                "%d FFT samples, %d output samples; %d FFT workers"
+                % (az_size_orig, filter_samples, minimum_doppler_rate,
+                   az_size, output_az_size, workers))
 
         # RCMC Correction
         print('Applying RCMC correction... [Channel %d/%d]' % (ch + 1, num_ch))
-        fr = np.fft.fftfreq(rg_size, 1/rg_sampling)
+        fr = sp_fft.fftfreq(rg_size, 1/rg_sampling)
     
-        fa = np.fft.fftfreq(az_size, 1/prf)
+        fa = sp_fft.fftfreq(az_size, 1/prf)
         slant_range = (sr0 + np.arange(rg_size)
                        * const.c/(2*rg_sampling))
         # Antenna response in the original azimuth-Doppler domain.
@@ -966,23 +1134,23 @@ def sar_focus(cfg_file, raw_output_file, output_file, *, plot_show=False):
         (rcmc_fa, ph_src, ph_ac,
          common_band_filter, deramp_phase) = filter_cache[filter_key]
         #rcmc_fa[:]=0
-        data = np.fft.fft(np.fft.fft(data, axis=-1), axis=-2)
+        data = sp_fft.fftn(data, axes=(-1, -2), workers=workers)
 
         range_doppler_phase = (
             4*np.pi/const.c * rcmc_fa[:, np.newaxis]
             * fr[np.newaxis, :] + ph_src)
         data = data * np.exp(1j*range_doppler_phase[np.newaxis, :, :])
-        data = np.fft.ifft(data, axis=2)
+        data = sp_fft.ifft(data, axis=2, workers=workers)
 
         if plot_rcmc_dopp:
             plt.figure()
-            plt.imshow(np.fft.fftshift(np.abs(data[0]), axes=0), vmax=np.max(np.abs(data)), cmap='gray',
+            plt.imshow(sp_fft.fftshift(np.abs(data[0]), axes=0), vmax=np.max(np.abs(data)), cmap='gray',
                        origin='lower')
             finish_plot(plt.gcf(), os.path.join(plot_path, 'plot_rcmc_dopp_%d.%s' % (ch, plot_format)),
                         save=plot_save, show=plot_show)
 
         if plot_rcmc_time:
-            rcmc_time = np.fft.ifft(data[0], axis=0)[
+            rcmc_time = sp_fft.ifft(data[0], axis=0, workers=workers)[
                 az_insert_start:az_insert_stop, :rg_size_orig]
             rcmc_time_max = np.max(np.abs(rcmc_time))
             plt.figure()
@@ -1002,19 +1170,20 @@ def sar_focus(cfg_file, raw_output_file, output_file, *, plot_show=False):
                 deramp_phase,
                 common_band_filter=common_band_filter,
                 reramp=reramp,
+                workers=workers,
             )
         else:
             data = stripmap_azimuth_focus(
-                data, ph_ac, common_band_filter)
+                data, ph_ac, common_band_filter, workers=workers)
 
         print('Finishing... [Channel %d/%d]' % (ch + 1, num_ch))
         data = data[:, :, :rg_size_orig]
 
         # Stripmap requires an aperture-length edge crop. ScanSAR retains the
-        # scene-sized portion of the centered processing grid.
+        # requested image portion, with coordinates independent of FFT length.
         if operation_mode == 'scansar':
             n_val_az_2 = 0
-            output_start = (az_size - output_az_size) // 2
+            output_start = az_insert_start + output_offset
             output_stop = output_start + output_az_size
             data = data[:, output_start:output_stop, :]
             output_az0 = (
@@ -1037,11 +1206,16 @@ def sar_focus(cfg_file, raw_output_file, output_file, *, plot_show=False):
                 expected_az = (
                     (target_y - output_az0)*prf/v_ground)
                 expected_rg = (target_sr - sr0)*2*rg_sampling/const.c
-                expected_targets.append(
-                    (target_name, expected_az, expected_rg))
-            plot_point_target_azimuth_grid(
-                data, expected_targets, ch, prf, plot_path, plot_format,
-                plot_save=plot_save, plot_show=plot_show)
+                if (0 <= expected_az < data.shape[1]
+                        and 0 <= expected_rg < data.shape[2]):
+                    expected_targets.append(
+                        (target_name, expected_az, expected_rg))
+                else:
+                    print('Skipping point target outside retained SLC: ' + target_name)
+            if expected_targets:
+                plot_point_target_azimuth_grid(
+                    data, expected_targets, ch, prf, plot_path, plot_format,
+                    plot_save=plot_save, plot_show=plot_show)
         if plot_image_valid:
             plt.figure()
             range_step = const.c/(2*rg_sampling)
@@ -1088,7 +1262,21 @@ def sar_focus(cfg_file, raw_output_file, output_file, *, plot_show=False):
     proc_file.set('rg_bw', rg_bw)
     proc_file.set('b_ati', b_ati)
     proc_file.set('b_xti', b_xti)
+    proc_file.__file__.fft_workers = workers
+    proc_file.__file__.azimuth_focusing_filter_samples = int(filter_samples)
+    proc_file.__file__.azimuth_doppler_rate_min_hz_per_s = float(minimum_doppler_rate)
+    proc_file.__file__.azimuth_focusing_bandwidth_hz = float(focusing_bandwidth)
+    proc_file.__file__.range_fft_size = int(rg_size)
+    proc_file.__file__.range_fft_minimum_size = int(minimum_rg_size)
+    proc_file.__file__.range_migration_guard_samples = int(range_guard)
     if operation_mode == 'scansar':
+        proc_file.__file__.scansar_full_image = int(getattr(
+            cfg.processing, 'scansar_full_image', False))
+        proc_file.__file__.output_azimuth_length_m = slc.shape[2]*v_ground/prf
+        proc_file.__file__.azimuth_fft_size = int(az_size)
+        proc_file.__file__.azimuth_fft_minimum_size = int(minimum_az_size)
+        proc_file.__file__.azimuth_zero_padding_samples = np.array(
+            [az_insert_start, az_size-az_insert_stop], dtype=np.int64)
         from oceansar.radarsim.scansar_dc import write_scansar_dc_metadata
         write_scansar_dc_metadata(cfg, proc_file, antennas=antennas, ghist=ghist, look=look_focus,
             frequencies=fa, beam_pattern=beam_pattern, common_band_filter=common_band_filter,

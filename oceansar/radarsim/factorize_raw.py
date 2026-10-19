@@ -101,7 +101,7 @@ def factorization_current_range(cfg, params, surface, elapsed_time,
 
 
 def factorize_raw_params(cfg, params, surface, info, internal_oversampling=8,
-                         scansar_guard_coarse_samples=2):
+                         scansar_guard_coarse_samples=None):
     """Derive coarse sampling, spatial blocks and retained raw pulse support.
 
     cfg supplies acquisition mode/PRF, ocean wind speed and srg.factorize.
@@ -111,6 +111,16 @@ def factorize_raw_params(cfg, params, surface, info, internal_oversampling=8,
     decimation, block dimensions and output crop/origin. Coarse sampling is
     determined by stochastic ocean coherence; by default deterministic current
     is removed by factorization_current_range and restored during aggregation.
+
+    scansar_guard_coarse_samples is an optional nonnegative integer override.
+    None reads cfg.srg.scansar_guard_coarse_samples, defaulting to 8. This is
+    the requested extra COARSE samples per side for factorized ScanSAR only:
+    add twice this count before rounding the coarse grid to a fast FFT length,
+    then crop the interpolated data back to the requested burst. Increasing
+    guards extends internal support without changing the coarse sampling rate
+    or retained pulse count. Explicit overrides serve controlled experiments.
+    params['scansar_guard_coarse_samples'] records the resolved requested count;
+    az_steps, n_pulses_b and az_crop_start describe the actual padded grid.
     """
     factorize = cfg.srg.factorize
     prf = cfg.mode.prf
@@ -121,6 +131,17 @@ def factorize_raw_params(cfg, params, surface, info, internal_oversampling=8,
                  importance=2)
 
     if factorize:
+        if operation_mode == 'scansar':
+            if scansar_guard_coarse_samples is None:
+                scansar_guard_coarse_samples = getattr(
+                    cfg.srg, 'scansar_guard_coarse_samples', 8)
+            guards = scansar_guard_coarse_samples
+            if (isinstance(guards, (bool, np.bool_)) or not np.isscalar(guards)
+                    or not isinstance(guards, (int, float, np.integer, np.floating))
+                    or not np.isfinite(guards) or guards < 0 or int(guards) != guards):
+                raise ValueError('scansar_guard_coarse_samples must be a nonnegative integer')
+            scansar_guard_coarse_samples = int(guards)
+            params['scansar_guard_coarse_samples'] = scansar_guard_coarse_samples
         info.msg("Factorizing raw data generation", importance=2)
         # We will compute less surface realizations
         # Coherence time of the surface, for a large area
@@ -152,9 +173,11 @@ def factorize_raw_params(cfg, params, surface, info, internal_oversampling=8,
             params["az_crop_start"] = (
                 full_az_steps - requested_az_steps + 1) // 2
             info.msg(
-                "ScanSAR factorization guard: %d internal pulses; "
-                "keeping %d centered pulses"
-                % (full_az_steps, requested_az_steps),
+                "ScanSAR factorization: %d requested coarse guards per side, "
+                "%d coarse samples after FFT padding; "
+                "%d internal pulses, keeping %d centered pulses"
+                % (scansar_guard_coarse_samples, az_steps,
+                   full_az_steps, requested_az_steps),
                 importance=2)
         else:
             params["output_az_steps"] = full_az_steps

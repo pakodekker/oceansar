@@ -42,7 +42,27 @@ def _mode(dataset):
     return {key: np.asarray(value).item() if np.asarray(value).ndim == 0
             else np.asarray(value)[index].item()
             for key, value in definition.items()
-            if key in ('mode', 'pol', 'burst_length')}
+            if key in ('mode', 'pol', 'burst_length', 'image_length')}
+
+
+def burst_image_length(dataset, cfg=None):
+    """Return intended ScanSAR image length in metres, or None if unannotated.
+
+    Prefer the explicit header, then the saved acquisition mode definition.
+    cfg supplies a length only when the input has no saved value.
+    """
+    value = getattr(dataset, 'burst_image_length_m', None)
+    if value is None:
+        value = _mode(dataset).get('image_length')
+    if value is None:
+        value = getattr(getattr(cfg, 'mode', None), 'image_length', None)
+    if value is None:
+        return None
+    if (isinstance(value, (bool, np.bool_)) or not np.isscalar(value)
+            or not isinstance(value, (int, float, np.integer, np.floating))
+            or not np.isfinite(value) or value <= 0):
+        raise ValueError('Burst image_length must be positive and finite, in metres')
+    return float(value)
 
 
 def acquisition_mode(dataset, cfg=None):
@@ -105,6 +125,12 @@ def write_geometry(dataset, cfg, labels, *, surface=None):
     dataset.processing_geometry = json.dumps(geometry, sort_keys=True)
     dataset.acquisition_mode = cfg.mode.mode
     dataset.polarizations = json.dumps(list(labels))
+    if cfg.mode.mode == 'scansar' and hasattr(cfg.mode, 'image_length'):
+        # Read from this stage's resolved acquisition view, not a nominal mode
+        # definition that could disagree with the input product being focused.
+        length = burst_image_length(None, cfg)
+        if length is not None:
+            dataset.burst_image_length_m = length
 
 
 def focusing_configuration(cfg, dataset):
@@ -124,6 +150,9 @@ def focusing_configuration(cfg, dataset):
     result.mode.prf = azimuth_sampling(dataset)
     result.mode.inc_angle = scalar(dataset, 'inc_angle')
     result.mode.mode = acquisition_mode(dataset, cfg)
+    length = burst_image_length(dataset, cfg)
+    if length is not None:
+        result.mode.image_length = length
     result.mode.rg_bw = scalar(dataset, 'rg_bw', positive=True)
     result.mode.over_fs = scalar(dataset, 'rg_sampling', positive=True)/result.mode.rg_bw
     return result

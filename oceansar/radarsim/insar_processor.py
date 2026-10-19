@@ -116,7 +116,8 @@ def insar_process(cfg_file, proc_output_file, ocean_file, output_file, *, plot_s
     proc_data = proc_content.get('slc*')
     polt = metadata.polarizations(proc_content.__file__, proc_data.shape[1], cfg)
     inherited_attributes = {key: proc_content.__file__.getncattr(key) for key in
-        ('processing_geometry', 'processed_doppler_bandwidth_hz', 'antenna_configuration')
+        ('processing_geometry', 'processed_doppler_bandwidth_hz', 'antenna_configuration',
+         'burst_image_length_m')
         if key in proc_content.__file__.ncattrs()}
     acquisition_prf = metadata.scalar(proc_content.__file__, 'prf', positive=True)
     sr0 = proc_content.get('sr0')
