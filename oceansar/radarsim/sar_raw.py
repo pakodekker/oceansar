@@ -1,7 +1,4 @@
-"""
-This is an implementation of sar_raw avoiding MPI.
-
-"""
+"""Public SAR raw-generation dispatch and unchunked standard/reference backend."""
 
 import os
 import time
@@ -45,7 +42,74 @@ from oceansar.radarsim.factorize_raw import (
 @memory_limited
 def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file=False,
             plot_save=True, bistatic=False, dau=0, *, factorization=None):
-    """Generate ideal SAR raw samples and store their amplitude calibration factor.
+    """Generate ideal raw data using the backend selected by the configuration.
+
+    Parameters
+    ----------
+    cfg_file : str or path-like
+        Simulator configuration. srg.factorize=False selects the standard
+        full-PRF generator. True selects spatially chunked factorization for
+        Bragg, Kodis and point targets. Factorized KA spa/fa specular modes
+        retain the unchunked backend until their chunked support is available.
+        srg.factorize_blocks_per_chunk is a positive integer (default 16),
+        controlling workspace grouping without changing physical blocks,
+        sampling, guard counts or interpolation.
+    output_file : str or path-like
+        Destination RawFile, replaced on a successful rerun as in the original
+        interface. Samples are ideal and uncalibrated, with axes
+        (polarization, channel, azimuth, range). cal_factor, sampling, geometry,
+        baselines and point-target range history are stored alongside them.
+    ocean_file : str or path-like
+        Ocean Fourier initial conditions to create or load.
+    reuse_ocean_file : bool, optional
+        Reuse an initialized ocean state when possible.
+    plot_save : bool, optional
+        Forward diagnostic plotting selection to the backend. The existing
+        backends still save some diagnostic images when this is False.
+    bistatic : bool, optional
+        Enable bistatic GeoHistory geometry. Scattering/antenna models retain
+        their existing quasi-monostatic approximations.
+    dau : float, optional
+        Along-track spacecraft displacement in metres, passed to GeoHistory.
+    factorization : object, optional
+        Experimental parameters/aggregate strategy, forwarded unchanged to
+        the selected backend, including any physical scene-clock offsets.
+
+    Returns
+    -------
+    None
+        Write ideal raw samples and metadata. System errors, focusing and
+        temporary-product cleanup remain separate orchestration steps.
+
+    Notes
+    -----
+    Notebook and simulator callers use this function for either sampling mode.
+    Its memory monitor covers dispatch and the selected backend in ONE worker;
+    nested backend guards do not create another process. The memory report
+    keeps the established memory_sar_raw filename. Specular HH/VV share one
+    field; Bragg retains polarization dependence.
+    """
+    cfg = tpio.ConfigFile(cfg_file)
+    chunked = (cfg.srg.factorize and
+               (not cfg.srg.scat_spec_enable or cfg.srg.scat_spec_mode == 'kodis'))
+    if chunked:
+        from oceansar.radarsim.sar_raw_factorized_chunked import sar_raw_factorized_chunked
+        return sar_raw_factorized_chunked(
+            cfg_file, output_file, ocean_file, reuse_ocean_file,
+            plot_save=plot_save, bistatic=bistatic, dau=dau,
+            blocks_per_chunk=getattr(cfg.srg, 'factorize_blocks_per_chunk', 16),
+            factorization=factorization, overwrite=True)
+    if cfg.srg.factorize:
+        print('Using unchunked factorization for specular mode %s' % cfg.srg.scat_spec_mode)
+    return sar_raw_standard(cfg_file, output_file, ocean_file, reuse_ocean_file,
+                            plot_save=plot_save, bistatic=bistatic, dau=dau,
+                            factorization=factorization)
+
+
+@memory_limited
+def sar_raw_standard(cfg_file, output_file, ocean_file, reuse_ocean_file=False,
+            plot_save=True, bistatic=False, dau=0, *, factorization=None):
+    """Generate ideal SAR raw samples using the unchunked standard/reference path.
 
     Parameters
     ----------
@@ -87,9 +151,16 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file=False,
 
     Notes
     -----
+    Public sar_raw selects this backend for full-PRF generation and for the
+    factorized KA specular modes whose chunked implementation is not available.
+    The original factorized path is also retained as the independent numerical
+    reference for chunk-equivalence checks. Call sar_raw for normal simulation.
     The output is marked raw_data_state='ideal' and calibration_applied=0.
     Call sar_system_errors separately to apply cal_factor and add NESZ noise
     before focusing. A configured sim.seed controls the random streams.
+    Specular scattering is represented by one polarization-independent field
+    shared by HH/VV. Kodis is scalar; KA modes use one VV evaluation for both.
+    Bragg scattering retains its polarization dependence.
     A positive sim.memory_limit_gib runs this stage in an externally monitored
     worker. Its arrays are released when the call returns; a budget violation
     raises SimulationMemoryError in the caller without killing its notebook.
@@ -157,7 +228,6 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file=False,
     else:
         add_point_target = False
 
-    use_numba = True
     n_sinc_samples = 8
     sinc_ovs = 20
     chan_sinc_vec = raw.calc_sinc_vec(n_sinc_samples, sinc_ovs, Fs=over_fs)
@@ -600,44 +670,19 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file=False,
                     scene_vv[target_y, target_x] = pt_scat
                 sr_surface[target_y, target_x] = sr_target
 
-        # Specular
+        # Specular: evaluate one scalar field and reuse it for HH/VV.
         if scat_spec_enable:
-            if scat_spec_mode == 'kodis':
-                Esn_sp = np.sqrt(4.*np.pi)*rcs_spec.field(az_proj_angle, sr_surface,
-                                                          surface.Diffx, surface.Diffy,
-                                                          surface.Diffxx, surface.Diffyy, surface.Diffxy)
-                if do_hh:
-                    scene_hh += Esn_sp
-                if do_vv:
-                    scene_vv += Esn_sp
-            else:
-                # FIXME
-                if do_hh:
-                    pol_tmp = 'hh'
-                    Esn_sp = (np.exp(-1j*(2.*k0*sr_surface)) * (4.*np.pi)**1.5 *
-                              rcs_spec.field(1, 1, pol_tmp[0], pol_tmp[1],
-                                             inc, inc,
-                                             az_proj_angle, az_proj_angle + np.pi,
-                                             surface.Dz,
-                                             surface.Diffx, surface.Diffy,
-                                             surface.Diffxx,
-                                             surface.Diffyy,
-                                             surface.Diffxy))
-                    scene_hh += Esn_sp
-                if do_vv:
-                    pol_tmp = 'vv'
-                    Esn_sp = (np.exp(-1j*(2.*k0*sr_surface)) * (4.*np.pi)**1.5 *
-                              rcs_spec.field(1, 1, pol_tmp[0], pol_tmp[1],
-                                             inc, inc,
-                                             az_proj_angle, az_proj_angle + np.pi,
-                                             surface.Dz,
-                                             surface.Diffx, surface.Diffy,
-                                             surface.Diffxx,
-                                             surface.Diffyy,
-                                             surface.Diffxy))
-                    scene_vv += Esn_sp
-            NRCS_avg_hh[az_step] += (np.sum(np.abs(Esn_sp)**2) / surface_area)
-            NRCS_avg_vv[az_step] += NRCS_avg_hh[az_step]
+            Esn_sp = rcs.specular_field(
+                rcs_spec, az_proj_angle, sr_surface, inc, surface.Dz,
+                surface.Diffx, surface.Diffy, surface.Diffxx,
+                surface.Diffyy, surface.Diffxy)
+            spec_nrcs = np.sum(np.abs(Esn_sp)**2) / surface_area
+            if do_hh:
+                scene_hh += Esn_sp
+                NRCS_avg_hh[az_step] += spec_nrcs
+            if do_vv:
+                scene_vv += Esn_sp
+                NRCS_avg_vv[az_step] += spec_nrcs
 
         # Bragg
         if scat_bragg_enable:
@@ -754,25 +799,14 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file=False,
                     scene_bp_ = scene_bp.flatten()
                 proc_raw_hh_[:] = 0
                 #info.msg("Here 1")
-                if use_numba:
-                    raw.chan_profile_numba(sr_surface_,
-                                           scene_bp_,
-                                           sr_res/(over_fs),
-                                           min_sr,
-                                           chan_sinc_vec,
-                                           n_sinc_samples, sinc_ovs,
-                                           proc_raw_hh_,
-                                           rg_only=cfg.srg.factorize)
-
-                else:
-                    raw.chan_profile_weave(sr_surface_,
-                                           scene_bp_,
-                                           sr_res/(over_fs),
-                                           min_sr,
-                                           chan_sinc_vec,
-                                           n_sinc_samples, sinc_ovs,
-                                           proc_raw_hh_,
-                                           rg_only=cfg.srg.factorize)
+                raw.chan_profile_numba(sr_surface_,
+                                       scene_bp_,
+                                       sr_res/(over_fs),
+                                       min_sr,
+                                       chan_sinc_vec,
+                                       n_sinc_samples, sinc_ovs,
+                                       proc_raw_hh_,
+                                       rg_only=cfg.srg.factorize)
                 #info.msg("Here 2")
                 if cfg.srg.factorize:
                     proc_raw_hh[ch][az_step] = np.sum(proc_raw_hh_.reshape([simpar['nblocks'], simpar['block_Ny'], rg_samp]), axis=1)
@@ -790,25 +824,14 @@ def sar_raw(cfg_file, output_file, ocean_file, reuse_ocean_file=False,
                 else:
                     scene_bp_ = scene_bp.flatten()     
                 proc_raw_vv_[:] = 0           
-                if use_numba:
-                    raw.chan_profile_numba(sr_surface_,
-                                           scene_bp_,
-                                           sr_res/(over_fs),
-                                           min_sr,
-                                           chan_sinc_vec,
-                                           n_sinc_samples, sinc_ovs,
-                                           proc_raw_vv_,
-                                           rg_only=cfg.srg.factorize)
-
-                else:
-                    raw.chan_profile_weave(sr_surface_,
-                                           scene_bp_,
-                                           sr_res/(over_fs),
-                                           min_sr,
-                                           chan_sinc_vec,
-                                           n_sinc_samples, sinc_ovs,
-                                           proc_raw_vv_,
-                                           rg_only=cfg.srg.factorize)
+                raw.chan_profile_numba(sr_surface_,
+                                       scene_bp_,
+                                       sr_res/(over_fs),
+                                       min_sr,
+                                       chan_sinc_vec,
+                                       n_sinc_samples, sinc_ovs,
+                                       proc_raw_vv_,
+                                       rg_only=cfg.srg.factorize)
                 if cfg.srg.factorize:
                      proc_raw_vv[ch][az_step] = np.sum(proc_raw_vv_.reshape([simpar['nblocks'], simpar['block_Ny'], rg_samp]), axis=1)
                 else:

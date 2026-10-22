@@ -370,7 +370,6 @@ def dopsca_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
 
     surface_area = surface.dx * surface.dy * surface.Nx * surface.Ny
     inv_surface_area = 1./surface_area
-    spec_field_scale = (4.*np.pi)**1.5
     ###################
     # SIMULATION LOOP #
     ###################
@@ -438,45 +437,18 @@ def dopsca_raw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file,
                         scene_vv[int(surface.Ny/2), int(surface.Nx/2)] = pt_scat
                     sr_surface[int(surface.Ny/2), int(surface.Nx/2)] = sr_pt
 
-                # Specular
+                # Specular: evaluate one scalar field and reuse it for HH/VV.
                 if scat_spec_enable:
-                    if scat_spec_mode == 'kodis':
-                        Esn_sp = np.sqrt(4.*np.pi)*rcs_spec_s[range_blk].field(az_proj_angle, sr_surface,
-                                                                               Diffx, Diffy,
-                                                                               Diffxx, Diffyy, Diffxy)
-                        spec_nrcs = np.sum(np.abs(Esn_sp)**2)*inv_surface_area
-                        if do_hh:
-                            scene_hh += Esn_sp * range_scaling
-                            NRCS_avg_hh[az_step] += spec_nrcs
-                        if do_vv:
-                            scene_vv += Esn_sp * range_scaling
-                            NRCS_avg_vv[az_step] += spec_nrcs
-                    else:
-                        # FIXME
-                        spec_phase = (np.exp(-1j*two_k0*sr_surface)
-                                      * spec_field_scale)
-                        if do_hh:
-                            pol_tmp = 'hh'
-                            Esn_sp = spec_phase*rcs_spec_s[range_blk].field(
-                                1, 1, pol_tmp[0], pol_tmp[1],
-                                inc_s[range_blk], inc_s[range_blk],
-                                az_proj_angle, az_proj_angle + np.pi,
-                                Dz, Diffx, Diffy, Diffxx, Diffyy, Diffxy)
-                            scene_hh += Esn_sp * range_scaling
-                            spec_nrcs = (np.sum(np.abs(Esn_sp)**2)
-                                         * inv_surface_area)
-                            NRCS_avg_hh[az_step] += spec_nrcs
-                        if do_vv:
-                            pol_tmp = 'vv'
-                            Esn_sp = spec_phase*rcs_spec_s[range_blk].field(
-                                1, 1, pol_tmp[0], pol_tmp[1],
-                                inc_s[range_blk], inc_s[range_blk],
-                                az_proj_angle, az_proj_angle + np.pi,
-                                Dz, Diffx, Diffy, Diffxx, Diffyy, Diffxy)
-                            scene_vv += Esn_sp * range_scaling
-                            spec_nrcs = (np.sum(np.abs(Esn_sp)**2)
-                                         * inv_surface_area)
-                            NRCS_avg_vv[az_step] += spec_nrcs
+                    Esn_sp = rcs.specular_field(
+                        rcs_spec_s[range_blk], az_proj_angle, sr_surface, inc_s[range_blk],
+                        Dz, Diffx, Diffy, Diffxx, Diffyy, Diffxy)
+                    spec_nrcs = np.sum(np.abs(Esn_sp)**2)*inv_surface_area
+                    if do_hh:
+                        scene_hh += Esn_sp * range_scaling
+                        NRCS_avg_hh[az_step] += spec_nrcs
+                    if do_vv:
+                        scene_vv += Esn_sp * range_scaling
+                        NRCS_avg_vv[az_step] += spec_nrcs
 
                 # Bragg
                 if scat_bragg_enable:

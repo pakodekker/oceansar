@@ -26,6 +26,7 @@ Available models
 from .ka import RCSKA
 from .kodis import RCSKodis
 from .romeiser97 import RCSRomeiser97
+from .specular import specular_field
 
 models = {'ka': RCSKA,
           'kodis': RCSKodis,

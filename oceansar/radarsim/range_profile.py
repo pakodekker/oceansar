@@ -7,7 +7,6 @@ Created on Fri Mar 14 09:12:51 2014
 
 
 import numpy as np
-# from scipy import weave
 from numba import jit, prange
 import matplotlib.pyplot as plt
 
@@ -119,81 +118,6 @@ def chan_profile_numba(srg, scene, binsize, min_sr,
     else:
         profile_integrator(scene, bin_d, bin_f, sinc_vec, n_sinc_samples,
                            sinc_ovs, output)
-
-
-def chan_profile_weave(srg, scene, binsize, min_sr,
-                      sinc_vec, n_sinc_samples, sinc_ovs,
-                      output):
-    """ Calculates channel profile by summing all grid points with the same
-        slant range
-
-        :param srg: Matrix with slant range values for each grid
-        :param scene: Matrix with scene
-        :param output: Matrix where generated output will be stored
-        :param binsize: Slant range bin resolution
-        :param min: Minimum slant range value to consider
-        :param max: Maximum slant range value to consider
-        :param sinc_vec: oversampled sinc, the idea is to reuse it
-
-        .. note::
-            This function is implemented in C in order to achieve good
-            performance
-    """
-
-    # Type 'conversion' needed for weave
-    binsize = float(binsize)
-    #threshold = int(threshold)
-    npts = srg.size
-    nbins = output.size
-    n_sinc_bins = sinc_ovs * n_sinc_samples + 1
-    if np.size(sinc_vec) != n_sinc_bins:
-        sinc_bins = np.arange(n_sinc_bins)*1./sinc_ovs-n_sinc_lobes
-        sinc_vec = np.sinc(sinc_bins)
-    #Fractional bin
-    bin_f = (srg - min_sr) / binsize
-    bin_d = (np.floor(bin_f))
-    bin_f = np.floor(sinc_ovs * (1 - (bin_f - bin_d)))
-    code = """
-    int bin,sbin, i,j;
-    int tn_sinc_lobes, rnbins;
-    tn_sinc_lobes = 2 * n_sinc_lobes;
-    rnbins = nbins - tn_sinc_lobes -1;
-
-    for(i=0; i<npts; i++)
-    {
-        bin = (int)(bin_d[i]);
-        bin = bin - n_sinc_lobes;
-        sbin = (int)(bin_f[i]);
-        //Check if there are edge issues
-        if((bin < 0) || (bin > rnbins))
-        {
-            //We are at an edge and proceed with care
-            for(j=0; j<2*n_sinc_lobes;j++)
-            {
-                if((bin > 0) && (bin < (nbins - 1)))
-                {
-                    output[bin] += sinc_vec[sbin+j*sinc_ovs]*scene[i];
-                }
-                bin++;
-            }
-        }
-        else
-        {
-            //We are safe and do not need to check for boundary problems
-            for(j=0; j<2*n_sinc_lobes;j++)
-            {
-                output[bin] += sinc_vec[sbin+j*sinc_ovs]*scene[i];
-                bin++;
-            }
-        }
-    }
-
-
-    """
-
-    weave.inline(code, ['scene', 'npts', 'nbins', 'output',
-                        'bin_d', 'bin_f', 'sinc_vec', 'sinc_ovs',
-                        'n_sinc_lobes'], verbose=2)
 
 
 def range_profile_test(N):

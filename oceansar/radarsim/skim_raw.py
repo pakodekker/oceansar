@@ -516,44 +516,19 @@ def skimraw(cfg_file, output_file, ocean_file, reuse_ocean_file, errors_file, re
             scene_vv = np.zeros([int(surface.Ny), int(surface.Nx)], dtype=np.complex)
 
 
-        # Specular
+        # Specular: evaluate one scalar field and reuse it for HH/VV.
         if scat_spec_enable:
-            if scat_spec_mode == 'kodis':
-                Esn_sp = np.sqrt(4.*np.pi)*rcs_spec.field(az_proj_angle, sr_surface,
-                                                          surface.Diffx, surface.Diffy,
-                                                          surface.Diffxx, surface.Diffyy, surface.Diffxy)
-                if do_hh:
-                    scene_hh += Esn_sp
-                if do_vv:
-                    scene_vv += Esn_sp
-            else:
-                # FIXME
-                if do_hh:
-                    pol_tmp = 'hh'
-                    Esn_sp = (np.exp(-1j*(2.*k0*sr_surface)) * (4.*np.pi)**1.5 *
-                              rcs_spec.field(1, 1, pol_tmp[0], pol_tmp[1],
-                                             inc, inc,
-                                             az_proj_angle, az_proj_angle + np.pi,
-                                             surface.Dz,
-                                             surface.Diffx, surface.Diffy,
-                                             surface.Diffxx,
-                                             surface.Diffyy,
-                                             surface.Diffxy))
-                    scene_hh += Esn_sp
-                if do_vv:
-                    pol_tmp = 'vv'
-                    Esn_sp = (np.exp(-1j*(2.*k0*sr_surface)) * (4.*np.pi)**1.5 *
-                              rcs_spec.field(1, 1, pol_tmp[0], pol_tmp[1],
-                                             inc, inc,
-                                             az_proj_angle, az_proj_angle + np.pi,
-                                             surface.Dz,
-                                             surface.Diffx, surface.Diffy,
-                                             surface.Diffxx,
-                                             surface.Diffyy,
-                                             surface.Diffxy))
-                    scene_vv += Esn_sp
-            NRCS_avg_hh[az_step] += (np.sum(np.abs(Esn_sp)**2) / surface_area)
-            NRCS_avg_vv[az_step] += NRCS_avg_hh[az_step]
+            Esn_sp = rcs.specular_field(
+                rcs_spec, az_proj_angle, sr_surface, inc, surface.Dz,
+                surface.Diffx, surface.Diffy, surface.Diffxx,
+                surface.Diffyy, surface.Diffxy)
+            spec_nrcs = np.sum(np.abs(Esn_sp)**2) / surface_area
+            if do_hh:
+                scene_hh += Esn_sp
+                NRCS_avg_hh[az_step] += spec_nrcs
+            if do_vv:
+                scene_vv += Esn_sp
+                NRCS_avg_vv[az_step] += spec_nrcs
 
         # Bragg
         if scat_bragg_enable:

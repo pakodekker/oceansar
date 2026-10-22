@@ -255,7 +255,7 @@ class RCSKA():
 #                         (epsilon*p*K*np.exp(-1j*np.sum(q*self.r, axis=-1)) *
 #                          2.*np.pi/q[..., 2]*n_norm/np.sqrt(J_abs)),
 #                         0.)
-            E = np.zeros(delta_x.shape, dtype=np.complex)
+            E = np.zeros(delta_x.shape, dtype=complex)
             sps = np.where(((-0.5 * self.dx < delta_x) &
                             (delta_x < 0.5 * self.dx)) &
                            ((-0.5 * self.dy < delta_y) &

@@ -302,48 +302,19 @@ class RadarSurface():
 
 
 
-            # Specular
+            # Specular: evaluate one scalar field and reuse it for HH/VV.
             if scat_spec_enable:
-                if scat_spec_mode == 'kodis':
-                    Esn_sp = np.sqrt(4.*np.pi)*rcs_spec.field(az_rad,
-                                                              sr_surface,
-                                                              self.diffx[az_step],
-                                                              self.diffy[az_step],
-                                                              self.diffxx[az_step],
-                                                              self.diffyy[az_step],
-                                                              self.diffxy[az_step])
-                    if do_hh:
-                        scene_hh[az_step] += Esn_sp
-                    if do_vv:
-                        scene_vv[az_step] += Esn_sp
-                else:
-                    # FIXME
-                    if do_hh:
-                        pol_tmp = 'hh'
-                        Esn_sp = (np.exp(-1j*(2.*k0*sr_surface)) * (4.*np.pi)**1.5 *
-                                  rcs_spec.field(1, 1, pol_tmp[0], pol_tmp[1],
-                                                 inc, inc,
-                                                 az_rad, az_rad + np.pi,
-                                                 self.dz[az_step],
-                                                 self.diffx[az_step], self.diffy[az_step],
-                                                 self.diffxx[az_step],
-                                                 self.diffyy[az_step],
-                                                 self.diffxy[az_step]))
-                        scene_hh[az_step] += Esn_sp
-                    if do_vv:
-                        pol_tmp = 'vv'
-                        Esn_sp = (np.exp(-1j*(2.*k0*sr_surface)) * (4.*np.pi)**1.5 *
-                                  rcs_spec.field(1, 1, pol_tmp[0], pol_tmp[1],
-                                                 inc, inc,
-                                                 az_rad, az_rad + np.pi,
-                                                 self.dz[az_step],
-                                                 self.diffx[az_step], self.diffy[az_step],
-                                                 self.diffxx[az_step],
-                                                 self.diffyy[az_step],
-                                                 self.diffxy[az_step]))
-                        scene_vv[az_step] += Esn_sp
-                NRCS_avg_hh[az_step] += (np.sum(np.abs(Esn_sp)**2) / surface_area)
-                NRCS_avg_vv[az_step] += NRCS_avg_hh[az_step]
+                Esn_sp = rcs.specular_field(
+                    rcs_spec, az_rad, sr_surface, inc, self.dz[az_step],
+                    self.diffx[az_step], self.diffy[az_step], self.diffxx[az_step],
+                    self.diffyy[az_step], self.diffxy[az_step])
+                spec_nrcs = np.sum(np.abs(Esn_sp)**2) / surface_area
+                if do_hh:
+                    scene_hh[az_step] += Esn_sp
+                    NRCS_avg_hh[az_step] += spec_nrcs
+                if do_vv:
+                    scene_vv[az_step] += Esn_sp
+                    NRCS_avg_vv[az_step] += spec_nrcs
 
             # Bragg
             if scat_bragg_enable:

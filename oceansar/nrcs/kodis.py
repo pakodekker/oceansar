@@ -36,6 +36,15 @@ class RCSKodis():
         self.R = (const.epsilon_sw - np.sqrt(const.epsilon_sw))/(const.epsilon_sw + np.sqrt(const.epsilon_sw))
 
     def field(self, az_angle, sr, diffx, diffy, diffxx, diffyy, diffxy):
+        """Return the polarization-independent complex field on the facet grid.
+
+        az_angle is the ground-projected azimuth in radians; sr contains
+        propagation ranges in metres. Slopes diffx/diffy and curvatures
+        diffxx/diffyy/diffxy define the local stationary-phase candidates.
+        Angles, incidence and range may broadcast over the facet grid, allowing
+        a compact azimuth column and range-dependent incidence row. Return a
+        complex128 array, zero outside facets containing a stationary point.
+        """
 
         # Avoid repeating calculations
         cos_az = np.cos(az_angle)
@@ -52,15 +61,24 @@ class RCSKodis():
         # New slant range due to deltas
         hdx = self.dx/2
         hdy = self.dy/2
-        E = np.zeros(delta_x.shape, dtype=np.complex)
+        E = np.zeros(delta_x.shape, dtype=complex)
         sps = np.where(((-hdx < delta_x) & (delta_x < hdx)) &
                        ((-hdy < delta_y) & (delta_y < hdy)))
         if sps[0].size > 0:
+            # Candidate indices address BOTH spatial axes. Broadcast compact
+            # angle/incidence arrays as views before indexing: cos_az[sps]
+            # otherwise treats a (Ny, 1) azimuth column as a full range map.
+            # This also supports scalar angles without materializing maps.
+            sin_inc = np.broadcast_to(self.sin_inc, delta_x.shape)
+            cos_inc = np.broadcast_to(self.cos_inc, delta_x.shape)
+            cos_az = np.broadcast_to(cos_az, delta_x.shape)
+            sin_az = np.broadcast_to(sin_az, delta_x.shape)
+            sr = np.broadcast_to(sr, delta_x.shape)
             delta_z = delta_x[sps] * diffx[sps] + delta_y[sps] * diffy[sps]
             sr_p2 = (sr[sps] +
-                     (self.sin_inc[0,sps[1]] * cos_az[sps] * delta_x[sps] +
-                      self.sin_inc[0,sps[1]] * sin_az[sps] * delta_y[sps] -
-                      self.cos_inc[0,sps[1]] * delta_z))
+                     (sin_inc[sps] * cos_az[sps] * delta_x[sps] +
+                      sin_inc[sps] * sin_az[sps] * delta_y[sps] -
+                      cos_inc[sps] * delta_z))
             E[sps] = ((0.5*self.R*epsilon[sps]) *
                       ((diffx[sps]**2. + diffy[sps]**2. + 1.)) *
                       np.exp(-1j*2.*self.k0*sr_p2) /
