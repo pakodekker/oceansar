@@ -1,11 +1,12 @@
 import json
 import numpy as np
 from oceansar import ocs_io as tpio
+from scipy.signal import resample_poly
 from oceansar import constants as const
 from oceansar.ocs_io import product_metadata as metadata
 from oceansar.utils import geometry as geo
 #create a function
-def raw_reconstr(raw_output_file, reconstr_output_file, K, channel_ids = [0, 1, 2, 3, 4]):
+def raw_reconstr(raw_output_file, reconstr_output_file, K, channel_ids = [0, 1, 2, 3, 4], downsample = True):
     # Load config and raw data
     """Reconstruct an azimuth-oversampled raw signal from along-track channels.
 
@@ -30,6 +31,9 @@ def raw_reconstr(raw_output_file, reconstr_output_file, K, channel_ids = [0, 1, 
     channel_ids : sequence of int, optional
         Input channels used for reconstruction. The selected IDs are saved as
         the ``ids_ch`` product variable.
+    downsample : bool, optional
+        If True, the reconstructed signal is downsampled to the original azimuth sample count. 
+        The output azimuth sampling rate is the same as the input PRF.
 
     Returns
     -------
@@ -121,16 +125,25 @@ def raw_reconstr(raw_output_file, reconstr_output_file, K, channel_ids = [0, 1, 
     # Convert to the azimuth domain
     upsample_signal = np.fft.ifft(np.fft.ifftshift(full_spectrum, axes=0), axis=0)
     # add the dimension of polarization, number of channels
-    upsample_signal = upsample_signal[None, None, :, :]
-    print('Upsampling completed!')
+    if downsample:
+        downsample_signal = resample_poly(
+            upsample_signal,
+            up=1,
+            down=K,
+            axis=0
+            )
+        reconstr_data = downsample_signal[None, None, :, :]
+    else:
+        reconstr_data = upsample_signal[None, None, :, :]
+        source_az = np.arange(N_az)
+        output_az = np.arange(N_out) / K
+    print('Reconstruction completed!')
     # These vectors follow the azimuth sample grid, so interpolate them to
     # match the reconstructed signal's increased sample count.
     sr_pt = np.ma.asarray(raw_file.get('sr_pt'))
     if (sr_pt.shape != (N_az,) or np.ma.is_masked(sr_pt)
             or not np.isfinite(sr_pt).all()):
         raise ValueError('Raw sr_pt must contain one finite value per azimuth sample')
-    source_az = np.arange(N_az)
-    output_az = np.arange(N_out) / K
 
     nrcs_avg = np.ma.asarray(raw_file.get('NRCS_avg'))
     if (nrcs_avg.shape != (raw_data.shape[0], N_az)
@@ -159,12 +172,19 @@ def raw_reconstr(raw_output_file, reconstr_output_file, K, channel_ids = [0, 1, 
     raw_file.close()
 
     # Write the standard four-dimensional raw schema expected by sar_focus.
-    reconstr_file = tpio.RawFile(reconstr_output_file, 'w', upsample_signal.shape)
+    reconstr_file = tpio.RawFile(reconstr_output_file, 'w', reconstr_data.shape)
     reconstr_file.set('inc_angle', inc_angle)
     reconstr_file.set('f0', f0)
-    reconstr_file.set('num_ch', upsample_signal.shape[1])
+    reconstr_file.set('num_ch', reconstr_data.shape[1])
     reconstr_file.set('ant_L', ant_L)
-    metadata.write_sampling(reconstr_file.__file__, K * prf, prf)
+    if downsample:
+        metadata.write_sampling(reconstr_file.__file__, prf, prf)
+        reconstr_file.set('sr_pt', sr_pt)
+        reconstr_file.set('NRCS_avg', nrcs_avg)
+    else:
+        metadata.write_sampling(reconstr_file.__file__, K * prf, prf)
+        reconstr_file.set('sr_pt', np.interp(output_az, source_az, sr_pt))
+        reconstr_file.set('NRCS_avg', np.interp(output_az, source_az, nrcs_avg[0])[None, :])
     reconstr_file.set('v_ground', v_ground)
     reconstr_file.set('az0', az0)
     reconstr_file.set('orbit_alt', alt)
@@ -173,10 +193,7 @@ def raw_reconstr(raw_output_file, reconstr_output_file, K, channel_ids = [0, 1, 
     reconstr_file.set('rg_bw', rg_bw)
     reconstr_file.set('b_ati', np.zeros(1))
     reconstr_file.set('b_xti', np.zeros(1))
-    reconstr_file.set('sr_pt', np.interp(output_az, source_az, sr_pt))
-    reconstr_file.set(
-        'NRCS_avg', np.interp(output_az, source_az, nrcs_avg[0])[None, :])
-    reconstr_file.set('raw_data*', upsample_signal)
+    reconstr_file.set('raw_data*', reconstr_data)
 
     ids_ch = np.asarray(channel_ids, dtype=np.int32)
     reconstr_file.__file__.createDimension('ids_ch_dim', ids_ch.size)
