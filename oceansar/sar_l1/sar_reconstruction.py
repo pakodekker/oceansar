@@ -130,7 +130,7 @@ def raw_reconstr(raw_output_file, reconstr_output_file, K, channel_ids = [0, 1, 
             or not np.isfinite(sr_pt).all()):
         raise ValueError('Raw sr_pt must contain one finite value per azimuth sample')
     source_az = np.arange(N_az)
-    output_az = np.arange(N_out) / N_ch
+    output_az = np.arange(N_out) / K
 
     nrcs_avg = np.ma.asarray(raw_file.get('NRCS_avg'))
     if (nrcs_avg.shape != (raw_data.shape[0], N_az)
