@@ -30,6 +30,7 @@ from oceansar.utils import geometry as geo
 from drama import utils
 from oceansar import ocs_io as tpio
 from oceansar import constants as const
+from oceansar.radarsim.point_targets import point_target_indices
 from oceansar.radarsim.antenna_model import SarAntenna, resolve_acquisition
 from oceansar.ocs_io import product_metadata as metadata
 from oceansar.utils.plotting import finish_plot
@@ -123,30 +124,20 @@ def reference_point_geometry(cfg, inc_angle):
     """Return the raw-generator reference-point geometry."""
     alt = cfg.orbit.Horb
     x, y = scene_coordinates(cfg)
+    pt_x, pt_y = point_target_indices(cfg, x, y)
     gr0 = geo.inc_to_gr(inc_angle, alt)
     look_near = np.asarray(geo.gr_to_geo(np.array([gr0 + x[0]]), alt)[2]).item()
     look_pt = np.asarray(
-        geo.gr_to_geo(np.array([gr0 + x[x.size//2]]), alt)[2]).item()
-    return look_near, look_pt, y[y.size//2]
+        geo.gr_to_geo(np.array([gr0 + x[pt_x[1]]]), alt)[2]).item()
+    return look_near, look_pt, y[pt_y[1]]
 
 
 def point_target_geometry(cfg, inc_angle):
-    """Return names, look angles, and azimuth positions for the target cross."""
+    """Return names, look angles, and azimuth positions for the target grid within the intended image."""
     x, y = scene_coordinates(cfg)
-    x_edge = int(round(0.1*(x.size - 1)))
-    y_edge = int(round(0.1*(y.size - 1)))
-    x_center = x.size//2
-    y_center = y.size//2
-    y_positions = (
-        ('late', y.size - 1 - y_edge),
-        ('center', y_center),
-        ('early', y_edge),
-    )
-    x_positions = (
-        ('near', x_edge),
-        ('center', x_center),
-        ('far', x.size - 1 - x_edge),
-    )
+    pt_x, pt_y = point_target_indices(cfg, x, y)
+    y_positions = tuple(zip(('late', 'center', 'early'), reversed(pt_y)))
+    x_positions = tuple(zip(('near', 'center', 'far'), pt_x))
     gr0 = geo.inc_to_gr(inc_angle, cfg.orbit.Horb)
     targets = []
     for y_name, y_index in y_positions:
@@ -157,6 +148,41 @@ def point_target_geometry(cfg, inc_angle):
                 np.array([gr0 + x[x_index]]), cfg.orbit.Horb)[2]).item()
             targets.append((name, look, y[y_index]))
     return targets
+
+
+def point_target_focused_displacement(ghist, look, azimuth_look, sin_inc,
+                                      current, elapsed, geometry_time, v_ground):
+    """Predict range and azimuth shifts by matching local Doppler histories.
+
+    Evaluate at the acquisition midpoint. A stationary focusing filter maps
+    the moving target's range rate onto a different reference time; the
+    difference gives its apparent azimuth displacement. This local prediction
+    centers diagnostic cuts; it does not refocus motion-induced defocus.
+    """
+    ux, uy = current
+    if ux == 0 and uy == 0:
+        return 0., 0.
+    h = .01
+    def reference(t):
+        return float(ghist.sr_spl(look, t).item())
+    def displacement(t):
+        sine = float(ghist.t2u_spl(azimuth_look, t).item())
+        return (elapsed + t - geometry_time) * (ux*sin_inc + uy*sine)
+    def rate(t):
+        return (reference(t+h) - reference(t-h))/(2*h)
+    moving_rate = rate(geometry_time) + (
+        displacement(geometry_time+h)-displacement(geometry_time-h))/(2*h)
+    reference_time = geometry_time
+    for _ in range(8):
+        curvature = (rate(reference_time+h)-rate(reference_time-h))/(2*h)
+        step = (moving_rate-rate(reference_time))/curvature
+        reference_time += step
+        if abs(step) < 1e-7:
+            break
+    az_shift = v_ground*(geometry_time-reference_time)
+    range_shift = (displacement(geometry_time) + reference(geometry_time)
+                   - reference(reference_time))
+    return az_shift, range_shift
 
 
 def geohistory_reference_filter(ghist, look_angle, fa, f0):
@@ -1008,6 +1034,16 @@ def sar_focus(cfg_file, raw_output_file, output_file, *, plot_show=False):
             if (np.ma.is_masked(baseline) or np.shape(baseline) != (num_ch,)
                     or not np.isfinite(baseline).all()):
                 raise ValueError('Invalid raw baseline header: ' + name)
+        follows_current = bool(getattr(raw_file.__file__, 'point_targets_follow_current',
+                                      getattr(cfg.sim, 'point_targets_follow_current', False)))
+        direction = np.deg2rad(cfg.ocean.current_dir)
+        target_current = np.asarray(getattr(
+            raw_file.__file__, 'point_target_current_vector_m_s',
+            cfg.ocean.current_mag*np.array([np.cos(direction), np.sin(direction)])))
+        padding = getattr(raw_file.__file__,
+                          'factorization_azimuth_padding_full_prf_samples', [0, 0])
+        target_elapsed_start = float(getattr(
+            raw_file.__file__, 'point_target_elapsed_start_s', padding[0]/acquisition_prf))
         sr_pt = None
         if 'sr_pt' in raw_file.__file__.variables:
             sr_pt = raw_file.get('sr_pt')
@@ -1017,7 +1053,11 @@ def sar_focus(cfg_file, raw_output_file, output_file, *, plot_show=False):
     ghist = make_geohistory(cfg, inc_angle_rad)
     v_eff = estimate_effective_velocity(cfg, inc_angle_rad, ghist=ghist)
     v_orbit = mean_orbital_velocity(ghist)
-    _, look_focus, _ = reference_point_geometry(cfg, inc_angle_rad)
+    # Antenna projection uses the scene-centre look in the raw generators,
+    # independently of where the diagnostic targets are placed.
+    scene_x, _ = scene_coordinates(cfg)
+    gr_center = geo.inc_to_gr(inc_angle_rad, alt) + scene_x[scene_x.size//2]
+    look_focus = float(np.asarray(geo.gr_to_geo(np.array([gr_center]), alt)[2]).item())
     point_targets = point_target_geometry(cfg, inc_angle_rad)
     print("Effective focusing velocity: %.3f m/s" % v_eff)
     print("Mean GeoHistory orbital velocity: %.3f m/s" % v_orbit)
@@ -1203,8 +1243,18 @@ def sar_focus(cfg_file, raw_output_file, output_file, *, plot_show=False):
             expected_targets = []
             for target_name, target_look, target_y in point_targets:
                 target_sr = ghist.sr_spl(target_look, 0.0).item()
+                az_shift, range_shift = 0., 0.
+                if follows_current:
+                    midpoint = (raw_data.shape[-2]-1)/(2*prf)
+                    elapsed = target_elapsed_start + midpoint
+                    geometry_time = az0/v_ground + midpoint - target_y/v_ground
+                    az_shift, range_shift = point_target_focused_displacement(
+                        ghist, target_look, look_focus,
+                        np.sin(geo.look_to_inc(target_look, alt)), target_current,
+                        elapsed, geometry_time, v_ground)
+                target_sr += range_shift
                 expected_az = (
-                    (target_y - output_az0)*prf/v_ground)
+                    (target_y + az_shift - output_az0)*prf/v_ground)
                 expected_rg = (target_sr - sr0)*2*rg_sampling/const.c
                 if (0 <= expected_az < data.shape[1]
                         and 0 <= expected_rg < data.shape[2]):

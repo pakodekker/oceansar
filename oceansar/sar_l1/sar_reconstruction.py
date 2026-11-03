@@ -166,7 +166,9 @@ def raw_reconstr(raw_output_file, reconstr_output_file, K, channel_ids = [0, 1, 
         for name in (
             'antenna_configuration', 'antenna_pattern_scope',
             'processing_geometry', 'acquisition_mode',
-            'burst_image_length_m')
+            'burst_image_length_m', 'point_targets_follow_current',
+            'point_target_current_vector_m_s', 'point_target_elapsed_start_s',
+            'factorization_azimuth_padding_full_prf_samples')
         if name in raw_file.__file__.ncattrs()
     }
     raw_file.close()

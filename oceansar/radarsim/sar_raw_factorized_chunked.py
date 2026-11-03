@@ -33,6 +33,7 @@ from oceansar import nrcs as rcs
 from oceansar import closure
 from oceansar.radarsim import range_profile as raw
 
+from oceansar.radarsim.point_targets import point_target_indices
 from oceansar.surfaces import OceanSurface
 from oceansar.swell_spec import dir_swell_spec as s_spec
 from oceansar.radarsim.factorize_raw import (
@@ -172,6 +173,7 @@ def sar_raw_factorized_chunked(cfg_file, output_file, ocean_file, reuse_ocean_fi
         add_point_target = cfg.sim.add_point_target
     else:
         add_point_target = False
+    point_targets_follow_current = getattr(cfg.sim, 'point_targets_follow_current', False)
 
     n_sinc_samples = 8
     sinc_ovs = 20
@@ -406,16 +408,10 @@ def sar_raw_factorized_chunked(cfg_file, output_file, ocean_file, reuse_ocean_fi
     NRCS_avg_vv = np.zeros(simpar["az_steps"], dtype=float)
     NRCS_avg_hh = np.zeros(simpar["az_steps"], dtype=float)
     sr_pt_history = np.zeros(simpar["az_steps"], dtype=float)
-    sr_pt_y = int(surface.Ny/2)
-    sr_pt_x = int(surface.Nx/2)
-    pt_y_edge = int(round(0.1*(surface.Ny - 1)))
-    pt_x_edge = int(round(0.1*(surface.Nx - 1)))
-    point_targets = tuple(
-        (target_y, target_x)
-        for target_y in (pt_y_edge, sr_pt_y,
-                         int(surface.Ny - 1 - pt_y_edge))
-        for target_x in (pt_x_edge, sr_pt_x,
-                         int(surface.Nx - 1 - pt_x_edge)))
+    pt_x, pt_y = point_target_indices(cfg, surface.x, surface.y)
+    sr_pt_x, sr_pt_y = pt_x[1], pt_y[1]
+    point_targets = tuple((target_y, target_x)
+                          for target_y in pt_y for target_x in pt_x)
     sr_pt_block = sr_pt_y//simpar['block_Ny']
 
 
@@ -578,12 +574,20 @@ def sar_raw_factorized_chunked(cfg_file, output_file, ocean_file, reuse_ocean_fi
                 if row_start <= sr_pt_y < row_stop:
                     sr_pt_history[az_step] = (sr_history[sr_pt_y-row_start, sr_pt_x]
                                               - reference[sr_pt_block-first])
+                    if point_targets_follow_current:
+                        sr_pt_history[az_step] += t_now * (
+                            surface.current[0] * sin_inc[0, sr_pt_x]
+                            + surface.current[1] * sin_az[sr_pt_y-row_start, 0])
                 if add_point_target:
                     for target_y, target_x in point_targets:
                         if row_start <= target_y < row_stop:
                             local_y = target_y - row_start
                             target_block = target_y // block_rows
                             sr_target = sr_history[local_y, target_x] - reference[target_block-first]
+                            if point_targets_follow_current:
+                                sr_target += t_now * (
+                                    surface.current[0] * sin_inc[0, target_x]
+                                    + surface.current[1] * sin_az[local_y, 0])
                             pt_scat = 100. * np.exp(-1j * 2. * k0 * sr_target)
                             for scene in fields.values():
                                 scene[local_y, target_x] = pt_scat
@@ -754,6 +758,9 @@ def sar_raw_factorized_chunked(cfg_file, output_file, ocean_file, reuse_ocean_fi
 
     raw_file = tpio.RawFile(output_file, 'w', total_raw.shape)
     antennas.save(raw_file.__file__)
+    raw_file.__file__.point_targets_follow_current = int(point_targets_follow_current)
+    raw_file.__file__.point_target_current_vector_m_s = np.asarray(surface.current, dtype=float)
+    raw_file.__file__.point_target_elapsed_start_s = float(simpar['az_crop_start']/prf)
     raw_file.__file__.raw_generator_variant = 'factorized-azimuth-chunks-v1'
     raw_file.__file__.factorization_blocks_per_chunk = int(blocks_per_chunk)
     raw_file.__file__.raw_data_state = 'ideal'
